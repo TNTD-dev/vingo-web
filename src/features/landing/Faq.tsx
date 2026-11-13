@@ -44,12 +44,18 @@ export function Faq() {
         </p>
         <Link
           to={agentPath()}
-          className="flex items-center gap-5 rounded-[14px] bg-ink py-[5px] pr-6 pl-[5px] type-body-m-strong text-on-ink transition-transform duration-150 hover:scale-[1.03]"
+          className="group relative flex h-[54px] items-center rounded-[14px] bg-ink pr-6 pl-[73px] type-body-m-strong text-on-ink"
         >
-          <span className="flex h-11 w-12 items-center justify-center rounded-[10px] bg-surface text-ink">
+          {/* Hover/focus: ô trắng trượt sang mép phải, chữ dịch trái đúng bằng phần ô trắng nhường lại. */}
+          <span
+            aria-hidden
+            className="absolute top-[5px] left-[5px] flex h-11 w-12 items-center justify-center rounded-[10px] bg-surface text-ink transition-[left] duration-500 ease-[cubic-bezier(.2,.8,.2,1)] motion-safe:group-hover:left-[calc(100%-53px)] motion-safe:group-focus-visible:left-[calc(100%-53px)]"
+          >
             <ChevronsRight className="size-5" />
           </span>
-          Hỏi Vingo
+          <span className="transition-transform duration-500 ease-[cubic-bezier(.2,.8,.2,1)] motion-safe:group-hover:-translate-x-[49px] motion-safe:group-focus-visible:-translate-x-[49px]">
+            Hỏi Vingo
+          </span>
         </Link>
       </div>
 

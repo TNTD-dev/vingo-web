@@ -1,5 +1,8 @@
+import { ArrowRight } from 'lucide-react'
 import { useMemo, type PointerEvent } from 'react'
 import { Link } from 'react-router'
+
+import { IconSweep } from '@/design/IconSweep'
 
 import { useSearchEvents } from '@/api/generated/endpoints/search/search'
 import type { EventSummary } from '@/api/generated/model'
@@ -127,9 +130,12 @@ export function FeaturedEvents() {
         </h2>
         <Link
           to="/events"
-          className="rounded-pill bg-ink px-5 py-3 type-body-m-strong text-on-ink transition-transform duration-150 hover:scale-105"
+          className="group inline-flex items-center gap-1.5 rounded-pill bg-ink px-5 py-3 type-body-m-strong text-on-ink transition-transform duration-150 hover:scale-105"
         >
-          Xem tất cả sự kiện →
+          Xem tất cả sự kiện
+          <IconSweep className="size-4">
+            <ArrowRight className="size-4" />
+          </IconSweep>
         </Link>
       </div>
     </section>

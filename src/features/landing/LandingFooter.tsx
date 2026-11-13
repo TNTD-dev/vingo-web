@@ -1,4 +1,5 @@
 import { ChevronsRight } from 'lucide-react'
+import { IconSweep } from '@/design/IconSweep'
 import { useRef, type FormEvent } from 'react'
 import { Link } from 'react-router'
 
@@ -88,9 +89,11 @@ export function LandingFooter() {
             />
             <button
               type="submit"
-              className="flex shrink-0 items-center gap-1.5 rounded-[10px] bg-surface px-3.5 py-2.5 type-body-m-strong text-ink"
+              className="group flex shrink-0 items-center gap-1.5 rounded-[10px] bg-surface px-3.5 py-2.5 type-body-m-strong text-ink"
             >
-              <ChevronsRight className="size-4" />
+              <IconSweep className="size-4">
+                <ChevronsRight className="size-4" />
+              </IconSweep>
               Nhận tin
             </button>
           </form>

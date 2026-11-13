@@ -1,4 +1,5 @@
 import { ArrowUp, Mic } from 'lucide-react'
+import { IconSweep } from '@/design/IconSweep'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 
 import { cn } from '@/lib/cn'
@@ -141,11 +142,13 @@ export function AskBar({
           type="submit"
           aria-label="Gửi cho Vingo"
           className={cn(
-            'flex items-center justify-center rounded-[14px] bg-ink text-agent transition-transform duration-150 hover:scale-105',
+            'group flex items-center justify-center rounded-[14px] bg-ink text-agent transition-transform duration-150 hover:scale-105',
             cta ? 'size-11 sm:size-[55px]' : 'size-11 sm:size-12',
           )}
         >
-          <ArrowUp className="size-5" />
+          <IconSweep direction="up" className="size-full rounded-[14px]">
+            <ArrowUp className="size-5" />
+          </IconSweep>
         </button>
       </div>
     </form>
