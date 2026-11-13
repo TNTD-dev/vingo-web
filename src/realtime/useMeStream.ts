@@ -83,11 +83,16 @@ export function useMeStream(onEvent?: MeStreamHandler, onOpen?: () => void) {
   }, [user, queryClient])
 }
 
-function invalidateFor(type: StreamEventEvent, queryClient: ReturnType<typeof useQueryClient>) {
+/** Khoá query của Orval có dạng ['/orders/{id}'], ['/orders', params], ['/tickets'…]: so khớp theo tiền tố của phần tử đầu. */
+export function invalidateFor(type: StreamEventEvent, queryClient: ReturnType<typeof useQueryClient>) {
+  const startsWith = (prefix: string) => ({
+    predicate: (q: { queryKey: readonly unknown[] }) =>
+      typeof q.queryKey[0] === 'string' && q.queryKey[0].startsWith(prefix),
+  })
   if (type.startsWith('order.') || type === 'payment.failed') {
-    void queryClient.invalidateQueries({ queryKey: ['/orders'] })
+    void queryClient.invalidateQueries(startsWith('/orders'))
   }
   if (type === 'ticket.issued') {
-    void queryClient.invalidateQueries({ queryKey: ['/tickets'] })
+    void queryClient.invalidateQueries(startsWith('/tickets'))
   }
 }

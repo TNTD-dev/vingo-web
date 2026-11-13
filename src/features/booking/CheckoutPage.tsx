@@ -34,6 +34,7 @@ import {
   type ProfileDraft,
   type ProfileErrors,
 } from './checkoutForm'
+import { rememberPayingOrder } from './paymentReturn'
 import { Steps } from './Steps'
 
 // B4 · Thanh toán và B4b · Chờ thanh toán VNPay (Figma 03 · Buyer). Trang chỉ tạo thanh toán rồi chờ;
@@ -119,7 +120,8 @@ function Checkout({ order }: { order: Order }) {
       setOpen(true)
     },
     onError: (error) => {
-      keyRef.current = undefined
+      // Lỗi mạng/5xx/429: giữ khoá để lần bấm lại là retry của cùng thao tác. Lỗi nghiệp vụ: bỏ khoá.
+      if (isApiError(error) && error.status < 500 && error.status !== 429) keyRef.current = undefined
       if (isApiError(error, 'HOLD_EXPIRED') || isApiError(error, 'ORDER_STATE_INVALID')) {
         toast.error('Đơn không còn giữ chỗ. Hãy chọn ghế lại.')
         void queryClient.invalidateQueries({ queryKey: getGetOrderQueryKey(orderId) })
@@ -129,6 +131,8 @@ function Checkout({ order }: { order: Order }) {
         toast.error('Thông tin người nhận vé chưa hợp lệ. Vui lòng kiểm tra lại.')
       } else if (isApiError(error, 'PROFILE_REQUIRED')) {
         toast.error('Cần điền thông tin người nhận vé trước khi thanh toán.')
+      } else if (isApiError(error) && error.status === 429) {
+        toast.error('Bạn thao tác quá nhanh. Đợi vài giây rồi thử lại.')
       } else {
         toast.error('Chưa tạo được thanh toán. Vui lòng thử lại.')
       }
@@ -160,8 +164,10 @@ function Checkout({ order }: { order: Order }) {
   }
 
   function openGateway() {
-    if (isSafePaymentUrl(intent?.payment_url)) window.location.assign(intent.payment_url)
-    else toast.error('Liên kết thanh toán không hợp lệ. Vui lòng thử lại.')
+    if (isSafePaymentUrl(intent?.payment_url)) {
+      rememberPayingOrder({ id: orderId, code: order.code })
+      window.location.assign(intent.payment_url)
+    } else toast.error('Liên kết thanh toán không hợp lệ. Vui lòng thử lại.')
   }
 
   const total = order.total_amount
