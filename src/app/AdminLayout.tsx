@@ -4,7 +4,6 @@ import { Menu } from 'lucide-react'
 
 import { useAuth } from '@/auth/auth-context'
 import { Logo } from '@/design/Logo'
-import { MascotLive } from '@/design/MascotLive'
 import { StatusBadge } from '@/design/StatusBadge'
 import { Button } from '@/design/ui/button'
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/design/ui/sheet'
@@ -45,22 +44,6 @@ const groups = [
   },
   { label: 'Hệ thống', links: [{ to: '/admin/audit-logs', label: 'Nhật ký audit', icon: audit }] },
 ]
-
-function CopilotLauncher() {
-  return (
-    <Link
-      to="/admin/copilot"
-      aria-label="Mở Copilot"
-      title="Mở Copilot"
-      className="group fixed right-3 bottom-3 z-50 sm:right-5 sm:bottom-5"
-    >
-      <MascotLive
-        mood="rest"
-        className="size-[72px] drop-shadow-md transition-transform group-hover:scale-105 sm:size-[91px]"
-      />
-    </Link>
-  )
-}
 
 export function AdminLayout() {
   const { user, logout } = useAuth()
@@ -150,7 +133,6 @@ export function AdminLayout() {
           <Outlet />
         </main>
       </div>
-      <CopilotLauncher />
     </div>
   )
 }
