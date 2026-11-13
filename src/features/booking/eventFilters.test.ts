@@ -86,8 +86,16 @@ describe('toSearchParams', () => {
       from: vnStartOfDay(2026, 11, 12),
       to: vnStartOfDay(2026, 11, 13),
       price_max: 800_000,
-      sort: 'relevance',
+      sort: undefined,
       limit: 12,
     })
+  })
+})
+
+describe('toSearchParams sort', () => {
+  it('bỏ sort=relevance khi không có từ khoá (backend từ chối)', () => {
+    expect(toSearchParams(readFilters(new URLSearchParams('')), new Date()).sort).toBeUndefined()
+    expect(toSearchParams(readFilters(new URLSearchParams('q=hagl')), new Date()).sort).toBe('relevance')
+    expect(toSearchParams(readFilters(new URLSearchParams('sort=price')), new Date()).sort).toBe('price')
   })
 })

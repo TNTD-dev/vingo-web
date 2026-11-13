@@ -120,7 +120,8 @@ export function toSearchParams(f: EventFilters, now: Date): SearchEventsParams {
     city: f.city,
     ...(f.when ? whenRange(f.when, now) : f.from && f.to ? rangeToIso(f.from, f.to) : {}),
     price_max: f.priceMax,
-    sort: f.sort,
+    // Backend chỉ nhận sort=relevance khi có từ khoá q; không có q thì bỏ tham số để dùng mặc định của backend.
+    sort: f.sort === 'relevance' && !f.q ? undefined : f.sort,
     limit: 12,
   }
 }
