@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from 'react-router'
 
 import { useAuth } from '@/auth/auth-context'
+import { AppNav } from '@/design/AppNav'
 import { Button } from '@/design/ui/button'
 import { cn } from '@/lib/cn'
 
@@ -108,6 +109,18 @@ export function AdminLayout() {
           <Outlet />
         </main>
       </div>
+    </div>
+  )
+}
+
+/** Agent mode (Figma page 04): nền canvas, AppNav kiểu Figma, khung chat chiếm phần còn lại của màn hình. */
+export function AgentLayout() {
+  return (
+    <div className="flex h-dvh min-h-[560px] flex-col gap-3 bg-canvas sm:gap-4">
+      <AppNav mode="vingo" />
+      <main className="flex min-h-0 flex-1 flex-col">
+        <Outlet />
+      </main>
     </div>
   )
 }

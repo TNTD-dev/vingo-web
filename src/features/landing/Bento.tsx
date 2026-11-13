@@ -5,7 +5,7 @@ import { cn } from '@/lib/cn'
 
 import { useInView, usePrefersReducedMotion } from '@/lib/hooks'
 import { MascotLive } from '@/design/MascotLive'
-import { QR_CELLS } from './qrPattern'
+import { QR_CELLS } from '@/design/qrPattern'
 
 /** Độ trễ giả-ngẫu-nhiên nhưng cố định (không đổi giữa các lần render), trong 600ms. */
 const qrDelay = (i: number) => ((i * 37) % 100) * 6

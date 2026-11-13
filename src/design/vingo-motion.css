@@ -165,3 +165,21 @@
     animation: vg-caret 1s steps(1) infinite;
   }
 }
+
+/* ---------- Agent mode: chấm "đang trả lời" ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  .vg-dot {
+    animation: vg-dot 1s ease-in-out infinite;
+  }
+  @keyframes vg-dot {
+    0%,
+    100% {
+      opacity: 0.3;
+      transform: translateY(0);
+    }
+    50% {
+      opacity: 1;
+      transform: translateY(-3px);
+    }
+  }
+}

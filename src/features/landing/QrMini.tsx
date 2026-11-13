@@ -1,6 +1,6 @@
 import { cn } from '@/lib/cn'
 
-import { QR_CELLS } from './qrPattern'
+import { QR_CELLS } from '@/design/qrPattern'
 
 /** QR minh hoạ dạng SVG (trang trí, không quét được). */
 export function QrMini({ className }: { className?: string }) {

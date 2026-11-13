@@ -19,14 +19,17 @@ class RetriableError extends Error {}
  * Mở GET /me/stream (cần Bearer nên dùng fetch-event-source, không dùng EventSource).
  * - Gửi Last-Event-ID khi nối lại; khử trùng theo id.
  * - Stream đóng do token hết hạn → refresh rồi nối lại.
+ * - `onOpen` báo khi stream đã mở (Agent mode đợi tín hiệu này rồi mới gửi tin đầu để không lỡ câu trả lời).
  * - Sự kiện đơn/vé → invalidate query tương ứng; mọi sự kiện chuyển cho `onEvent`.
  */
-export function useMeStream(onEvent?: MeStreamHandler) {
+export function useMeStream(onEvent?: MeStreamHandler, onOpen?: () => void) {
   const { user } = useAuth()
   const queryClient = useQueryClient()
   const handlerRef = useRef(onEvent)
+  const openRef = useRef(onOpen)
   useEffect(() => {
     handlerRef.current = onEvent
+    openRef.current = onOpen
   })
 
   useEffect(() => {
@@ -46,7 +49,10 @@ export function useMeStream(onEvent?: MeStreamHandler) {
         return fetch(input, { ...init, headers })
       },
       async onopen(res) {
-        if (res.ok) return
+        if (res.ok) {
+          openRef.current?.()
+          return
+        }
         if (res.status === 401 && (await refreshSession())) throw new RetriableError()
         throw new Error(`Không mở được /me/stream: HTTP ${res.status}`)
       },

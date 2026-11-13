@@ -13,6 +13,7 @@ import { getPaymentMock } from '@/api/generated/endpoints/payment/payment.msw'
 import { getSearchMock } from '@/api/generated/endpoints/search/search.msw'
 import { getTicketsMock } from '@/api/generated/endpoints/tickets/tickets.msw'
 
+import { agentHandlers } from './agent'
 import { authHandlers } from './auth'
 import { meStreamHandler } from './sse'
 
@@ -25,6 +26,7 @@ export const worker = setupWorker(
   navigationPassthrough,
   meStreamHandler,
   ...authHandlers,
+  ...agentHandlers,
   ...getAuthMock(),
   ...getMeMock(),
   ...getSearchMock(),
