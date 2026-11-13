@@ -1,0 +1,27 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["react", "typescript", "oxc", "jsx-a11y", "import"],
+  "ignorePatterns": ["src/api/generated/**", "src/design/ui/**", "public/mockServiceWorker.js"],
+  "rules": {
+    "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "warn",
+    "react/only-export-components": ["warn", { "allowConstantExport": true }],
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "group": ["**/api/generated/endpoints/*/*.msw", "**/api/generated/endpoints/*/*.faker"],
+            "message": "Mock chỉ dùng trong src/mocks và test."
+          }
+        ]
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["src/mocks/**", "src/**/*.test.ts", "src/**/*.test.tsx"],
+      "rules": { "no-restricted-imports": "off" }
+    }
+  ]
+}

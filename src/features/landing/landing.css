@@ -1,0 +1,240 @@
+/*
+ * Chuyển động Landing — Figma "Landing v1 · Motion spec".
+ * Quy ước: 150ms hover · 250ms mở/đóng · 500ms vào khung · 900ms chuyển cảnh; easing ease-out cubic-bezier(.2,.8,.2,1).
+ * Mọi chuyển động nằm trong `prefers-reduced-motion: no-preference`; bật "giảm chuyển động" thì trang
+ * hiện sẵn trạng thái cuối. Ngoại lệ duy nhất: Vingo chớp mắt.
+ */
+.lp {
+  --lp-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* ---------- Vào khung (IntersectionObserver 20%, chạy một lần) ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  .lp-reveal {
+    transition:
+      opacity 500ms var(--lp-ease),
+      transform 500ms var(--lp-ease);
+    transition-delay: var(--d, 0ms);
+  }
+  .lp-reveal[data-in='false'] {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  .lp-reveal-x[data-in='false'] {
+    opacity: 0;
+    transform: translateX(48px);
+  }
+  .lp-reveal-x {
+    transition:
+      opacity 500ms var(--lp-ease),
+      transform 600ms var(--lp-ease);
+    transition-delay: var(--d, 0ms);
+  }
+}
+
+/* ---------- Hero ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes lp-word-in {
+    from {
+      transform: translateY(110%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+  @keyframes lp-sweep {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+  @keyframes lp-pop {
+    from {
+      transform: scale(0.98);
+    }
+    to {
+      transform: scale(1);
+    }
+  }
+  .lp-word {
+    display: inline-block;
+    animation: lp-word-in 500ms var(--lp-ease) both;
+    animation-delay: calc(var(--i, 0) * 60ms);
+  }
+  .lp-marker-bg {
+    transform-origin: left center;
+    animation: lp-sweep 500ms var(--lp-ease) both;
+    animation-delay: 700ms;
+  }
+  .lp-marker-text {
+    display: inline-block;
+    animation: lp-pop 300ms var(--lp-ease) both;
+    animation-delay: 1150ms;
+  }
+
+  @keyframes lp-float-a {
+    0%,
+    100% {
+      transform: translateY(0) rotate(-3deg);
+    }
+    50% {
+      transform: translateY(-12px) rotate(3deg);
+    }
+  }
+  @keyframes lp-float-b {
+    0%,
+    100% {
+      transform: translateY(-12px) rotate(3deg);
+    }
+    50% {
+      transform: translateY(0) rotate(-3deg);
+    }
+  }
+  .lp-float-a {
+    animation: lp-float-a 5s ease-in-out infinite;
+  }
+  .lp-float-b {
+    animation: lp-float-b 7s ease-in-out infinite;
+  }
+  .lp-parallax {
+    transform: translate3d(calc(var(--mx, 0) * var(--k, 1) * -20px), calc(var(--my, 0) * var(--k, 1) * -20px), 0);
+    transition: transform 150ms linear;
+  }
+
+  @keyframes lp-badge {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.35;
+    }
+  }
+  @keyframes lp-slide-right {
+    from {
+      opacity: 0;
+      transform: translateX(48px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+  .lp-slide-right {
+    animation: lp-slide-right 600ms var(--lp-ease) 600ms both;
+  }
+  .lp-badge-dot {
+    animation: lp-badge 1.4s ease-in-out infinite;
+  }
+}
+
+/* ---------- Sự kiện nổi bật: dải thẻ chạy vô tận ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes lp-marquee {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+  @keyframes lp-marquee-rev {
+    from {
+      transform: translateX(-50%);
+    }
+    to {
+      transform: translateX(0);
+    }
+  }
+  .lp-marquee-track {
+    animation: lp-marquee 40s linear infinite;
+  }
+  .lp-marquee-back {
+    animation: lp-marquee-rev 70s linear infinite;
+  }
+  .lp-events:hover .lp-marquee-track,
+  .lp-events:hover .lp-marquee-back {
+    animation-play-state: paused;
+  }
+}
+.lp-tile {
+  transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+  transition: transform 150ms var(--lp-ease);
+  will-change: transform;
+}
+.lp-tile-img {
+  transition: transform 250ms var(--lp-ease);
+}
+.lp-tile:hover .lp-tile-img {
+  transform: scale(1.05);
+}
+
+/* ---------- Demo ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes lp-ripple {
+    0% {
+      transform: scale(0.4);
+      opacity: 0.9;
+    }
+    100% {
+      transform: scale(1.5);
+      opacity: 0;
+    }
+  }
+  .lp-ripple-ring {
+    animation: lp-ripple 1.6s ease-out infinite;
+  }
+}
+
+/* ---------- FAQ ---------- */
+.lp-acc-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 250ms var(--lp-ease);
+}
+.lp-acc-body[data-open='true'] {
+  grid-template-rows: 1fr;
+}
+.lp-acc-bar {
+  transition: transform 250ms var(--lp-ease);
+}
+[data-open='true'] > .lp-acc-bar-v,
+.lp-acc-icon[data-open='true'] .lp-acc-bar-v {
+  transform: rotate(90deg);
+}
+
+/* ---------- CTA ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes lp-breathe {
+    0%,
+    100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.06);
+    }
+  }
+  .lp-breathe {
+    animation: lp-breathe 4s ease-in-out infinite;
+  }
+}
+
+/* ---------- Typing "đang gõ…" ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes lp-dot {
+    0%,
+    80%,
+    100% {
+      opacity: 0.25;
+    }
+    40% {
+      opacity: 1;
+    }
+  }
+  .lp-typing-dot {
+    animation: lp-dot 1s ease-in-out infinite;
+    animation-delay: calc(var(--i, 0) * 160ms);
+  }
+}

@@ -1,0 +1,6 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# Tạm tắt CodeRabbit cho vingo-web. Bật lại: đổi enabled thành true (mẫu cấu hình đầy đủ ở vingo-backend).
+language: vi-VN
+reviews:
+  auto_review:
+    enabled: false
