@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router'
+import { Link, useLocation, useMatch, useNavigate, useSearchParams } from 'react-router'
 
+import { useGetEvent } from '@/api/generated/endpoints/search/search'
 import type { EventCategory } from '@/api/generated/model'
 import { useAuth } from '@/auth/auth-context'
 import { icons } from '@/design/icons'
@@ -49,9 +50,13 @@ const pill = 'rounded-pill bg-surface'
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
 function Tabs() {
-  const { pathname } = useLocation()
+  const { pathname: current } = useLocation()
   const [params] = useSearchParams()
-  const category = params.get('category')
+  // Đang xem một sự kiện (chi tiết, chọn ghế): sáng tab theo thể loại của sự kiện đó.
+  const eventId = useMatch('/events/:eventId/*')?.params.eventId
+  const event = useGetEvent(eventId ?? '', { query: { enabled: Boolean(eventId) } })
+  const pathname = eventId ? '/events' : current
+  const category = params.get('category') ?? (eventId ? (event.data?.category ?? null) : null)
   const activeRef = useRef<HTMLAnchorElement>(null)
   // Màn hẹp: hàng tab cuộn ngang, kéo tab đang chọn vào khung nhìn.
   useEffect(() => {
