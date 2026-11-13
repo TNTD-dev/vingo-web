@@ -16,9 +16,16 @@ export function groupTickets(tickets: Ticket[]): TicketGroup[] {
   return [...map.entries()].map(([key, list]) => ({ key, tickets: list }))
 }
 
-/** "Khu B · B-14, B-15"; nhiều khu thì ngăn bằng " · ". */
+/** "Khu B · B-14, B-15"; vé đứng gộp thành "3 vé đứng"; nhiều khu thì ngăn bằng " · ". */
 export function seatSummary(tickets: Ticket[]): string {
-  const byZone = new Map<string, string[]>()
-  for (const t of tickets) byZone.set(t.zone ?? '', [...(byZone.get(t.zone ?? '') ?? []), seatLabel(t)])
-  return [...byZone.entries()].map(([zone, seats]) => `Khu ${zone} · ${seats.join(', ')}`).join(' · ')
+  const byZone = new Map<string, Ticket[]>()
+  for (const t of tickets) byZone.set(t.zone ?? '', [...(byZone.get(t.zone ?? '') ?? []), t])
+  return [...byZone.entries()]
+    .map(([zone, list]) => {
+      const seated = list.filter((t) => t.row && t.number != null).map(seatLabel)
+      const standing = list.length - seated.length
+      const parts = [...seated, ...(standing > 0 ? [standing === 1 ? 'Đứng' : `${standing} vé đứng`] : [])]
+      return `Khu ${zone} · ${parts.join(', ')}`
+    })
+    .join(' · ')
 }

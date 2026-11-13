@@ -2,11 +2,13 @@ import { useQuery } from '@tanstack/react-query'
 import { Clock, CreditCard, ShieldCheck, Ticket, X } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
+import { toast } from 'sonner'
 
 import { getListMyOrdersQueryKey, listMyOrders } from '@/api/generated/endpoints/booking/booking'
 import { icons } from '@/design/icons'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/design/ui/dropdown-menu'
 import { cn } from '@/lib/cn'
+import { useMeStream, type MeStreamEvent } from '@/realtime/useMeStream'
 import { useNow } from '@/lib/useNow'
 
 import { buildNotifications, relativeTime, type NotificationTone } from './notifications'
@@ -19,6 +21,14 @@ function loadRead(): Set<string> {
   } catch {
     return new Set()
   }
+}
+
+const STREAM_TOAST: Partial<Record<MeStreamEvent['type'], string>> = {
+  'order.paid': 'Thanh toán thành công, vé đang được phát hành',
+  'ticket.issued': 'Vé của bạn đã sẵn sàng',
+  'order.needs_review': 'Đơn của bạn đang được xem xét',
+  'order.expired': 'Một đơn đã hết hạn giữ ghế',
+  'payment.failed': 'Thanh toán chưa thành công',
 }
 
 const TONE: Record<NotificationTone, { box: string; icon: React.ReactNode }> = {
@@ -34,6 +44,12 @@ export function NotificationsMenu() {
   const now = useNow(30_000)
   const [read, setRead] = useState(loadRead)
   const [filter, setFilter] = useState<'all' | 'unread'>('all')
+  // Kết nối realtime ở thanh điều hướng: đơn/vé tự làm mới (useMeStream invalidate) và báo bằng toast.
+  // `id` theo loại sự kiện để nhiều kết nối cùng nhận một sự kiện vẫn chỉ hiện một toast.
+  useMeStream((e) => {
+    const text = STREAM_TOAST[e.type]
+    if (text) toast(text, { id: `me-stream:${e.type}` })
+  })
   const query = useQuery({
     queryKey: [...getListMyOrdersQueryKey({ limit: 20 }), 'notifications'],
     queryFn: ({ signal }) => listMyOrders({ limit: 20 }, { signal }),

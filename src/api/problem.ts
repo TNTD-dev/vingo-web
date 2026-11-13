@@ -4,12 +4,15 @@ import type { Problem, ProblemCode } from '@/api/generated/model'
 export class ApiError extends Error {
   readonly status: number
   readonly problem: Problem | null
+  /** Số giây chờ theo header Retry-After (429), nếu có. */
+  readonly retryAfter?: number
 
-  constructor(status: number, problem: Problem | null) {
+  constructor(status: number, problem: Problem | null, retryAfter?: number) {
     super(problem?.detail ?? problem?.title ?? `HTTP ${status}`)
     this.name = 'ApiError'
     this.status = status
     this.problem = problem
+    this.retryAfter = retryAfter
   }
 
   get code(): ProblemCode | undefined {
