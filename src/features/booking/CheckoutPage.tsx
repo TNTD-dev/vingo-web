@@ -9,6 +9,7 @@ import { putBuyerProfile, useGetBuyerProfile } from '@/api/generated/endpoints/m
 import { createPayment } from '@/api/generated/endpoints/payment/payment'
 import type { CreatePaymentBodyMethod, Order, PaymentIntent } from '@/api/generated/model'
 import { newIdempotencyKey } from '@/api/idempotency'
+import { profileFieldErrors } from '@/lib/profileErrors'
 import { isApiError } from '@/api/problem'
 import { ArrowButton } from '@/design/ArrowButton'
 import { Mascot } from '@/design/Mascot'
@@ -122,6 +123,10 @@ function Checkout({ order }: { order: Order }) {
       if (isApiError(error, 'HOLD_EXPIRED') || isApiError(error, 'ORDER_STATE_INVALID')) {
         toast.error('Đơn không còn giữ chỗ. Hãy chọn ghế lại.')
         void queryClient.invalidateQueries({ queryKey: getGetOrderQueryKey(orderId) })
+      } else if (isApiError(error, 'VALIDATION_ERROR')) {
+        const found = profileFieldErrors(error)
+        if (hasErrors(found)) setErrors(found)
+        toast.error('Thông tin người nhận vé chưa hợp lệ. Vui lòng kiểm tra lại.')
       } else if (isApiError(error, 'PROFILE_REQUIRED')) {
         toast.error('Cần điền thông tin người nhận vé trước khi thanh toán.')
       } else {

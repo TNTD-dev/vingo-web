@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 
 import { register } from '@/api/generated/endpoints/auth/auth'
-import { isApiError } from '@/api/problem'
+import { isApiError, isNotImplemented, NOT_IMPLEMENTED_MESSAGE } from '@/api/problem'
 import { ArrowButton } from '@/design/ArrowButton'
 import { cn } from '@/lib/cn'
 import { passwordStrength, STRENGTH_HINT } from '@/lib/validate'
@@ -40,7 +40,8 @@ export default function RegisterPage() {
       if (session.expires_at) qs.set('exp', session.expires_at)
       navigate(`/verify-otp?${qs}`)
     } catch (err) {
-      if (isApiError(err) && err.status === 409) {
+      if (isNotImplemented(err)) setFormError(NOT_IMPLEMENTED_MESSAGE)
+      else if (isApiError(err) && err.status === 409) {
         setFormError('Email hoặc số điện thoại này đã có tài khoản. Hãy đăng nhập hoặc dùng thông tin khác.')
       } else setFormError(isApiError(err) ? (err.problem?.detail ?? err.message) : 'Chưa tạo được tài khoản.')
     } finally {

@@ -20,3 +20,10 @@ export class ApiError extends Error {
 export function isApiError(error: unknown, code?: ProblemCode): error is ApiError {
   return error instanceof ApiError && (code === undefined || error.code === code)
 }
+
+/** Backend trả 501 cho API chưa làm xong. */
+export function isNotImplemented(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 501
+}
+
+export const NOT_IMPLEMENTED_MESSAGE = 'Tính năng đang được hoàn thiện, vui lòng quay lại sau.'

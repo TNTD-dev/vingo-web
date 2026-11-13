@@ -3,6 +3,7 @@ import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react
 import { login as loginApi, logout as logoutApi } from '@/api/generated/endpoints'
 import type { LoginBody } from '@/api/generated/model'
 import { refreshSession } from '@/api/http'
+import { isApiError } from '@/api/problem'
 import { tokenStore } from '@/auth/token-store'
 
 import { AuthContext } from './auth-context'
@@ -32,7 +33,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
-      await logoutApi({}, { credentials: 'include' })
+      await logoutApi({}, { credentials: 'include' }).catch(async (e) => {
+        // Access token hết hạn: làm mới phiên rồi thu hồi lại, nếu không cookie refresh vẫn còn và tải lại trang sẽ đăng nhập lại.
+        if (isApiError(e) && e.status === 401 && (await refreshSession())) {
+          await logoutApi({}, { credentials: 'include' })
+        } else throw e
+      })
     } finally {
       tokenStore.set(null)
     }

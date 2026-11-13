@@ -3,6 +3,8 @@ import { useId, type ComponentProps, type ReactNode } from 'react'
 import { API_BASE } from '@/api/config'
 import { cn } from '@/lib/cn'
 
+import { rememberNext } from './googleCallback'
+
 /** Tiêu đề form: dòng mono nhỏ phía trên + tiêu đề lớn (Figma B8: "// ĐĂNG NHẬP" / "Chào mừng trở lại"). */
 export function AuthHeading({ eyebrow, title, hint }: { eyebrow: string; title: string; hint?: string }) {
   return (
@@ -51,10 +53,11 @@ export function AuthField({
 }
 
 /** Nút Google (đăng nhập qua trình duyệt, không qua client sinh: CLAUDE.md mục 3). */
-export function GoogleButton({ children }: { children: ReactNode }) {
+export function GoogleButton({ children, next }: { children: ReactNode; next?: string | null }) {
   return (
     <a
       href={`${API_BASE}/auth/google`}
+      onClick={() => rememberNext(next)}
       className="flex h-[54px] items-center justify-center gap-2.5 rounded-[14px] border border-line bg-surface type-body-m-strong text-foreground"
     >
       <span aria-hidden className="flex size-[18px] items-center justify-center text-[15px] font-semibold">

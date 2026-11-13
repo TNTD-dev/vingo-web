@@ -3,16 +3,13 @@ import { User } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
-import {
-  getGetBuyerProfileQueryKey,
-  putBuyerProfile,
-  useGetBuyerProfile,
-  useGetMe,
-} from '@/api/generated/endpoints/me/me'
+import { getGetBuyerProfileQueryKey, putBuyerProfile, useGetBuyerProfile } from '@/api/generated/endpoints/me/me'
 import { isApiError } from '@/api/problem'
+import { useAuth } from '@/auth/auth-context'
 import { ArrowButton } from '@/design/ArrowButton'
 import { Skeleton } from '@/design/ui/skeleton'
 import { initials } from '@/lib/initials'
+import { profileFieldErrors } from '@/lib/profileErrors'
 import { isEmail, isVnPhone } from '@/lib/validate'
 
 import { AccountShell } from './AccountShell'
@@ -21,11 +18,11 @@ type Draft = { full_name: string; phone: string; email: string }
 
 // B9 · Hồ sơ người mua (Figma 03 · Buyer). Hồ sơ này được dùng cho thanh toán và đặt hộ qua Vingo.
 export default function ProfilePage() {
-  const me = useGetMe()
+  const me = { data: useAuth().user }
   const profile = useGetBuyerProfile({ query: { retry: false } })
   const missing = profile.isError && isApiError(profile.error, 'NOT_FOUND')
 
-  if (me.isPending || (profile.isPending && !profile.isError)) return <Skeleton className="h-[420px] rounded-[20px]" />
+  if (profile.isPending && !profile.isError) return <Skeleton className="h-[420px] rounded-[20px]" />
   const name = profile.data?.full_name ?? me.data?.full_name ?? ''
   const base: Draft = {
     full_name: profile.data?.full_name ?? me.data?.full_name ?? '',
@@ -64,7 +61,15 @@ function ProfileForm({ base, missing }: { base: Draft; missing: boolean }) {
       queryClient.setQueryData(getGetBuyerProfileQueryKey(), saved)
       toast.success('Đã lưu hồ sơ')
     },
-    onError: () => toast.error('Chưa lưu được hồ sơ. Vui lòng thử lại.'),
+    onError: (e) => {
+      const found = profileFieldErrors(e)
+      if (Object.keys(found).length > 0) setErrors(found)
+      toast.error(
+        Object.keys(found).length > 0
+          ? 'Thông tin chưa hợp lệ. Vui lòng kiểm tra lại.'
+          : 'Chưa lưu được hồ sơ. Vui lòng thử lại.',
+      )
+    },
   })
 
   function submit(e: React.FormEvent) {
