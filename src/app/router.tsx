@@ -3,9 +3,11 @@ import { createBrowserRouter, type RouteObject } from 'react-router'
 
 import { RequireAuth } from '@/auth/guards'
 import { FullPageSpinner } from '@/design/FullPageSpinner'
+import { Placeholder } from '@/design/Placeholder'
 import { ForbiddenPage, NotFoundPage } from '@/features/StatusPages'
 
-import { AdminLayout, AuthLayout, BuyerLayout, PlainLayout } from './layouts'
+import { AdminLayout } from './AdminLayout'
+import { AgentLayout, AuthLayout, BuyerLayout, PlainLayout } from './layouts'
 
 function page(Component: LazyExoticComponent<ComponentType>) {
   return (
@@ -46,8 +48,6 @@ const L = {
   // admin-dashboard
   Overview: lazy(() => import('@/features/admin-dashboard/OverviewPage')),
   Reports: lazy(() => import('@/features/admin-dashboard/ReportsPage')),
-  // copilot
-  Copilot: lazy(() => import('@/features/copilot/CopilotPage')),
   // admin-catalog
   Venues: lazy(() => import('@/features/admin-catalog/VenuesPage')),
   VenueDetail: lazy(() => import('@/features/admin-catalog/VenueDetailPage')),
@@ -56,6 +56,8 @@ const L = {
   AdminEventDetail: lazy(() => import('@/features/admin-catalog/AdminEventDetailPage')),
   ShowtimeSeats: lazy(() => import('@/features/admin-catalog/ShowtimeSeatsPage')),
   // admin-ops
+  AdminLogin: lazy(() => import('@/features/admin-ops/AdminLoginPage')),
+  AdminCheckin: lazy(() => import('@/features/admin-ops/AdminCheckinPage')),
   AdminOrders: lazy(() => import('@/features/admin-ops/AdminOrdersPage')),
   AdminOrderDetail: lazy(() => import('@/features/admin-ops/AdminOrderDetailPage')),
   AdminTickets: lazy(() => import('@/features/admin-ops/AdminTicketsPage')),
@@ -65,6 +67,7 @@ const L = {
 const buyer = (el: LazyExoticComponent<ComponentType>) => <RequireAuth>{page(el)}</RequireAuth>
 
 export const routes: RouteObject[] = [
+  { path: '/admin/login', element: page(L.AdminLogin) },
   {
     element: <AuthLayout />,
     children: [
@@ -81,10 +84,14 @@ export const routes: RouteObject[] = [
     children: [{ path: '/', element: page(L.Landing) }],
   },
   {
+    // Agent mode xem được khi chưa đăng nhập; gửi tin, giữ ghế thì phải đăng nhập (xử lý trong ChatPage).
+    element: <AgentLayout />,
+    children: [{ path: '/vingo', element: page(L.Agent) }],
+  },
+  {
     element: <BuyerLayout />,
     children: [
-      // Agent mode và danh sách sự kiện xem được khi chưa đăng nhập; gửi tin, giữ ghế thì phải đăng nhập.
-      { path: '/vingo', element: page(L.Agent) },
+      // Danh sách sự kiện xem được khi chưa đăng nhập; giữ ghế thì phải đăng nhập.
       { path: '/events', element: page(L.Events) },
       { path: '/events/:eventId', element: page(L.EventDetail) },
       { path: '/events/:eventId/showtimes/:showtimeId/seats', element: page(L.SeatSelection) },
@@ -105,6 +112,14 @@ export const routes: RouteObject[] = [
     children: [{ path: '/checkin', element: buyer(L.Checkin) }],
   },
   {
+    path: '/admin/copilot',
+    element: (
+      <RequireAuth allow="ADMIN">
+        <Placeholder title="Copilot">Khu vực Copilot để tiếp tục phát triển.</Placeholder>
+      </RequireAuth>
+    ),
+  },
+  {
     path: '/admin',
     element: (
       <RequireAuth allow="ADMIN">
@@ -114,7 +129,6 @@ export const routes: RouteObject[] = [
     children: [
       { index: true, element: page(L.Overview) },
       { path: 'reports', element: page(L.Reports) },
-      { path: 'copilot', element: page(L.Copilot) },
       { path: 'venues', element: page(L.Venues) },
       { path: 'venues/:venueId', element: page(L.VenueDetail) },
       { path: 'halls/:hallId/layouts', element: page(L.HallLayouts) },
@@ -124,6 +138,7 @@ export const routes: RouteObject[] = [
       { path: 'orders', element: page(L.AdminOrders) },
       { path: 'orders/:orderId', element: page(L.AdminOrderDetail) },
       { path: 'tickets', element: page(L.AdminTickets) },
+      { path: 'checkin', element: page(L.AdminCheckin) },
       { path: 'audit-logs', element: page(L.AuditLogs) },
     ],
   },

@@ -1,0 +1,15 @@
+# Caddy nội bộ của image web. TLS, nén và chia /api do Caddy của vingo-backend lo.
+:80 {
+	root * /srv
+
+	# File trong /assets có hash trong tên nên cache lâu; còn lại (gồm index.html) không cache
+	# để deploy xong người dùng thấy bản mới ngay.
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+	@pages not path /assets/*
+	header @pages Cache-Control "no-cache"
+
+	# Đường dẫn của React Router (không có file thật) trả về index.html.
+	try_files {path} /index.html
+	file_server
+}

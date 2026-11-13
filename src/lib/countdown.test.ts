@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatCountdown, remainingSeconds } from './countdown'
+import { formatCountdown, remainingSeconds, secondsLeft } from './countdown'
 
 describe('remainingSeconds', () => {
   const end = '2026-11-21T10:10:00Z'
@@ -21,6 +21,7 @@ describe('remainingSeconds', () => {
 describe('formatCountdown', () => {
   it('phút:giây hai chữ số', () => {
     expect(formatCountdown(552)).toBe('09:12')
+    expect(formatCountdown(522)).toBe('08:42')
     expect(formatCountdown(59)).toBe('00:59')
     expect(formatCountdown(0)).toBe('00:00')
   })
@@ -28,5 +29,15 @@ describe('formatCountdown', () => {
   it('quá một giờ có thêm giờ, số âm coi như 0', () => {
     expect(formatCountdown(3725)).toBe('1:02:05')
     expect(formatCountdown(-5)).toBe('00:00')
+  })
+})
+
+describe('secondsLeft', () => {
+  it('không âm, không có hạn hoặc sai định dạng thì undefined', () => {
+    const now = Date.parse('2026-11-13T10:00:00Z')
+    expect(secondsLeft('2026-11-13T10:10:00Z', now)).toBe(600)
+    expect(secondsLeft('2026-11-13T09:00:00Z', now)).toBe(0)
+    expect(secondsLeft(undefined, now)).toBeUndefined()
+    expect(secondsLeft('không phải ngày', now)).toBeUndefined()
   })
 })
