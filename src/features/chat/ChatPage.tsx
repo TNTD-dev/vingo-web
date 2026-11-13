@@ -10,7 +10,7 @@ import { useMeStream, type MeStreamEvent } from '@/realtime/useMeStream'
 type Turn = { text: string; blocks: ChatBlock[]; done: boolean }
 
 /**
- * Khung chat dùng chung cho buyer và admin (khác `agent`).
+ * Khung chat dùng chung cho buyer và admin — dùng bởi features/agent và features/copilot.
  * Luồng: POST sendMessage (202) → câu trả lời về qua /me/stream: chat.delta / chat.block / chat.done.
  * Chưa nối createConversation/sendMessage — chỉ dựng bố cục và đọc stream.
  */
@@ -64,8 +64,4 @@ export function ChatPage({ agent }: { agent: 'buyer' | 'admin' }) {
       </form>
     </div>
   )
-}
-
-export default function BuyerChatPage() {
-  return <ChatPage agent="buyer" />
 }

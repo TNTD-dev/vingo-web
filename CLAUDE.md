@@ -42,14 +42,18 @@ src/
 ├── auth/        token store, AuthProvider, useAuth, RequireAuth
 ├── realtime/    useMeStream (SSE /me/stream)
 ├── mocks/       MSW cho dev:mock
-├── design/      ui/ (shadcn), component dùng chung
+├── design/      ui/ (shadcn), brand/ (logo, mascot SVG từ Figma), component dùng chung
+├── seatmap/     SeatMapView: vẽ sơ đồ ghế từ SVG admin nhập, dùng cho booking, chat block, admin
 ├── lib/         money, time, cn
-├── features/    auth/ chat/ buyer/ checkin/ admin/ dashboard/ — mỗi màn một file *Page.tsx
+├── features/    mỗi module một thư mục, mỗi màn một file *Page.tsx:
+│                landing/ auth/ booking/ account/ agent/ checkin/
+│                admin-dashboard/ admin-catalog/ admin-ops/ copilot/ chat/ (dùng chung)
 └── blocks/      block trong chat, mỗi ChatBlockType một component, đăng ký ở registry.tsx
 ```
 
 - Page export default, route lazy-load ở `app/router.tsx`.
-- `features/*` không import lẫn nhau, trừ `chat/ChatPage` dùng chung cho buyer và admin.
+- `features/*` không import lẫn nhau, trừ `chat/ChatPage` dùng chung cho `agent` (buyer) và `copilot` (admin).
+- Chủ từng module sẽ chốt sau; trước khi sửa module người khác thì báo trong nhóm.
 - Component dùng chung ≥ 2 feature → chuyển vào `design/`.
 - Thêm component shadcn: `npx shadcn@latest add <tên>` (vào `src/design/ui`). Sau khi thêm, kiểm tra import `cn` trỏ `@/lib/cn`.
 
@@ -78,7 +82,8 @@ src/
 ## 8. Hiển thị
 
 - Tiền: `formatVnd()`. Giờ: `formatDateTime()` (API trả UTC, hiển thị giờ Việt Nam). Không tự format.
-- Màu, bo góc, font lấy từ token trong `src/index.css`. Không hard-code mã màu trong component.
+- Màu, bo góc, font, kiểu chữ lấy từ token trong `src/index.css` (xuất từ Figma "Vingo Web — UI/UX", page Design System): `bg-canvas`, `bg-ink`, `bg-agent`, `rounded-lg`, `shadow-float`, `type-h1`, `type-mono-label`… Không hard-code mã màu trong component.
+- Logo, mascot: import từ `@/design/brand` (`logoMark`, `mascot[state]`), không vẽ lại.
 - Rộng tối thiểu 360px. Mọi màn kiểm tra ở 360px và desktop.
 
 ## 9. Test

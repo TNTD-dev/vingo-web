@@ -1,60 +1,129 @@
 @import 'tailwindcss';
 
 /*
- * Token thiết kế. Đổi màu/bo góc ở đây, component shadcn tự ăn theo.
- * Giá trị hiện tại là theme neutral mặc định của shadcn — placeholder, chờ thiết kế.
+ * Token thiết kế Vingo — lấy từ Figma "Vingo Web — UI/UX", page 01 · Design System
+ * (collection "Vingo Tokens", text styles, effect styles). Đổi ở Figma trước, rồi cập nhật file này.
+ *
+ * - Token gốc: --vg-* (đúng tên biến Figma: color/bg/canvas → --vg-bg-canvas).
+ * - Tên shadcn (--background, --primary…) trỏ về token gốc để component trong design/ui tự ăn theo.
+ * - Tailwind: bg-canvas, bg-ink, bg-agent, text-ink-secondary, rounded-lg (20px), shadow-float…
+ * - Khoảng cách: thang mặc định của Tailwind (bội số 4px) khớp space/4…space/96 trong Figma.
  */
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  /* ---- màu (Figma: color/*) ---- */
+  --vg-bg-canvas: #f0f0f0;
+  --vg-bg-surface: #ffffff;
+  --vg-bg-muted: #e6e6e6;
+  --vg-bg-inverse: #1a1a1a;
+  --vg-bg-inverse-raised: #242424;
+  --vg-bg-glass: rgb(255 255 255 / 50%);
+  --vg-text-primary: #1a1a1a;
+  --vg-text-secondary: rgb(26 26 26 / 70%);
+  --vg-text-tertiary: rgb(26 26 26 / 40%);
+  --vg-text-inverse: #ffffff;
+  --vg-text-inverse-secondary: rgb(255 255 255 / 60%);
+  --vg-border-subtle: rgb(26 26 26 / 10%);
+  --vg-border-inverse: rgb(255 255 255 / 10%);
+  --vg-accent-agent: #c6f24e;
+  --vg-accent-agent-soft: rgb(198 242 78 / 18%);
+  --vg-status-success: #2e9e5b;
+  --vg-status-warning: #d98a1c;
+  --vg-status-danger: #d64535;
+  --vg-status-info: #3b6fe0;
+  --vg-seat-available: #ffffff;
+  --vg-seat-selected: #1a1a1a;
+  --vg-seat-held: rgb(217 138 28 / 35%);
+  --vg-seat-sold: rgb(26 26 26 / 12%);
+  /* thêm cho mascot (Figma page 07) */
+  --vg-mascot-cheek: #ff8fa3;
+
+  /* ---- shadcn trỏ về token Vingo ---- */
+  --background: var(--vg-bg-canvas);
+  --foreground: var(--vg-text-primary);
+  --card: var(--vg-bg-surface);
+  --card-foreground: var(--vg-text-primary);
+  --popover: var(--vg-bg-surface);
+  --popover-foreground: var(--vg-text-primary);
+  --primary: var(--vg-bg-inverse);
+  --primary-foreground: var(--vg-text-inverse);
+  --secondary: var(--vg-bg-muted);
+  --secondary-foreground: var(--vg-text-primary);
+  --muted: var(--vg-bg-muted);
+  --muted-foreground: var(--vg-text-secondary);
+  --accent: var(--vg-bg-muted);
+  --accent-foreground: var(--vg-text-primary);
+  --destructive: var(--vg-status-danger);
+  --border: var(--vg-border-subtle);
+  --input: var(--vg-border-subtle);
+  --ring: rgb(26 26 26 / 40%);
 }
 
+/* Vùng nền tối (sidebar admin, khối demo, vé). Thêm class .dark vào khối cần đảo màu. */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --background: var(--vg-bg-inverse);
+  --foreground: var(--vg-text-inverse);
+  --card: var(--vg-bg-inverse-raised);
+  --card-foreground: var(--vg-text-inverse);
+  --popover: var(--vg-bg-inverse-raised);
+  --popover-foreground: var(--vg-text-inverse);
+  --primary: var(--vg-bg-surface);
+  --primary-foreground: var(--vg-text-primary);
+  --secondary: var(--vg-bg-inverse-raised);
+  --secondary-foreground: var(--vg-text-inverse);
+  --muted: var(--vg-bg-inverse-raised);
+  --muted-foreground: var(--vg-text-inverse-secondary);
+  --accent: var(--vg-bg-inverse-raised);
+  --accent-foreground: var(--vg-text-inverse);
+  --border: var(--vg-border-inverse);
+  --input: var(--vg-border-inverse);
+  --ring: rgb(255 255 255 / 40%);
 }
 
 @theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  /* ---- font (Figma text styles) ---- */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', monospace;
+  --font-brand: 'Fredoka', 'Inter', ui-sans-serif, sans-serif;
+
+  /* ---- bo góc (Figma: radius/*) ---- */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 30px;
+  --radius-pill: 100px;
+
+  /* ---- đổ bóng (Figma effect styles) ---- */
+  --shadow-float: 0 12px 32px rgb(0 0 0 / 8%);
+  --shadow-agent-glow: 0 0 24px rgb(199 242 79 / 45%);
+
+  /* ---- màu Vingo dùng trực tiếp trong Tailwind ---- */
+  --color-canvas: var(--vg-bg-canvas);
+  --color-surface: var(--vg-bg-surface);
+  --color-glass: var(--vg-bg-glass);
+  --color-ink: var(--vg-bg-inverse);
+  --color-ink-raised: var(--vg-bg-inverse-raised);
+  --color-ink-secondary: var(--vg-text-secondary);
+  --color-ink-tertiary: var(--vg-text-tertiary);
+  --color-on-ink: var(--vg-text-inverse);
+  --color-on-ink-secondary: var(--vg-text-inverse-secondary);
+  --color-line: var(--vg-border-subtle);
+  --color-line-inverse: var(--vg-border-inverse);
+  --color-agent: var(--vg-accent-agent);
+  --color-agent-soft: var(--vg-accent-agent-soft);
+  --color-success: var(--vg-status-success);
+  --color-warning: var(--vg-status-warning);
+  --color-danger: var(--vg-status-danger);
+  --color-info: var(--vg-status-info);
+  --color-seat-available: var(--vg-seat-available);
+  --color-seat-selected: var(--vg-seat-selected);
+  --color-seat-held: var(--vg-seat-held);
+  --color-seat-sold: var(--vg-seat-sold);
+  --color-mascot-cheek: var(--vg-mascot-cheek);
+
+  /* ---- tên shadcn ---- */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -75,11 +144,90 @@
   --color-ring: var(--ring);
 }
 
+/*
+ * Kiểu chữ (Figma text styles). Dùng: <h1 className="type-display-l">.
+ * letter-spacing Figma theo % cỡ chữ → em. Tiêu đề lớn tự giảm cỡ trên màn hẹp.
+ */
+@utility type-display-xl {
+  font-size: clamp(56px, 9vw, 120px);
+  font-weight: 500;
+  line-height: 1.12;
+  letter-spacing: -0.06em;
+}
+@utility type-display-l {
+  font-size: clamp(40px, 6vw, 72px);
+  font-weight: 500;
+  line-height: 1.12;
+  letter-spacing: -0.04em;
+}
+@utility type-h1 {
+  font-size: clamp(30px, 3.5vw, 43px);
+  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+}
+@utility type-h2 {
+  font-size: 32px;
+  font-weight: 500;
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+}
+@utility type-h3 {
+  font-size: 21px;
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+@utility type-h4 {
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: -0.02em;
+}
+@utility type-body-l {
+  font-size: 16px;
+  font-weight: 300;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+}
+@utility type-body-m {
+  font-size: 14px;
+  font-weight: 300;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+}
+@utility type-body-m-strong {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+@utility type-caption {
+  font-size: 12px;
+  font-weight: 300;
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+}
+@utility type-mono-label {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+@utility type-mono-small {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply bg-background font-sans text-foreground antialiased;
   }
 }

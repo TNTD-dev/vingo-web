@@ -139,38 +139,50 @@ vingo-web/
     ├── auth/                    token store, AuthProvider, RequireAuth
     ├── realtime/                useMeStream (SSE), khử trùng sự kiện
     ├── mocks/                   MSW: handler Orval + mock SSE
-    ├── design/                  ui/ (shadcn), Placeholder, QueryDump, spinner
+    ├── design/                  ui/ (shadcn), brand/ (logo, mascot), Placeholder, spinner
+    ├── seatmap/                 SeatMapView: sơ đồ ghế vẽ từ SVG admin nhập
     ├── lib/                     money (VND), time (giờ VN), cn
     ├── features/
+    │   ├── landing/             trang giới thiệu
     │   ├── auth/                đăng nhập, đăng ký, OTP, quên mật khẩu, callback Google
-    │   ├── chat/                khung chat dùng chung buyer/admin
-    │   ├── buyer/               sự kiện, đơn, thanh toán, vé, tài khoản
+    │   ├── booking/             sự kiện, chọn ghế, thanh toán, kết quả thanh toán
+    │   ├── account/             đơn, vé, hồ sơ, bảo mật tài khoản
+    │   ├── agent/               Vingo agent mode cho buyer
     │   ├── checkin/             soát vé
-    │   ├── admin/               Copilot, sân, sơ đồ ghế, sự kiện, đơn, vé, nhật ký
-    │   └── dashboard/           báo cáo
+    │   ├── admin-dashboard/     tổng quan, báo cáo
+    │   ├── admin-catalog/       sân, sơ đồ ghế, sự kiện, suất, khoá ghế
+    │   ├── admin-ops/           đơn, xử lý đơn lỗi, vé, nhật ký
+    │   ├── copilot/             agent mode cho admin
+    │   └── chat/                khung chat dùng chung agent/copilot
     └── blocks/                  block hiển thị trong chat + registry
 ```
 
 ## Màn hình và route
 
-| Route                                                                   | Màn                               | Quyền                          | API chính                                   |
-| ----------------------------------------------------------------------- | --------------------------------- | ------------------------------ | ------------------------------------------- |
-| `/login` `/register` `/verify-otp` `/forgot-password` `/reset-password` | Đăng nhập, đăng ký                | public                         | `login`, `register`, `verifyOtp`…           |
-| `/auth/google`                                                          | Nhận kết quả Google login         | public                         | `refreshToken`                              |
-| `/`                                                                     | Chat mua vé                       | public (gửi tin cần đăng nhập) | `sendMessage`, `/me/stream`                 |
-| `/events`, `/events/:eventId`                                           | Sự kiện                           | public                         | `searchEvents`, `getEvent`, `getSeatmap`    |
-| `/orders`, `/orders/:orderId`                                           | Đơn của tôi                       | BUYER                          | `listMyOrders`, `getOrder`, `createPayment` |
-| `/payment/vnpay-return`                                                 | Kết quả thanh toán (chỉ hiển thị) | BUYER                          | `getOrder`                                  |
-| `/tickets`, `/tickets/:ticketId`                                        | Vé của tôi                        | BUYER                          | `listMyTickets`, `getTicketQr`              |
-| `/me`                                                                   | Tài khoản                         | BUYER                          | `getMe`, `getBuyerProfile`                  |
-| `/checkin`                                                              | Soát vé                           | đăng nhập                      | `checkIn`                                   |
-| `/admin`                                                                | Admin Copilot                     | ADMIN                          | chat                                        |
-| `/admin/dashboard`                                                      | Báo cáo                           | ADMIN                          | `queryMetric`                               |
-| `/admin/venues[/:venueId]`, `/admin/halls/:hallId/layouts`              | Sân, sơ đồ ghế                    | ADMIN                          | `listVenues`, `importSeatLayoutSvg`…        |
-| `/admin/events[/:eventId]`                                              | Sự kiện                           | ADMIN                          | `createEvent`, `putPriceTiers`…             |
-| `/admin/orders[/:orderId]`                                              | Đơn, xử lý đơn lỗi                | ADMIN                          | `adminListOrders`, `resolveReview`          |
-| `/admin/tickets`                                                        | Vé                                | ADMIN                          | `adminListTickets`, `voidTicket`            |
-| `/admin/audit-logs`                                                     | Nhật ký thao tác                  | ADMIN                          | `listAuditLogs`                             |
+| Route                                                                   | Màn                               | Quyền                          | API chính                                    |
+| ----------------------------------------------------------------------- | --------------------------------- | ------------------------------ | -------------------------------------------- |
+| `/login` `/register` `/verify-otp` `/forgot-password` `/reset-password` | Đăng nhập, đăng ký                | public                         | `login`, `register`, `verifyOtp`…            |
+| `/auth/google`                                                          | Nhận kết quả Google login         | public                         | `refreshToken`                               |
+| `/`                                                                     | Landing                           | public                         | —                                            |
+| `/vingo`                                                                | Vingo agent mode                  | public (gửi tin cần đăng nhập) | `sendMessage`, `/me/stream`                  |
+| `/events`, `/events/:eventId`                                           | Sự kiện                           | public                         | `searchEvents`, `getEvent`                   |
+| `/events/:eventId/showtimes/:showtimeId/seats`                          | Chọn ghế                          | public (giữ ghế cần đăng nhập) | `getSeatmap`, `getAvailability`, `holdSeats` |
+| `/orders`, `/orders/:orderId`                                           | Đơn của tôi                       | BUYER                          | `listMyOrders`, `getOrder`                   |
+| `/orders/:orderId/checkout`                                             | Thanh toán                        | BUYER                          | `getOrder`, `createPayment`, `cancelOrder`   |
+| `/payment/vnpay-return`                                                 | Kết quả thanh toán (chỉ hiển thị) | BUYER                          | `getOrder`                                   |
+| `/tickets`, `/tickets/:ticketId`                                        | Vé của tôi                        | BUYER                          | `listMyTickets`, `getTicketQr`               |
+| `/me`                                                                   | Hồ sơ                             | BUYER                          | `getMe`, `getBuyerProfile`                   |
+| `/me/security`                                                          | Bảo mật tài khoản                 | BUYER                          | `getMe`, `updateMe`, `deleteMe`, `logout`    |
+| `/checkin`                                                              | Soát vé                           | đăng nhập                      | `checkIn`                                    |
+| `/admin`                                                                | Tổng quan                         | ADMIN                          | `queryMetric`, `adminListOrders`             |
+| `/admin/reports`                                                        | Báo cáo                           | ADMIN                          | `queryMetric`                                |
+| `/admin/copilot`                                                        | Copilot (agent mode admin)        | ADMIN                          | chat                                         |
+| `/admin/venues[/:venueId]`, `/admin/halls/:hallId/layouts`              | Sân, sơ đồ ghế                    | ADMIN                          | `listVenues`, `importSeatLayoutSvg`…         |
+| `/admin/events[/:eventId]`                                              | Sự kiện                           | ADMIN                          | `createEvent`, `putPriceTiers`…              |
+| `/admin/showtimes/:showtimeId/seats`                                    | Khoá/mở ghế                       | ADMIN                          | `getSeatmap`, `blockSeats`, `unblockSeats`   |
+| `/admin/orders[/:orderId]`                                              | Đơn, xử lý đơn lỗi                | ADMIN                          | `adminListOrders`, `resolveReview`           |
+| `/admin/tickets`                                                        | Vé                                | ADMIN                          | `adminListTickets`, `voidTicket`             |
+| `/admin/audit-logs`                                                     | Nhật ký thao tác                  | ADMIN                          | `listAuditLogs`                              |
 
 Mỗi màn hiện dùng `<Placeholder>` ghi tên các operation sẽ gọi; các màn danh sách/chi tiết đã gọi API thật và in JSON thô để kiểm tra dây nối. Thay bằng UI thật khi có thiết kế. Thêm màn mới: tạo `features/<nhóm>/XxxPage.tsx` (export default) và khai báo trong `src/app/router.tsx`.
 
@@ -201,7 +213,8 @@ Mỗi `ChatBlockType` trong contract có một component trong `src/blocks/`, đ
 
 - Tailwind v4 + [shadcn/ui](https://ui.shadcn.com). Component nằm trong `src/design/ui`, là code của repo — sửa thoải mái.
 - Thêm component: `npx shadcn@latest add <tên>`. Sau khi thêm, kiểm tra dòng import `cn` trỏ `@/lib/cn`.
-- Token màu, bo góc ở `src/index.css` (`:root` và `.dark`). Hiện là theme neutral mặc định — đổi ở đây khi có bộ nhận diện.
+- Thiết kế: Figma "Vingo Web — UI/UX" (https://www.figma.com/design/wLd7IVrkjHUi4EkEJgUEYf). Token màu, bo góc, font, bóng, kiểu chữ (`type-*`) đã nhập vào `src/index.css`; đổi ở Figma trước rồi cập nhật file này.
+- Logo và 7 trạng thái mascot Vingo ở `src/design/brand` (SVG xuất từ Figma).
 - Hỗ trợ màn hình từ 360px.
 
 ## Test và CI

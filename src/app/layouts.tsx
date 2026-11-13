@@ -45,8 +45,8 @@ function UserMenu() {
 }
 
 const buyerNav: NavItem[] = [
-  { to: '/', label: 'Chat', end: true },
   { to: '/events', label: 'Sự kiện' },
+  { to: '/vingo', label: 'Vingo' },
   { to: '/orders', label: 'Đơn' },
   { to: '/tickets', label: 'Vé' },
   { to: '/me', label: 'Tài khoản' },
@@ -72,8 +72,8 @@ export function BuyerLayout() {
 }
 
 const adminNav: NavItem[] = [
-  { to: '/admin', label: 'Copilot', end: true },
-  { to: '/admin/dashboard', label: 'Báo cáo' },
+  { to: '/admin', label: 'Tổng quan', end: true },
+  { to: '/admin/reports', label: 'Báo cáo' },
   { to: '/admin/venues', label: 'Sân' },
   { to: '/admin/events', label: 'Sự kiện' },
   { to: '/admin/orders', label: 'Đơn hàng' },
