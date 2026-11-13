@@ -110,7 +110,7 @@ export const routes: RouteObject[] = [
   },
   {
     element: <PlainLayout />,
-    children: [{ path: '/checkin', element: buyer(L.Checkin) }],
+    children: [{ path: '/checkin', element: <RequireAuth allow="ADMIN">{page(L.Checkin)}</RequireAuth> }],
   },
   {
     path: '/admin',
