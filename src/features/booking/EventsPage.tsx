@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useSearchParams } from 'react-router'
 
 import { getSearchEventsQueryKey, searchEvents } from '@/api/generated/endpoints/search/search'
-import { SearchEventsSort } from '@/api/generated/model'
+import type { SearchEventsSort } from '@/api/generated/model'
 import { Mascot } from '@/design/Mascot'
 import { icons } from '@/design/icons'
 import {
@@ -17,7 +17,16 @@ import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/design/ui/sheet
 import { cn } from '@/lib/cn'
 
 import { EventCard, EventCardSkeleton } from './EventCard'
-import { CITY_FULL_NAME, hasActiveFilters, readFilters, SORT_LABEL, toSearchParams, writeFilters } from './eventFilters'
+import {
+  CITY_FULL_NAME,
+  effectiveSort,
+  hasActiveFilters,
+  readFilters,
+  SORT_LABEL,
+  sortOptions,
+  toSearchParams,
+  writeFilters,
+} from './eventFilters'
 import type { EventFilters } from './eventFilters'
 import { EventFiltersPanel } from './EventFiltersPanel'
 
@@ -76,15 +85,15 @@ export default function EventsPage() {
           <span className="hidden type-body-m text-ink-secondary sm:inline">Sắp xếp</span>
           <DropdownMenu>
             <DropdownMenuTrigger className="flex items-center gap-2 rounded-pill border border-line bg-surface px-4 py-2.5 type-body-m-strong outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              {SORT_LABEL[filters.sort]}
+              {SORT_LABEL[effectiveSort(filters)]}
               <img src={icons.chevronDown} alt="" className="size-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" sideOffset={8} className="min-w-44 rounded-md">
               <DropdownMenuRadioGroup
-                value={filters.sort}
+                value={effectiveSort(filters)}
                 onValueChange={(v) => setFilters({ ...filters, sort: v as SearchEventsSort })}
               >
-                {Object.values(SearchEventsSort).map((s) => (
+                {sortOptions(filters).map((s) => (
                   <DropdownMenuRadioItem key={s} value={s}>
                     {SORT_LABEL[s]}
                   </DropdownMenuRadioItem>
