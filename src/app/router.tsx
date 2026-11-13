@@ -6,7 +6,7 @@ import { FullPageSpinner } from '@/design/FullPageSpinner'
 import { ForbiddenPage, NotFoundPage } from '@/features/StatusPages'
 
 import { AdminLayout } from './AdminLayout'
-import { AgentLayout, AuthLayout, BuyerLayout, PlainLayout } from './layouts'
+import { AgentLayout, AuthLayout, BuyerLayout, CopilotLayout, PlainLayout } from './layouts'
 
 function page(Component: LazyExoticComponent<ComponentType>) {
   return (
@@ -46,6 +46,8 @@ const L = {
   Checkin: lazy(() => import('@/features/checkin/CheckinPage')),
   // admin-dashboard
   Overview: lazy(() => import('@/features/admin-dashboard/OverviewPage')),
+  // copilot
+  Copilot: lazy(() => import('@/features/copilot/CopilotPage')),
   Reports: lazy(() => import('@/features/admin-dashboard/ReportsPage')),
   // admin-catalog
   Venues: lazy(() => import('@/features/admin-catalog/VenuesPage')),
@@ -132,6 +134,16 @@ export const routes: RouteObject[] = [
       { path: 'checkin', element: page(L.AdminCheckin) },
       { path: 'audit-logs', element: page(L.AuditLogs) },
     ],
+  },
+  {
+    // Admin Copilot: màn riêng, ngoài AdminLayout (không sidebar), vẫn chỉ cho ADMIN.
+    path: '/admin/copilot',
+    element: (
+      <RequireAuth allow="ADMIN">
+        <CopilotLayout />
+      </RequireAuth>
+    ),
+    children: [{ index: true, element: page(L.Copilot) }],
   },
   { path: '*', element: <NotFoundPage /> },
 ]
