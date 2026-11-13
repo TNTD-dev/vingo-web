@@ -81,8 +81,26 @@ export function formatDayMonthTime(iso: string): string {
   return `${p.day}/${p.month}, ${p.hour}:${p.minute}`
 }
 
+/** "T7 21/11" — ô NGÀY trên vé. */
+export function formatWeekdayDayMonth(iso: string): string {
+  const p = vnParts(iso)
+  return `${WEEKDAY[vnDate(new Date(iso)).weekday]} ${p.day}/${p.month}`
+}
+
+/** "17:34" — giờ Việt Nam. */
+export function formatHm(iso: string): string {
+  const p = vnParts(iso)
+  return `${p.hour}:${p.minute}`
+}
+
 /** "17:00 T7 21/11" — dòng phụ tiêu đề màn chọn ghế. */
 export function formatShortDateTime(iso: string): string {
   const p = vnParts(iso)
   return `${p.hour}:${p.minute} ${WEEKDAY[vnDate(new Date(iso)).weekday]} ${p.day}/${p.month}`
+}
+
+/** "21/11 17:31" — ngày giờ đặt đơn (giờ Việt Nam). */
+export function formatDayMonthHm(iso: string): string {
+  const p = vnParts(iso)
+  return `${p.day}/${p.month} ${p.hour}:${p.minute}`
 }

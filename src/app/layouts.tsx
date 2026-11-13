@@ -1,73 +1,23 @@
 import { useMemo, useState } from 'react'
-import { NavLink, Outlet } from 'react-router'
+import { Link, Outlet, useMatch } from 'react-router'
 
-import { useAuth } from '@/auth/auth-context'
 import { AppNav } from '@/design/AppNav'
+import authStadium from '@/design/brand/auth-stadium.png'
+import { Logo } from '@/design/Logo'
 import stadium from '@/design/brand/stadium.jpg'
-import { Button } from '@/design/ui/button'
 import { cn } from '@/lib/cn'
 
-type NavItem = { to: string; label: string; end?: boolean }
+import { AppNav as BuyerNav } from './AppNav'
 
-function Nav({ items, vertical = false }: { items: NavItem[]; vertical?: boolean }) {
-  return (
-    <nav className={cn('flex gap-1 text-sm', vertical ? 'flex-col' : 'overflow-x-auto')}>
-      {items.map((i) => (
-        <NavLink
-          key={i.to}
-          to={i.to}
-          end={i.end}
-          className={({ isActive }) =>
-            cn('rounded-md px-3 py-1.5 whitespace-nowrap hover:bg-accent', isActive && 'bg-accent font-medium')
-          }
-        >
-          {i.label}
-        </NavLink>
-      ))}
-    </nav>
-  )
-}
-
-function UserMenu() {
-  const { user, logout } = useAuth()
-  if (!user) {
-    return (
-      <Button asChild size="sm" variant="outline">
-        <NavLink to="/login">Đăng nhập</NavLink>
-      </Button>
-    )
-  }
-  return (
-    <div className="flex items-center gap-2 text-sm">
-      <span className="hidden text-muted-foreground sm:inline">{user.full_name ?? user.email}</span>
-      <Button size="sm" variant="ghost" onClick={() => void logout()}>
-        Đăng xuất
-      </Button>
-    </div>
-  )
-}
-
-const buyerNav: NavItem[] = [
-  { to: '/events', label: 'Sự kiện' },
-  { to: '/vingo', label: 'Vingo' },
-  { to: '/orders', label: 'Đơn' },
-  { to: '/tickets', label: 'Vé' },
-  { to: '/me', label: 'Tài khoản' },
-]
-
+// Khung buyer theo Figma (B1–B17): nền canvas, AppNav cách đỉnh 16px, lề ngang 32px (16px trên điện thoại),
+// nội dung rộng tối đa 1376px, cách nav 28px.
 export function BuyerLayout() {
+  // B11 (vé & QR toàn màn) dùng nền tối.
+  const dark = useMatch('/tickets/:ticketId') !== null
   return (
-    <div className="flex min-h-dvh flex-col">
-      <header className="flex items-center gap-4 border-b px-4 py-2">
-        <NavLink to="/" className="font-semibold">
-          Vingo
-        </NavLink>
-        <div className="min-w-0 flex-1">
-          <Nav items={buyerNav} />
-        </div>
-        <UserMenu />
-      </header>
-      <main className="flex flex-1 flex-col">
+    <div className={cn('flex min-h-dvh flex-col px-4 pt-4 pb-16 sm:px-8', dark ? 'bg-ink' : 'bg-canvas')}>
+      <BuyerNav />
+      <main className="mx-auto mt-7 flex w-full max-w-[1376px] min-w-0 flex-1 flex-col">
         <Outlet />
       </main>
     </div>
@@ -97,12 +47,35 @@ export function AgentLayout() {
   )
 }
 
+// Khung đăng nhập/đăng ký theo Figma B8, B14, B15: ảnh sân + khẩu hiệu bên trái, form trên nền trắng bên phải.
 export function AuthLayout() {
   return (
-    <div className="flex min-h-dvh items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        <Outlet />
-      </div>
+    <div className="grid min-h-dvh gap-4 bg-canvas p-4 lg:grid-cols-[772fr_620fr]">
+      <aside className="relative hidden flex-col justify-between overflow-hidden rounded-[30px] p-10 lg:flex">
+        <img src={authStadium} alt="" className="absolute inset-0 size-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-b from-canvas/0 from-35% to-canvas/95" />
+        <Link to="/" aria-label="Vingo" className="relative w-fit">
+          <Logo />
+        </Link>
+        <div className="relative flex flex-col gap-3">
+          <p className="type-display-l text-foreground">
+            Vé thật.
+            <br />
+            Ghế thật.
+            <br />
+            Chỉ một câu chat.
+          </p>
+          <p className="type-body-l text-ink-secondary">Đăng nhập để giữ ghế, thanh toán và nhận vé QR.</p>
+        </div>
+      </aside>
+      <main className="flex items-center justify-center rounded-[30px] bg-surface px-6 py-10 sm:px-12">
+        <div className="flex w-full max-w-[476px] flex-col gap-8">
+          <Link to="/" aria-label="Vingo" className="w-fit lg:hidden">
+            <Logo />
+          </Link>
+          <Outlet />
+        </div>
+      </main>
     </div>
   )
 }

@@ -34,6 +34,7 @@ const L = {
   EventDetail: lazy(() => import('@/features/booking/EventDetailPage')),
   SeatSelection: lazy(() => import('@/features/booking/SeatSelectionPage')),
   Checkout: lazy(() => import('@/features/booking/CheckoutPage')),
+  OrderSuccess: lazy(() => import('@/features/booking/OrderSuccessPage')),
   PaymentReturn: lazy(() => import('@/features/booking/PaymentReturnPage')),
   // account
   Orders: lazy(() => import('@/features/account/OrdersPage')),
@@ -97,6 +98,7 @@ export const routes: RouteObject[] = [
       { path: '/orders', element: buyer(L.Orders) },
       { path: '/orders/:orderId', element: buyer(L.OrderDetail) },
       { path: '/orders/:orderId/checkout', element: buyer(L.Checkout) },
+      { path: '/orders/:orderId/success', element: buyer(L.OrderSuccess) },
       { path: '/payment/vnpay-return', element: buyer(L.PaymentReturn) },
       { path: '/tickets', element: buyer(L.Tickets) },
       { path: '/tickets/:ticketId', element: buyer(L.TicketDetail) },

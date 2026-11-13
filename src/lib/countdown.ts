@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react'
 
-/** Số giây còn lại tới `iso` (không âm). Không có `iso` → undefined. */
+/** Số giây còn lại tới `expiresAtIso` (không âm). Giá trị sai thì 0. */
+export function remainingSeconds(expiresAtIso: string, nowMs: number): number {
+  const end = new Date(expiresAtIso).getTime()
+  return Number.isFinite(end) ? Math.max(0, Math.ceil((end - nowMs) / 1000)) : 0
+}
+
+/** Số giây còn lại tới `iso` (không âm). Không có `iso` hoặc sai định dạng → undefined. */
 export function secondsLeft(iso: string | undefined, now: number): number | undefined {
   if (!iso) return undefined
   const t = Date.parse(iso)
@@ -8,11 +14,13 @@ export function secondsLeft(iso: string | undefined, now: number): number | unde
   return Math.max(0, Math.ceil((t - now) / 1000))
 }
 
-/** 522 → "08:42" */
-export function formatCountdown(seconds: number): string {
-  const m = Math.floor(seconds / 60)
-  const s = seconds % 60
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+/** 552 → "09:12". Quá một giờ thì ghi giờ: 3725 → "1:02:05". */
+export function formatCountdown(totalSeconds: number): string {
+  const s = Math.max(0, Math.floor(totalSeconds))
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  return h > 0 ? `${h}:${pad(m)}:${pad(s % 60)}` : `${pad(m)}:${pad(s % 60)}`
 }
 
 /** Đếm ngược theo giây tới hạn `iso` (giữ ghế, thanh toán). */

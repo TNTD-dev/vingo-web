@@ -28,6 +28,8 @@ function send(url: string, init: RequestInit): Promise<Response> {
 }
 
 async function parse<T>(res: Response): Promise<T> {
+  // Ảnh (vd. mã QR vé) trả về Blob, không parse JSON.
+  if (res.ok && res.headers.get('Content-Type')?.startsWith('image/')) return (await res.blob()) as T
   const text = await res.text()
   const body = text ? safeJson(text) : undefined
   if (!res.ok) throw new ApiError(res.status, (body as Problem | undefined) ?? null)

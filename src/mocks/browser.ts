@@ -18,7 +18,11 @@ import { adminOperationsHandlers } from './adminOperations'
 import { copilotHandlers } from './copilot'
 import { agentHandlers } from './agent'
 import { authHandlers } from './auth'
+import { eventDetailHandlers, eventHandlers } from './events'
+import { orderHandlers } from './orders'
+import { seatmapHandlers } from './seatmap'
 import { meStreamHandler } from './sse'
+import { ticketHandlers } from './tickets'
 
 // Handler Orval sinh khớp mọi origin + path (vd. "*" + "/events") nên cũng bắt cả điều hướng trình duyệt tới route SPA cùng tên.
 // Cho mọi request tải trang (navigate) đi thẳng tới Vite.
@@ -33,6 +37,11 @@ export const worker = setupWorker(
   ...adminOperationsHandlers,
   ...copilotHandlers,
   ...agentHandlers,
+  ...eventHandlers,
+  ...eventDetailHandlers,
+  ...seatmapHandlers,
+  ...orderHandlers,
+  ...ticketHandlers,
   ...getAuthMock(),
   ...getMeMock(),
   ...getSearchMock(),
