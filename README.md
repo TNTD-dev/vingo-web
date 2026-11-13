@@ -152,7 +152,8 @@ vingo-web/
     │   ├── admin-dashboard/     tổng quan, báo cáo
     │   ├── admin-catalog/       sân, sơ đồ ghế, sự kiện, suất, khoá ghế
     │   ├── admin-ops/           đơn, xử lý đơn lỗi, vé, nhật ký
-    └── chat/                   khung chat buyer
+    │   ├── copilot/             phần Copilot để tiếp tục phát triển
+    └── chat/                   khung chat dùng chung agent/Copilot
     └── blocks/                  block hiển thị trong chat + registry
 ```
 

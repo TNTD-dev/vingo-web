@@ -15,6 +15,7 @@ import { getTicketsMock } from '@/api/generated/endpoints/tickets/tickets.msw'
 
 import { adminCatalogHandlers } from './adminCatalog'
 import { adminOperationsHandlers } from './adminOperations'
+import { copilotHandlers } from './copilot'
 import { agentHandlers } from './agent'
 import { authHandlers } from './auth'
 import { meStreamHandler } from './sse'
@@ -30,6 +31,7 @@ export const worker = setupWorker(
   ...authHandlers,
   ...adminCatalogHandlers,
   ...adminOperationsHandlers,
+  ...copilotHandlers,
   ...agentHandlers,
   ...getAuthMock(),
   ...getMeMock(),
