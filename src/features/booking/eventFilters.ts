@@ -1,6 +1,8 @@
 import { CityCode, EventCategory, SearchEventsSort, type SearchEventsParams } from '@/api/generated/model'
 import { vnDate, vnStartOfDay } from '@/lib/time'
 
+import { parseYmd, rangeToIso, type Ymd } from './dateRange'
+
 /*
  * Bộ lọc màn Khám phá sự kiện (Figma B1). Trạng thái nằm trên URL để chia sẻ link được và
  * để tab Bóng đá / Concert / Sân khấu trên AppNav dùng chung tham số `category`.
@@ -39,6 +41,9 @@ export type EventFilters = {
   category?: EventCategory
   city?: CityCode
   when?: When
+  /** Khoảng ngày tự chọn (giờ Việt Nam, gồm cả ngày cuối). Loại trừ với `when`. */
+  from?: Ymd
+  to?: Ymd
   priceMax?: number
   /** Chỉ hiện sự kiện còn mở bán. API chưa có tham số này nên lọc ở client trên trang đã tải. */
   available: boolean
@@ -51,11 +56,17 @@ function oneOf<T extends string>(values: readonly T[], v: string | null): T | un
 
 export function readFilters(params: URLSearchParams): EventFilters {
   const price = Number(params.get('price_max'))
+  const when = oneOf(WHEN, params.get('when'))
+  const fromRaw = params.get('from')
+  const toRaw = params.get('to')
+  const custom =
+    !when && parseYmd(fromRaw) && parseYmd(toRaw) && fromRaw! <= toRaw! ? { from: fromRaw!, to: toRaw! } : {}
   return {
     q: params.get('q')?.trim() || undefined,
     category: oneOf(Object.values(EventCategory), params.get('category')),
     city: oneOf(Object.values(CityCode), params.get('city')),
-    when: oneOf(WHEN, params.get('when')),
+    when,
+    ...custom,
     priceMax: Number.isInteger(price) && price > 0 && price < PRICE_LIMIT ? price : undefined,
     available: params.get('available') === '1',
     sort: oneOf(Object.values(SearchEventsSort), params.get('sort')) ?? 'relevance',
@@ -69,6 +80,10 @@ export function writeFilters(f: EventFilters): URLSearchParams {
   if (f.category) p.set('category', f.category)
   if (f.city) p.set('city', f.city)
   if (f.when) p.set('when', f.when)
+  else if (f.from && f.to) {
+    p.set('from', f.from)
+    p.set('to', f.to)
+  }
   if (f.priceMax !== undefined && f.priceMax < PRICE_LIMIT) p.set('price_max', String(f.priceMax))
   if (f.available) p.set('available', '1')
   if (f.sort !== 'relevance') p.set('sort', f.sort)
@@ -103,7 +118,7 @@ export function toSearchParams(f: EventFilters, now: Date): SearchEventsParams {
     q: f.q,
     category: f.category,
     city: f.city,
-    ...(f.when ? whenRange(f.when, now) : {}),
+    ...(f.when ? whenRange(f.when, now) : f.from && f.to ? rangeToIso(f.from, f.to) : {}),
     price_max: f.priceMax,
     sort: f.sort,
     limit: 12,
@@ -111,5 +126,5 @@ export function toSearchParams(f: EventFilters, now: Date): SearchEventsParams {
 }
 
 export function hasActiveFilters(f: EventFilters): boolean {
-  return Boolean(f.category || f.city || f.when || f.priceMax !== undefined || f.available)
+  return Boolean(f.category || f.city || f.when || f.from || f.priceMax !== undefined || f.available)
 }

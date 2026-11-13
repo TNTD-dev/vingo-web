@@ -3,9 +3,11 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { CityCode, EventCategory } from '@/api/generated/model'
 import { icons } from '@/design/icons'
 import { cn } from '@/lib/cn'
-import { formatDateRange } from '@/lib/time'
+import { formatDateRange, vnDate } from '@/lib/time'
 import { formatVnd } from '@/lib/money'
 
+import { labelYmd, toYmd, type DateRange } from './dateRange'
+import { RangeCalendar } from './RangeCalendar'
 import {
   CATEGORY_LABEL,
   CITY_LABEL,
@@ -33,6 +35,15 @@ type Props = {
 export function EventFiltersPanel({ filters: f, onChange, now, className }: Props) {
   const set = (patch: Partial<EventFilters>) => onChange({ ...f, ...patch })
   const range = f.when ? whenRange(f.when, now) : undefined
+  const today = (() => {
+    const d = vnDate(now)
+    return toYmd(d.year, d.month, d.day)
+  })()
+  const [calendarOpen, setCalendarOpen] = useState(false)
+  // Khoảng đang chọn dở (mới có ngày đầu) chưa áp vào bộ lọc.
+  const [draft, setDraft] = useState<DateRange>({})
+  const picked: DateRange = draft.from ? draft : { from: f.from, to: f.to }
+  const year = vnDate(now).year
 
   return (
     <div className={cn('flex flex-col gap-7 rounded-lg bg-surface p-6', className)}>
@@ -76,17 +87,49 @@ export function EventFiltersPanel({ filters: f, onChange, now, className }: Prop
       <Section title="Thời gian" className="gap-3">
         <div className="flex flex-wrap gap-2">
           {WHEN.map((w) => (
-            <Chip key={w} active={f.when === w} onClick={() => set({ when: f.when === w ? undefined : w })}>
+            <Chip
+              key={w}
+              active={f.when === w}
+              onClick={() => {
+                setDraft({})
+                set({ when: f.when === w ? undefined : w, from: undefined, to: undefined })
+              }}
+            >
               {whenLabel(w, now)}
             </Chip>
           ))}
         </div>
-        <div className="flex items-center gap-2 rounded-[12px] bg-canvas px-3.5 py-3">
+        <button
+          type="button"
+          aria-expanded={calendarOpen}
+          onClick={() => setCalendarOpen((v) => !v)}
+          className="flex items-center gap-2 rounded-[12px] bg-canvas px-3.5 py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
           <img src={icons.calendar} alt="" className="size-4" />
-          <span className={cn('type-body-m', range ? 'text-foreground' : 'text-ink-tertiary')}>
-            {range ? formatDateRange(range.from, range.to) : 'Mọi thời gian'}
+          <span className={cn('type-body-m', range || (f.from && f.to) ? 'text-foreground' : 'text-ink-tertiary')}>
+            {range
+              ? formatDateRange(range.from, range.to)
+              : f.from && f.to
+                ? f.from === f.to
+                  ? labelYmd(f.from, year)
+                  : `${labelYmd(f.from, year)} – ${labelYmd(f.to, year)}`
+                : picked.from
+                  ? `${labelYmd(picked.from, year)} – …`
+                  : 'Mọi thời gian'}
           </span>
-        </div>
+        </button>
+        {calendarOpen && (
+          <RangeCalendar
+            value={picked}
+            today={today}
+            onChange={(next) => {
+              if (next.from && next.to) {
+                setDraft({})
+                set({ when: undefined, from: next.from, to: next.to })
+              } else setDraft(next)
+            }}
+          />
+        )}
       </Section>
 
       <PriceSlider key={f.priceMax ?? 'all'} value={f.priceMax} onCommit={(priceMax) => set({ priceMax })} />
