@@ -2,7 +2,15 @@ import { describe, expect, it } from 'vitest'
 
 import { vnStartOfDay } from '@/lib/time'
 
-import { readFilters, toSearchParams, whenLabel, whenRange, writeFilters } from './eventFilters'
+import {
+  effectiveSort,
+  readFilters,
+  sortOptions,
+  toSearchParams,
+  whenLabel,
+  whenRange,
+  writeFilters,
+} from './eventFilters'
 
 // Thứ 5, 12/11/2026, 10:00 giờ Việt Nam
 const THURSDAY = new Date('2026-11-12T03:00:00Z')
@@ -17,7 +25,7 @@ describe('readFilters', () => {
       when: undefined,
       priceMax: undefined,
       available: false,
-      sort: 'relevance',
+      sort: undefined,
     })
   })
 
@@ -86,8 +94,31 @@ describe('toSearchParams', () => {
       from: vnStartOfDay(2026, 11, 12),
       to: vnStartOfDay(2026, 11, 13),
       price_max: 800_000,
-      sort: 'relevance',
+      sort: undefined,
       limit: 12,
     })
+  })
+
+  it('không gửi sort=relevance khi không có từ khoá (backend trả 400)', () => {
+    expect(toSearchParams(readFilters(new URLSearchParams('sort=relevance')), THURSDAY).sort).toBeUndefined()
+  })
+
+  it('giữ sort do người dùng chọn và relevance khi có từ khoá', () => {
+    expect(toSearchParams(readFilters(new URLSearchParams('sort=price')), THURSDAY).sort).toBe('price')
+    expect(toSearchParams(readFilters(new URLSearchParams('q=abc&sort=relevance')), THURSDAY).sort).toBe('relevance')
+  })
+})
+
+describe('effectiveSort / sortOptions', () => {
+  it('không có từ khoá thì mặc định starts_at và ẩn relevance', () => {
+    const f = readFilters(new URLSearchParams(''))
+    expect(effectiveSort(f)).toBe('starts_at')
+    expect(sortOptions(f)).not.toContain('relevance')
+  })
+
+  it('có từ khoá thì mặc định relevance', () => {
+    const f = readFilters(new URLSearchParams('q=abc'))
+    expect(effectiveSort(f)).toBe('relevance')
+    expect(sortOptions(f)).toContain('relevance')
   })
 })

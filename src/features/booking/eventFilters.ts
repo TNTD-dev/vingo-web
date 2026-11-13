@@ -47,7 +47,19 @@ export type EventFilters = {
   priceMax?: number
   /** Chỉ hiện sự kiện còn mở bán. API chưa có tham số này nên lọc ở client trên trang đã tải. */
   available: boolean
-  sort: SearchEventsSort
+  /** Không có = để backend chọn mặc định (có `q` → relevance, không → starts_at). */
+  sort?: SearchEventsSort
+}
+
+/** Cách sắp xếp thực tế đang áp dụng: `relevance` chỉ có nghĩa khi có từ khoá. */
+export function effectiveSort(f: Pick<EventFilters, 'q' | 'sort'>): SearchEventsSort {
+  if (!f.q) return !f.sort || f.sort === 'relevance' ? 'starts_at' : f.sort
+  return f.sort ?? 'relevance'
+}
+
+/** Các lựa chọn sắp xếp hiển thị trong dropdown. */
+export function sortOptions(f: Pick<EventFilters, 'q'>): SearchEventsSort[] {
+  return Object.values(SearchEventsSort).filter((s) => f.q || s !== 'relevance')
 }
 
 function oneOf<T extends string>(values: readonly T[], v: string | null): T | undefined {
@@ -69,7 +81,7 @@ export function readFilters(params: URLSearchParams): EventFilters {
     ...custom,
     priceMax: Number.isInteger(price) && price > 0 && price < PRICE_LIMIT ? price : undefined,
     available: params.get('available') === '1',
-    sort: oneOf(Object.values(SearchEventsSort), params.get('sort')) ?? 'relevance',
+    sort: oneOf(Object.values(SearchEventsSort), params.get('sort')),
   }
 }
 
@@ -86,7 +98,9 @@ export function writeFilters(f: EventFilters): URLSearchParams {
   }
   if (f.priceMax !== undefined && f.priceMax < PRICE_LIMIT) p.set('price_max', String(f.priceMax))
   if (f.available) p.set('available', '1')
-  if (f.sort !== 'relevance') p.set('sort', f.sort)
+  // Bỏ khi trùng mặc định của backend cho link gọn.
+  const sort = effectiveSort(f)
+  if (f.sort && sort !== (f.q ? 'relevance' : 'starts_at')) p.set('sort', sort)
   return p
 }
 
@@ -120,7 +134,8 @@ export function toSearchParams(f: EventFilters, now: Date): SearchEventsParams {
     city: f.city,
     ...(f.when ? whenRange(f.when, now) : f.from && f.to ? rangeToIso(f.from, f.to) : {}),
     price_max: f.priceMax,
-    sort: f.sort,
+    // `relevance` không kèm `q` bị backend từ chối 400; để trống thì backend tự chọn.
+    sort: f.sort && effectiveSort(f) === f.sort ? f.sort : undefined,
     limit: 12,
   }
 }
