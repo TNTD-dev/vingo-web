@@ -23,12 +23,12 @@ Ghi lại các điểm cần hỏi backend, báo nhóm, hoặc khác Figma. Cậ
 ## 3. Khác Figma (có chủ đích)
 
 **B1 · Khám phá sự kiện**
-- Ô khoảng ngày chỉ hiển thị, chưa chọn ngày tự do (cần thư viện lịch; theo CLAUDE.md phải hỏi trước khi thêm thư viện).
+- Khoảng ngày tự chọn bằng lịch tự viết (`RangeCalendar`, không thêm thư viện); lọc theo `from`/`to` trên URL, loại trừ với các chip Hôm nay/Cuối tuần/Tháng sau.
 - Công tắc "Chỉ hiện còn vé" làm cỡ chuẩn 46px; trong Figma nó bị kéo dài hết hàng (nhiều khả năng lỗi auto-layout).
 - Giá hiện "120.000 ₫" (có khoảng trắng) vì phải dùng `formatVnd()`; Figma ghi "120.000₫".
 
 **B2 · Chi tiết sự kiện**
-- Tab nav vẫn sáng "Khám phá", Figma sáng "Bóng đá" khi xem sự kiện bóng đá (nav chưa biết thể loại sự kiện đang xem).
+- Tab nav sáng theo thể loại của sự kiện đang xem (đã sửa, AppNav đọc `useGetEvent` dùng chung cache với trang).
 - Dòng giải đấu chỉ hiện khi sự kiện bóng đá có đủ `home_team`, `away_team` trong `attributes`.
 - Đoạn giới thiệu có thể xuống 3 dòng thay vì 2 khi thanh cuộn chiếm chỗ (chưa kiểm tra ở trình duyệt thật).
 - Thẻ "Hạng vé & khu" gom theo hạng giá (sân thật có hàng chục khu nhưng chỉ vài hạng).
