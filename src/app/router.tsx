@@ -3,6 +3,7 @@ import { createBrowserRouter, type RouteObject } from 'react-router'
 
 import { RequireAuth } from '@/auth/guards'
 import { FullPageSpinner } from '@/design/FullPageSpinner'
+import { Placeholder } from '@/design/Placeholder'
 import { ForbiddenPage, NotFoundPage } from '@/features/StatusPages'
 
 import { AdminLayout } from './AdminLayout'
@@ -107,6 +108,14 @@ export const routes: RouteObject[] = [
   {
     element: <PlainLayout />,
     children: [{ path: '/checkin', element: buyer(L.Checkin) }],
+  },
+  {
+    path: '/admin/copilot',
+    element: (
+      <RequireAuth allow="ADMIN">
+        <Placeholder title="Copilot">Khu vực Copilot để tiếp tục phát triển.</Placeholder>
+      </RequireAuth>
+    ),
   },
   {
     path: '/admin',
