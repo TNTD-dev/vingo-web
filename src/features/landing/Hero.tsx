@@ -7,10 +7,10 @@ import { logoMark } from '@/design/brand'
 import { cn } from '@/lib/cn'
 
 import { agentPath } from './agentLink'
-import { AskBar } from './AskBar'
+import { AskBar } from '@/design/AskBar'
 import heroImage from './assets/hero.jpg'
-import { usePrefersReducedMotion } from './hooks'
-import { MascotLive } from './MascotLive'
+import { usePrefersReducedMotion } from '@/lib/hooks'
+import { MascotLive } from '@/design/MascotLive'
 import { EXAMPLE_PROMPTS, HERO_CHIPS } from './prompts'
 
 const NAV = [

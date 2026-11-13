@@ -5,7 +5,7 @@ import { Fragment, useEffect, useLayoutEffect, useRef } from 'react'
 import { cn } from '@/lib/cn'
 
 import { buildDemoTimeline, DEMO_DURATION } from './demoTimeline'
-import { MascotLive } from './MascotLive'
+import { MascotLive } from '@/design/MascotLive'
 import { QrMini } from './QrMini'
 
 gsap.registerPlugin(ScrollTrigger)
