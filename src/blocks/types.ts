@@ -18,8 +18,4 @@ export type BlockProps = {
   orderPaid?: boolean
   /** Chưa đăng nhập: xem được nhưng không bấm được thao tác ghi. */
   readOnly?: boolean
-  /** Admin Copilot: block có chỉnh sửa chưa gửi đi (bảng, form, ghế); ConfirmAction cùng tin nhắn bị khoá tới khi cập nhật. */
-  onDirtyChange?: (dirty: boolean) => void
-  /** ConfirmAction đang lệch với lựa chọn trên block phía trên: chưa cho duyệt. */
-  stale?: boolean
 }

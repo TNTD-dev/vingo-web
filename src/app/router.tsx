@@ -5,7 +5,8 @@ import { RequireAuth } from '@/auth/guards'
 import { FullPageSpinner } from '@/design/FullPageSpinner'
 import { ForbiddenPage, NotFoundPage } from '@/features/StatusPages'
 
-import { AdminLayout, AgentLayout, AuthLayout, BuyerLayout, CopilotLayout, PlainLayout } from './layouts'
+import { AdminLayout } from './AdminLayout'
+import { AgentLayout, AuthLayout, BuyerLayout, PlainLayout } from './layouts'
 
 function page(Component: LazyExoticComponent<ComponentType>) {
   return (
@@ -45,8 +46,6 @@ const L = {
   // admin-dashboard
   Overview: lazy(() => import('@/features/admin-dashboard/OverviewPage')),
   Reports: lazy(() => import('@/features/admin-dashboard/ReportsPage')),
-  // copilot
-  Copilot: lazy(() => import('@/features/copilot/CopilotPage')),
   // admin-catalog
   Venues: lazy(() => import('@/features/admin-catalog/VenuesPage')),
   VenueDetail: lazy(() => import('@/features/admin-catalog/VenueDetailPage')),
@@ -55,6 +54,8 @@ const L = {
   AdminEventDetail: lazy(() => import('@/features/admin-catalog/AdminEventDetailPage')),
   ShowtimeSeats: lazy(() => import('@/features/admin-catalog/ShowtimeSeatsPage')),
   // admin-ops
+  AdminLogin: lazy(() => import('@/features/admin-ops/AdminLoginPage')),
+  AdminCheckin: lazy(() => import('@/features/admin-ops/AdminCheckinPage')),
   AdminOrders: lazy(() => import('@/features/admin-ops/AdminOrdersPage')),
   AdminOrderDetail: lazy(() => import('@/features/admin-ops/AdminOrderDetailPage')),
   AdminTickets: lazy(() => import('@/features/admin-ops/AdminTicketsPage')),
@@ -64,6 +65,7 @@ const L = {
 const buyer = (el: LazyExoticComponent<ComponentType>) => <RequireAuth>{page(el)}</RequireAuth>
 
 export const routes: RouteObject[] = [
+  { path: '/admin/login', element: page(L.AdminLogin) },
   {
     element: <AuthLayout />,
     children: [
@@ -125,18 +127,9 @@ export const routes: RouteObject[] = [
       { path: 'orders', element: page(L.AdminOrders) },
       { path: 'orders/:orderId', element: page(L.AdminOrderDetail) },
       { path: 'tickets', element: page(L.AdminTickets) },
+      { path: 'checkin', element: page(L.AdminCheckin) },
       { path: 'audit-logs', element: page(L.AuditLogs) },
     ],
-  },
-  {
-    // Admin Copilot: màn riêng, ngoài AdminLayout (không sidebar), vẫn chỉ cho ADMIN.
-    path: '/admin/copilot',
-    element: (
-      <RequireAuth allow="ADMIN">
-        <CopilotLayout />
-      </RequireAuth>
-    ),
-    children: [{ index: true, element: page(L.Copilot) }],
   },
   { path: '*', element: <NotFoundPage /> },
 ]

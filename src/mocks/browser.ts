@@ -13,9 +13,10 @@ import { getPaymentMock } from '@/api/generated/endpoints/payment/payment.msw'
 import { getSearchMock } from '@/api/generated/endpoints/search/search.msw'
 import { getTicketsMock } from '@/api/generated/endpoints/tickets/tickets.msw'
 
+import { adminCatalogHandlers } from './adminCatalog'
+import { adminOperationsHandlers } from './adminOperations'
 import { agentHandlers } from './agent'
 import { authHandlers } from './auth'
-import { copilotHandlers } from './copilot'
 import { meStreamHandler } from './sse'
 
 // Handler Orval sinh khớp mọi origin + path (vd. "*" + "/events") nên cũng bắt cả điều hướng trình duyệt tới route SPA cùng tên.
@@ -27,7 +28,8 @@ export const worker = setupWorker(
   navigationPassthrough,
   meStreamHandler,
   ...authHandlers,
-  ...copilotHandlers,
+  ...adminCatalogHandlers,
+  ...adminOperationsHandlers,
   ...agentHandlers,
   ...getAuthMock(),
   ...getMeMock(),

@@ -6,18 +6,16 @@ import type { ChatBlock } from '@/api/generated/model'
  * Danh sách chỗ thiếu: xem docs/agent-mode-notes.md.
  */
 
-export const isRecord = (v: unknown): v is Record<string, unknown> =>
-  typeof v === 'object' && v !== null && !Array.isArray(v)
-export const str = (v: unknown): string | undefined => (typeof v === 'string' && v !== '' ? v : undefined)
-export const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined)
-export const strList = (v: unknown): string[] =>
-  Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
-export const recList = (v: unknown): Record<string, unknown>[] => (Array.isArray(v) ? v.filter(isRecord) : [])
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
+const str = (v: unknown): string | undefined => (typeof v === 'string' && v !== '' ? v : undefined)
+const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined)
+const strList = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [])
+const recList = (v: unknown): Record<string, unknown>[] => (Array.isArray(v) ? v.filter(isRecord) : [])
 
 export type Tone = 'success' | 'warning' | 'info' | 'neutral'
 const tone = (v: unknown): Tone => (v === 'success' || v === 'warning' || v === 'info' ? v : 'neutral')
 
-export function root(block: ChatBlock): Record<string, unknown> {
+function root(block: ChatBlock): Record<string, unknown> {
   return isRecord(block.payload) ? block.payload : {}
 }
 
@@ -107,12 +105,6 @@ export type ConfirmPayload = {
   rejectLabel: string
   /** Đơn mà thao tác này tác động tới (để panel "Đơn đang làm" cập nhật). */
   order?: OrderSummaryPayload
-  /** Copilot: tên việc hiện ở panel "Việc đang làm" (mặc định dùng `title`). */
-  taskTitle?: string
-  /** Copilot: các dòng tóm tắt ở panel (khác với `rows` trong block). */
-  summaryRows: { label: string; value: string }[]
-  /** Copilot: đường dẫn màn quản trị tương ứng, chỉ nhận đường dẫn nội bộ `/admin/...`. */
-  adminUrl?: string
 }
 
 export function parseConfirmAction(block: ChatBlock): ConfirmPayload {
@@ -129,19 +121,7 @@ export function parseConfirmAction(block: ChatBlock): ConfirmPayload {
     confirmLabel: str(p.confirm_label) ?? 'Đồng ý',
     rejectLabel: str(p.reject_label) ?? 'Từ chối',
     order: isRecord(p.order) ? parseOrderSummary({ payload: p.order }) : undefined,
-    taskTitle: str(p.task_title),
-    summaryRows: recList(p.summary_rows).flatMap((r) => {
-      const label = str(r.label)
-      const value = str(r.value)
-      return label && value ? [{ label, value }] : []
-    }),
-    adminUrl: internalAdminPath(str(p.admin_url)),
   }
-}
-
-/** Chỉ cho điều hướng tới route admin nội bộ (chặn URL ngoài, `//host`, đường dẫn khác). */
-export function internalAdminPath(url: string | undefined): string | undefined {
-  return url && /^\/admin(\/|$|\?)/.test(url) && !url.startsWith('//') ? url : undefined
 }
 
 // ---------------------------------------------------------------- PaymentQR

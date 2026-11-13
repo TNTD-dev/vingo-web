@@ -14,7 +14,7 @@ export function RequireAuth({ allow, children }: { allow?: UserRole; children: R
   if (!ready) return <FullPageSpinner />
   if (!user) {
     const next = encodeURIComponent(location.pathname + location.search)
-    return <Navigate to={`/login?next=${next}`} replace />
+    return <Navigate to={`${allow === 'ADMIN' ? '/admin/login' : '/login'}?next=${next}`} replace />
   }
   if (allow && user.role !== allow) return <Navigate to="/403" replace />
   return children
