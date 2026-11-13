@@ -2,12 +2,12 @@ import type { Order } from '@/api/generated/model'
 import type { BadgeTone } from '@/design/StatusBadge'
 
 export const ORDER_STATUS: Record<NonNullable<Order['status']>, { label: string; tone: BadgeTone }> = {
-  PAID: { label: 'PAID', tone: 'success' },
-  PENDING: { label: 'PENDING', tone: 'warning' },
-  EXPIRED: { label: 'EXPIRED', tone: 'neutral' },
-  CANCELLED: { label: 'CANCELLED', tone: 'neutral' },
-  NEEDS_REVIEW: { label: 'NEEDS REVIEW', tone: 'info' },
-  REFUNDED: { label: 'REFUNDED', tone: 'neutral' },
+  PAID: { label: 'Đã thanh toán', tone: 'success' },
+  PENDING: { label: 'Chờ thanh toán', tone: 'warning' },
+  EXPIRED: { label: 'Hết hạn', tone: 'neutral' },
+  CANCELLED: { label: 'Đã huỷ', tone: 'neutral' },
+  NEEDS_REVIEW: { label: 'Đang xem xét', tone: 'info' },
+  REFUNDED: { label: 'Đã hoàn tiền', tone: 'neutral' },
 }
 
 /** Tổng số vé của đơn (ghế đơn = 1, khu đứng = quantity). */

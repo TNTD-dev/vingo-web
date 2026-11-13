@@ -37,6 +37,8 @@ export function useMeStream(onEvent?: MeStreamHandler, onOpen?: () => void) {
     const controller = new AbortController()
     const accept = createDeduper()
     let lastEventId: string | undefined
+    let opened = false
+    let failures = 0
 
     void fetchEventSource(`${API_BASE}/me/stream`, {
       signal: controller.signal,
@@ -50,11 +52,17 @@ export function useMeStream(onEvent?: MeStreamHandler, onOpen?: () => void) {
       },
       async onopen(res) {
         if (res.ok) {
+          // Nối lại sau khi mất kết nối: có thể đã lỡ sự kiện, nên làm mới đơn/vé.
+          if (opened) invalidateFor('order.paid', queryClient)
+          opened = true
+          failures = 0
           openRef.current?.()
           return
         }
         if (res.status === 401 && (await refreshSession())) throw new RetriableError()
-        throw new Error(`Không mở được /me/stream: HTTP ${res.status}`)
+        // 4xx khác (trừ 429) là lỗi cố định: không nối lại mãi. 5xx/429: thử lại có giãn cách.
+        if (res.status >= 400 && res.status < 500 && res.status !== 429) throw new Error(`HTTP ${res.status}`)
+        throw new RetriableError()
       },
       onmessage(msg) {
         if (!msg.event || !accept(msg.id)) return
@@ -72,7 +80,12 @@ export function useMeStream(onEvent?: MeStreamHandler, onOpen?: () => void) {
         throw new RetriableError()
       },
       onerror(err) {
-        if (err instanceof RetriableError) return 1000
+        // Mất mạng (TypeError của fetch) hay server đóng: nối lại, giãn dần tới 30 giây.
+        if (controller.signal.aborted) throw err
+        if (err instanceof RetriableError || err instanceof TypeError) {
+          failures += 1
+          return Math.min(1000 * 2 ** Math.min(failures - 1, 5), 30_000)
+        }
         throw err
       },
     }).catch(() => {
@@ -92,7 +105,8 @@ export function invalidateFor(type: StreamEventEvent, queryClient: ReturnType<ty
   if (type.startsWith('order.') || type === 'payment.failed') {
     void queryClient.invalidateQueries(startsWith('/orders'))
   }
-  if (type === 'ticket.issued') {
+  // Vé phát hành bất đồng bộ sau thanh toán: order.paid cũng làm mới vé để không lỡ nếu ticket.issued đến trễ.
+  if (type === 'ticket.issued' || type === 'order.paid') {
     void queryClient.invalidateQueries(startsWith('/tickets'))
   }
 }

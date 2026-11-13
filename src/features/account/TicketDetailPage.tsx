@@ -1,19 +1,23 @@
-import { useMutation } from '@tanstack/react-query'
 import { CalendarPlus, ChevronLeft, ChevronRight, Clock, MapPin, QrCode, Sun } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router'
-import { toast } from 'sonner'
 
-import { resendMyTicket, useGetTicket, useListMyTickets } from '@/api/generated/endpoints/tickets/tickets'
+import { useGetTicket, useListMyTickets } from '@/api/generated/endpoints/tickets/tickets'
 import { isApiError } from '@/api/problem'
 import { ArrowButton } from '@/design/ArrowButton'
 import { Mascot } from '@/design/Mascot'
 import { StatusBadge } from '@/design/StatusBadge'
 import { seatLabel } from '@/design/ticket/seat'
-import { useTicketQr } from '@/design/ticket/useTicketQr'
+import { QrImage } from '@/design/ticket/QrImage'
+import { useResendTicket } from '@/design/ticket/useResendTicket'
 import { Skeleton } from '@/design/ui/skeleton'
-import { cn } from '@/lib/cn'
 import { buildIcs, downloadIcs } from '@/lib/ics'
 import { formatHm, formatWeekdayDayMonth } from '@/lib/time'
+
+const TICKET_STATUS = { ISSUED: 'Hợp lệ', USED: 'Đã sử dụng', VOID: 'Vô hiệu' } as const
+
+/** Vé của người khác trả 404, id sai định dạng trả 400: với người dùng đều là "không tìm thấy". */
+const notFound = (e: unknown) =>
+  isApiError(e) && (e.code === 'NOT_FOUND' || e.code === 'FORBIDDEN' || e.status === 404 || e.status === 400)
 
 // B11 · Vé & mã QR toàn màn (Figma 03 · Buyer). Nền tối do BuyerLayout đổi theo route.
 export default function TicketDetailPage() {
@@ -25,12 +29,7 @@ export default function TicketDetailPage() {
   const siblings = useListMyTickets(undefined, {
     query: { enabled: !!code, select: (r) => (r.data ?? []).filter((x) => x.order_code === code) },
   })
-  const qr = useTicketQr(ticketId, t?.status === 'ISSUED')
-  const resend = useMutation({
-    mutationFn: () => resendMyTicket(ticketId),
-    onSuccess: () => toast.success('Đã gửi lại vé qua email'),
-    onError: () => toast.error('Chưa gửi được email, thử lại sau'),
-  })
+  const resend = useResendTicket()
 
   if (ticket.isPending)
     return <Skeleton className="mx-auto mt-6 h-[547px] w-full max-w-[440px] rounded-[28px] bg-ink-raised" />
@@ -38,7 +37,7 @@ export default function TicketDetailPage() {
     return (
       <div className="mx-auto mt-10 flex max-w-[440px] flex-col items-center gap-3 rounded-[28px] bg-surface px-6 py-12 text-center">
         <Mascot state="sorry" className="h-24 w-auto" />
-        <h1 className="type-h3">{isApiError(ticket.error, 'NOT_FOUND') ? 'Không tìm thấy vé' : 'Không tải được vé'}</h1>
+        <h1 className="type-h3">{notFound(ticket.error) ? 'Không tìm thấy vé' : 'Không tải được vé'}</h1>
         <Link to="/tickets" className="rounded-pill bg-ink px-5 py-2.5 type-body-m-strong text-on-ink">
           Vé của tôi
         </Link>
@@ -84,7 +83,7 @@ export default function TicketDetailPage() {
               tone={issued ? 'dark' : t.status === 'VOID' ? 'danger' : 'neutral'}
               className={issued ? '!bg-agent !text-foreground' : undefined}
             >
-              {t.status}
+              {t.status ? TICKET_STATUS[t.status] : ''}
             </StatusBadge>
           </div>
           <h1 className="text-center type-h2">{t.event?.title}</h1>
@@ -101,17 +100,8 @@ export default function TicketDetailPage() {
               </div>
             ))}
           </dl>
-          <div
-            className={cn(
-              'mx-auto flex aspect-square w-full max-w-[280px] items-center justify-center',
-              !issued && 'opacity-30',
-            )}
-          >
-            {qr.url ? (
-              <img src={qr.url} alt={`Mã QR vé ${t.code}`} className="size-full object-contain" />
-            ) : (
-              <Skeleton className="size-full" />
-            )}
+          <div className="mx-auto flex aspect-square w-full max-w-[280px] items-center justify-center">
+            <QrImage ticket={t} className="size-full" />
           </div>
           <p className="flex items-center justify-center gap-2 type-caption text-ink-tertiary">
             <Sun className="size-3.5" aria-hidden /> Tăng độ sáng màn hình khi đưa nhân viên quét
@@ -162,7 +152,7 @@ export default function TicketDetailPage() {
           hint="Mã đã dùng sẽ hiện USED và không vào lại được"
         />
         <div className="flex flex-wrap gap-3">
-          <ArrowButton onClick={() => resend.mutate()} disabled={resend.isPending || !issued}>
+          <ArrowButton onClick={() => resend.mutate([ticketId])} disabled={resend.isPending || !issued}>
             Gửi lại vé qua email
           </ArrowButton>
           <button

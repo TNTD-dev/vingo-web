@@ -95,7 +95,7 @@ export default function OrdersPage() {
       <p className="flex items-center gap-3 rounded-[20px] bg-surface px-6 py-4 type-caption text-ink-secondary">
         <ShieldCheck className="size-4 shrink-0 text-foreground" aria-hidden />
         <span>
-          Đơn “NEEDS REVIEW”: tiền đã về nhưng đơn hết hạn hoặc lệch số tiền — đội vận hành sẽ xử lý trong 24h, bạn
+          Đơn “Đang xem xét”: tiền đã về nhưng đơn hết hạn hoặc lệch số tiền — đội vận hành sẽ xử lý trong 24h, bạn
           không cần thao tác thêm.
         </span>
       </p>

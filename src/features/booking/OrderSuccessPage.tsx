@@ -1,13 +1,12 @@
-import { useMutation } from '@tanstack/react-query'
 import { Download, Mail } from 'lucide-react'
 import { Link, useParams } from 'react-router'
-import { toast } from 'sonner'
 
 import { useGetOrder } from '@/api/generated/endpoints/booking/booking'
-import { resendMyTicket, useListMyTickets } from '@/api/generated/endpoints/tickets/tickets'
+import { useListMyTickets } from '@/api/generated/endpoints/tickets/tickets'
 import { ArrowButton } from '@/design/ArrowButton'
 import { icons } from '@/design/icons'
 import { TicketCard } from '@/design/ticket/TicketCard'
+import { useResendTicket } from '@/design/ticket/useResendTicket'
 import { Skeleton } from '@/design/ui/skeleton'
 import { buildIcs, downloadIcs } from '@/lib/ics'
 import { maskEmail } from '@/lib/mask'
@@ -28,13 +27,7 @@ export default function OrderSuccessPage() {
       refetchInterval: (q) => ((q.state.data?.data ?? []).some((t) => t.order_code === code) ? false : 3000),
     },
   })
-  const resend = useMutation({
-    mutationFn: async (ids: string[]) => {
-      await Promise.all(ids.map((id) => resendMyTicket(id)))
-    },
-    onSuccess: () => toast.success('Đã gửi lại email vé'),
-    onError: () => toast.error('Chưa gửi được email, thử lại sau'),
-  })
+  const resend = useResendTicket()
 
   if (order.isPending) return <Skeleton className="h-[320px] rounded-[30px]" />
   const o = order.data
@@ -76,7 +69,7 @@ export default function OrderSuccessPage() {
           Thanh toán thành công
         </h1>
         <p className="max-w-[560px] type-body-l text-on-ink-secondary">
-          Đơn #{o.code} đã PAID{o.paid_at ? ` lúc ${formatHm(o.paid_at)}` : ''}.{' '}
+          Đơn #{o.code} đã thanh toán{o.paid_at ? ` lúc ${formatHm(o.paid_at)}` : ''}.{' '}
           {list.length > 0 ? `${list.length} vé QR đã được phát hành` : 'Vé QR đang được phát hành'}
           {email ? ` và gửi tới ${email}` : ''}.
         </p>

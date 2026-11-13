@@ -4,3 +4,4 @@ src/api/generated
 contracts
 public/mockServiceWorker.js
 package-lock.json
+.claude
