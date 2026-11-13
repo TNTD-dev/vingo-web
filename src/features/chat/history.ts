@@ -6,27 +6,13 @@
 export const HISTORY_DAYS = 90
 const MAX_ITEMS = 100
 
-export type HistoryTag =
-  | 'DRAFT'
-  | 'PENDING'
-  | 'PAID'
-  | 'EXPIRED'
-  | 'QA'
-  // Admin Copilot: kết quả của phiên (xem features/copilot/copilotHistory.ts)
-  | 'EXECUTED'
-  | 'AWAITING'
-  | 'REJECTED'
-  | 'READ_ONLY'
+export type HistoryTag = 'DRAFT' | 'PENDING' | 'PAID' | 'EXPIRED' | 'QA'
 
 export type HistoryEntry = {
   id: string
   title: string
   preview: string
   tag: HistoryTag
-  /** Copilot: loại thao tác ghi trong phiên (RESOLVE_REVIEW, BLOCK_SEATS…). */
-  kinds?: string[]
-  /** Copilot: số đề xuất đang chờ duyệt. */
-  pending?: number
   /** ms epoch */
   updatedAt: number
 }

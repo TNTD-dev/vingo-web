@@ -1,6 +1,6 @@
 # vingo-web
 
-Giao diện web của **Vingo** — đặt vé sự kiện bằng cách chat với AI. Người mua chat để tìm sự kiện, chọn ghế, thanh toán VNPay và nhận vé QR; admin dùng Admin Copilot và dashboard để quản lý sân, sự kiện, đơn và xem báo cáo; nhân viên soát vé quét QR tại cổng.
+Giao diện web của **Vingo** — đặt vé sự kiện bằng cách chat với AI. Người mua chat để tìm sự kiện, chọn ghế, thanh toán VNPay và nhận vé QR; admin dùng dashboard để quản lý sân, sự kiện, đơn và xem báo cáo; nhân viên soát vé quét QR tại cổng.
 
 | Repo                                                       | Vai trò                                               |
 | ---------------------------------------------------------- | ----------------------------------------------------- |
@@ -152,8 +152,7 @@ vingo-web/
     │   ├── admin-dashboard/     tổng quan, báo cáo
     │   ├── admin-catalog/       sân, sơ đồ ghế, sự kiện, suất, khoá ghế
     │   ├── admin-ops/           đơn, xử lý đơn lỗi, vé, nhật ký
-    │   ├── copilot/             agent mode cho admin
-    │   └── chat/                khung chat dùng chung agent/copilot
+    └── chat/                   khung chat buyer
     └── blocks/                  block hiển thị trong chat + registry
 ```
 
@@ -176,7 +175,6 @@ vingo-web/
 | `/checkin`                                                              | Soát vé                           | đăng nhập                      | `checkIn`                                    |
 | `/admin`                                                                | Tổng quan                         | ADMIN                          | `queryMetric`, `adminListOrders`             |
 | `/admin/reports`                                                        | Báo cáo                           | ADMIN                          | `queryMetric`                                |
-| `/admin/copilot`                                                        | Copilot (agent mode admin)        | ADMIN                          | chat                                         |
 | `/admin/venues[/:venueId]`, `/admin/halls/:hallId/layouts`              | Sân, sơ đồ ghế                    | ADMIN                          | `listVenues`, `importSeatLayoutSvg`…         |
 | `/admin/events[/:eventId]`                                              | Sự kiện                           | ADMIN                          | `createEvent`, `putPriceTiers`…              |
 | `/admin/showtimes/:showtimeId/seats`                                    | Khoá/mở ghế                       | ADMIN                          | `getSeatmap`, `blockSeats`, `unblockSeats`   |

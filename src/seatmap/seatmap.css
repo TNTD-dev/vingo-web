@@ -1,0 +1,175 @@
+/*
+ * Tô lại SVG sơ đồ ghế theo phong cách Vingo (Figma page 09 · map/overview · Vingo style).
+ * SVG admin giữ nguyên màu gốc; mọi màu hiển thị đến từ đây và từ biến --zone-fill do SeatMapView đặt cho từng khu.
+ * Chỉ dùng token trong index.css (--vg-*).
+ */
+
+.seatmap {
+  --map-pitch: #e9e9e6;
+  --map-pitch-in: #f1f1ee;
+  --map-walkway: #f6f6f4;
+  --map-line: rgb(255 255 255 / 90%);
+}
+
+.seatmap svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  user-select: none;
+}
+
+/* ---- nền ---- */
+.seatmap [id='BACKGROUND'] {
+  fill: transparent;
+}
+.seatmap [id='PITCH'] path {
+  fill: var(--map-pitch);
+  stroke: none;
+}
+.seatmap [id='PITCH'] [id='pitch_infield'] {
+  fill: var(--map-pitch-in);
+}
+.seatmap [id='PITCH'] [id^='pitch_stripe'] {
+  display: none;
+}
+.seatmap [id='PITCH'] [id='pitch_touchline'],
+.seatmap [id='PITCH'] [id='pitch_halfway'],
+.seatmap [id='PITCH'] [id^='pitch_penalty'],
+.seatmap [id='PITCH'] [id^='pitch_goal'],
+.seatmap [id='PITCH'] [id='pitch_circle'] {
+  fill: none;
+  stroke: var(--map-line);
+  stroke-width: 1.2;
+}
+.seatmap [id^='WALKWAY'] {
+  fill: var(--map-walkway);
+}
+.seatmap [id='CIRCULATION'] path {
+  fill: var(--map-walkway);
+}
+.seatmap [id^='PITCH_SIDE'] {
+  fill: var(--map-pitch);
+}
+.seatmap [id^='AISLE'] {
+  fill: var(--vg-bg-surface);
+}
+
+/* ---- khu ---- */
+.seatmap [id^='ZONE__'] {
+  transition: opacity 0.25s;
+}
+.seatmap [id^='ZONE__'] > path:first-child,
+.seatmap path[id^='ZONE__'] {
+  fill: var(--zone-fill, var(--vg-map-sold));
+}
+.seatmap [id^='ZONE__'] g[mask] path {
+  stroke: rgb(26 26 26 / 22%);
+  stroke-width: 1.5;
+}
+.seatmap [data-kind='STANDING'] > path:first-child,
+.seatmap path[data-kind='STANDING'] {
+  fill: var(--vg-bg-surface);
+}
+.seatmap [data-kind='STANDING'] g[mask] path,
+.seatmap path[data-kind='STANDING'] {
+  stroke: var(--vg-text-tertiary);
+  stroke-dasharray: 5 4;
+  stroke-width: 1.5;
+}
+.seatmap [data-zone] {
+  cursor: pointer;
+}
+.seatmap [data-soldout] {
+  cursor: not-allowed;
+}
+
+/* ---- nội dung ghế ---- */
+.seatmap :where([id^='CONTENT__']) circle[id^='SEAT__'] {
+  fill: color-mix(in srgb, var(--zone-fill, var(--vg-map-sold)) 55%, var(--vg-bg-inverse));
+  opacity: 0.55;
+  stroke: none;
+}
+.seatmap [id^='CONTENT__'] [id^='GATE__'],
+.seatmap [id='GATES__JUNCTION'] [id^='GATE__'] {
+  fill: var(--vg-bg-surface);
+  stroke: var(--vg-bg-inverse);
+  stroke-width: 1;
+}
+.seatmap [id^='GATE_LABEL__'] {
+  fill: var(--vg-bg-inverse);
+}
+
+/* ---- nhãn ---- */
+.seatmap [id='LABELS'] [id^='bg'] {
+  fill: var(--vg-bg-inverse);
+  stroke: none;
+}
+.seatmap [id='LABELS'] [id^='text'] {
+  fill: var(--vg-text-inverse);
+}
+.seatmap [id='LABELS'] > g[id^='LABEL__TITLE'],
+.seatmap [id='LABELS'] > g[id^='LABEL__STAND'],
+.seatmap [id='LABELS'] > path[id^='LABEL__TITLE'],
+.seatmap [id='LABELS'] > path[id^='LABEL__STAND'] {
+  display: none;
+}
+.seatmap [id='LABELS'] [id^='LABEL__TECH'] {
+  fill: var(--vg-text-tertiary);
+}
+.seatmap [id='LABELS'] > g[data-zone] {
+  cursor: pointer;
+}
+
+/* ---- trạng thái khi lọc hạng / phóng vào khu ---- */
+.seatmap [data-dim] {
+  opacity: 0.18;
+}
+.seatmap [data-hidden] {
+  display: none;
+}
+.seatmap [data-active] > path:first-child,
+.seatmap path[data-active] {
+  stroke: var(--vg-bg-inverse);
+  stroke-width: 3;
+}
+
+/* ---- ghế trong khu đang xem ---- */
+.seatmap [id^='SEAT__'][data-status] {
+  opacity: 1;
+  stroke-width: 0.7;
+  transition: fill 0.12s;
+}
+.seatmap [id^='SEAT__'][data-status='AVAILABLE'] {
+  fill: var(--vg-seat-available);
+  stroke: var(--vg-text-tertiary);
+  cursor: pointer;
+}
+.seatmap [id^='SEAT__'][data-status='AVAILABLE']:hover {
+  fill: var(--vg-accent-agent);
+  stroke: var(--vg-bg-inverse);
+}
+.seatmap [id^='SEAT__'][data-status='SELECTED'] {
+  fill: var(--vg-seat-selected);
+  stroke: var(--vg-bg-inverse);
+  cursor: pointer;
+}
+.seatmap [id^='SEAT__'][data-status='HELD'] {
+  fill: var(--vg-status-warning);
+  fill-opacity: 0.7;
+  stroke: none;
+  cursor: not-allowed;
+}
+.seatmap [id^='SEAT__'][data-status='SOLD'],
+.seatmap [id^='SEAT__'][data-status='BLOCKED'] {
+  fill: var(--vg-map-sold);
+  stroke: none;
+  cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seatmap [id^='ZONE__'],
+  .seatmap [id^='SEAT__'][data-status] {
+    transition: none;
+  }
+}

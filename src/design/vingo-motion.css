@@ -1,5 +1,5 @@
 /*
- * Chuyển động dùng chung cho mascot Vingo Live và AskBar (Landing, Agent mode, Copilot).
+ * Chuyển động dùng chung cho mascot Vingo Live và AskBar (Landing và Agent mode).
  * Tách từ features/landing/landing.css. Mọi chuyển động nằm trong `prefers-reduced-motion: no-preference`,
  * trừ Vingo chớp mắt.
  */

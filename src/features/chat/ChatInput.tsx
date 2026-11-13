@@ -14,13 +14,11 @@ type Props = {
   busy?: boolean
   /** Chưa đăng nhập: xem được, không gửi được. */
   canSend: boolean
-  /** Dòng cam kết dưới ô nhập (mặc định theo buyer). */
-  note?: string
   className?: string
 }
 
 /** Ô nhập chat (Figma ChatInput 10:376) + dòng cam kết "chỉ giữ ghế khi bạn bấm đồng ý". */
-export function ChatInput({ onSend, onTypingChange, placeholder, busy, canSend, note, className }: Props) {
+export function ChatInput({ onSend, onTypingChange, placeholder, busy, canSend, className }: Props) {
   const [value, setValue] = useState('')
   const loc = useLocation()
 
@@ -76,7 +74,7 @@ export function ChatInput({ onSend, onTypingChange, placeholder, busy, canSend, 
       </form>
       <p className="mt-2 text-center type-caption text-ink-tertiary">
         {canSend ? (
-          (note ?? 'Vingo chỉ giữ ghế hay tạo thanh toán khi bạn bấm đồng ý.')
+          'Vingo chỉ giữ ghế hay tạo thanh toán khi bạn bấm đồng ý.'
         ) : (
           <>
             <Link

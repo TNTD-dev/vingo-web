@@ -37,6 +37,11 @@
   --vg-seat-selected: #1a1a1a;
   --vg-seat-held: rgb(217 138 28 / 35%);
   --vg-seat-sold: rgb(26 26 26 / 12%);
+  --vg-tier-1: #c6f24e;
+  --vg-tier-2: #a9c4ff;
+  --vg-tier-3: #f4d9a6;
+  --vg-tier-4: #e6c6f0;
+  --vg-map-sold: #d9d9d9;
   /* thêm cho mascot (Figma page 07) */
   --vg-mascot-cheek: #ff8fa3;
 
@@ -83,6 +88,11 @@
 }
 
 @theme inline {
+  --color-tier-1: var(--vg-tier-1);
+  --color-tier-2: var(--vg-tier-2);
+  --color-tier-3: var(--vg-tier-3);
+  --color-tier-4: var(--vg-tier-4);
+  --color-map-sold: var(--vg-map-sold);
   /* ---- font (Figma text styles) ---- */
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', monospace;
