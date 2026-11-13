@@ -12,7 +12,7 @@ import { clearHistory, loadHistory, type HistoryEntry } from './history'
 import { HistoryPanel } from './HistoryPanel'
 import { MascotDock } from './MascotDock'
 import { MessageList } from './MessageList'
-import { useChat } from './useChat'
+import { useChat, type ChatOptions } from './useChat'
 
 export type WelcomeApi = {
   send: (text: string) => void
@@ -21,6 +21,14 @@ export type WelcomeApi = {
   /** Hội thoại đang dở (chưa thanh toán) trong lịch sử, nếu có. */
   resume?: HistoryEntry
   openConversation: (id: string) => void
+}
+
+export type HistoryApi = {
+  entries: HistoryEntry[]
+  activeId?: string
+  onOpen: (id: string) => void
+  onNew: () => void
+  onClose: () => void
 }
 
 export type SideApi = { state: ChatState; open: boolean; setOpen: (open: boolean) => void }
@@ -33,16 +41,28 @@ export type SideSlot = {
 }
 
 type Props = {
-  agent: 'buyer'
+  agent: 'buyer' | 'admin'
   /** Khoá lưu lịch sử trong localStorage (mặc định theo `agent`). */
   historyKey?: string
   placeholder?: string
-  /** Màn trống trước tin đầu. Mặc định là một dòng chào trơn. */
+  /** Màn trống trước tin đầu. Mặc định là một dòng chào trơn; Copilot sẽ truyền màn riêng. */
   welcome?: (api: WelcomeApi) => ReactNode
   /** Màn chào không nằm trong khung trắng, không có header (Figma M1: nổi trên nền ảnh sân). */
   bareWelcome?: boolean
-  /** Panel phụ bên phải (buyer: "Đơn đang làm"). */
+  /** Panel phụ bên phải (buyer: "Đơn đang làm"). Copilot có thể bỏ trống. */
   side?: (api: SideApi) => SideSlot
+  /** Không hiện header ở màn chào nhưng vẫn giữ khung trắng (Figma C1). */
+  hideWelcomeHeader?: boolean
+  /** Thay panel lịch sử mặc định (Copilot: lọc theo thao tác ghi, nối sang audit). */
+  historyPanel?: (api: HistoryApi) => ReactNode
+  /** Gắn nhãn mục lịch sử (Copilot: kết quả thao tác ghi). */
+  describeHistory?: ChatOptions['describe']
+  /** Placeholder ô nhập sau tin đầu (mặc định "Nhắn Vingo…"). */
+  followUpPlaceholder?: string
+  /** Dòng cam kết dưới ô nhập. */
+  inputNote?: string
+  /** Mascot nổi cạnh ô nhập (mặc định bật; Figma màn admin không có). */
+  mascotDock?: boolean
   /** Câu hỏi mở đầu (vd từ `?q=` của Landing), gửi một lần khi đã đăng nhập và stream đã mở. */
   initialQuestion?: string
   /** Ngữ cảnh từ trang khác (chọn ghế → Vingo). */
@@ -53,7 +73,7 @@ type Props = {
 
 /**
  * Khung chat dùng chung (Figma page 04): header + dòng hội thoại + block + ô nhập + mascot.
- * Dùng bởi features/agent (buyer), với `welcome`, `side`, `placeholder`.
+ * Dùng bởi features/agent (buyer) và sau này features/copilot (admin), khác nhau ở `welcome`, `side`, `placeholder`.
  * Xem được khi chưa đăng nhập; gửi tin, giữ ghế thì phải đăng nhập.
  */
 export function ChatPage({
@@ -62,13 +82,19 @@ export function ChatPage({
   placeholder = 'Nhắn Vingo…',
   welcome,
   bareWelcome = false,
+  hideWelcomeHeader = false,
+  historyPanel,
+  describeHistory,
+  followUpPlaceholder = 'Nhắn Vingo…',
+  inputNote,
+  mascotDock = true,
   side,
   initialQuestion,
   context,
   onInitialHandled,
 }: Props) {
   const { user } = useAuth()
-  const chat = useChat(historyKey)
+  const chat = useChat(historyKey, { describe: describeHistory, supersedeOnEdit: agent === 'admin' })
   const {
     state,
     send,
@@ -124,7 +150,7 @@ export function ChatPage({
   }, [compact])
 
   const started = state.items.length > 0 || state.awaiting
-  // Không có màn chào riêng thì luôn hiện ô nhập.
+  // Không có màn chào riêng (Copilot chưa làm) thì luôn hiện ô nhập.
   const showInput = started || !welcome
   const ctxItem = state.items.find((i) => i.kind === 'context')
   const handoff = !!ctxItem && !state.items.some((i) => i.kind === 'user')
@@ -140,6 +166,7 @@ export function ChatPage({
   )
   const panelVisible = started && !!sideSlot && panelOpen
   const bare = bareWelcome && !started && !!welcome
+  const headerHidden = bare || (hideWelcomeHeader && !started && !!welcome)
 
   const open = (id: string) => {
     void openConversation(id)
@@ -154,7 +181,9 @@ export function ChatPage({
       )}
       data-agent={agent}
     >
-      <header className={cn('flex items-center justify-between gap-3 px-4 pt-4 pb-2 sm:px-6', bare && 'hidden')}>
+      <header
+        className={cn('flex items-center justify-between gap-3 px-4 pt-4 pb-2 sm:px-6', headerHidden && 'hidden')}
+      >
         <div className="flex min-w-0 items-center gap-3">
           <MascotAvatar state={view.state} className="size-10" />
           {started && <h1 className="truncate text-[15px] font-medium">{title}</h1>}
@@ -206,35 +235,50 @@ export function ChatPage({
       </div>
 
       {panelVisible && sideSlot.panel}
-      {historyOpen && (
-        <HistoryPanel
-          entries={entries}
-          activeId={state.conversationId}
-          onOpen={open}
-          onNew={() => {
-            newChat()
-            setHistoryOpen(false)
-          }}
-          onClear={() => {
-            if (user?.id) clearHistory(user.id, historyKey)
-            refreshHistory()
-          }}
-          onClose={() => setHistoryOpen(false)}
-        />
-      )}
+      {historyOpen &&
+        (historyPanel ? (
+          historyPanel({
+            entries,
+            activeId: state.conversationId,
+            onOpen: open,
+            onNew: () => {
+              newChat()
+              setHistoryOpen(false)
+            },
+            onClose: () => setHistoryOpen(false),
+          })
+        ) : (
+          <HistoryPanel
+            entries={entries}
+            activeId={state.conversationId}
+            onOpen={open}
+            onNew={() => {
+              newChat()
+              setHistoryOpen(false)
+            }}
+            onClear={() => {
+              if (user?.id) clearHistory(user.id, historyKey)
+              refreshHistory()
+            }}
+            onClose={() => setHistoryOpen(false)}
+          />
+        ))}
 
       {showInput && (
         <div className="relative flex flex-col items-center px-4 pt-2 pb-4">
           <div className="relative w-full max-w-[760px]">
-            <MascotDock
-              state={view.state}
-              bubble={view.bubble}
-              className="absolute right-3 bottom-full z-30 hidden -translate-y-1 sm:flex"
-            />
+            {mascotDock && (
+              <MascotDock
+                state={view.state}
+                bubble={view.bubble}
+                className="absolute right-3 bottom-full z-30 hidden -translate-y-1 sm:flex"
+              />
+            )}
             <ChatInput
               onSend={send}
               onTypingChange={setTyping}
-              placeholder={state.items.length > 0 ? 'Nhắn Vingo…' : placeholder}
+              placeholder={state.items.length > 0 ? followUpPlaceholder : placeholder}
+              note={inputNote}
               busy={state.awaiting}
               canSend={canSend}
             />

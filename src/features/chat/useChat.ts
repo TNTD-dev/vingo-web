@@ -12,7 +12,7 @@ import { useAuth } from '@/auth/auth-context'
 import { useMeStream } from '@/realtime/useMeStream'
 
 import { chatReducer, initialChatState, type ChatState, type ContextInfo } from './chatReducer'
-import { upsertHistory, type HistoryTag } from './history'
+import { upsertHistory, type HistoryEntry, type HistoryTag } from './history'
 
 export type Decision = 'confirm' | 'reject'
 
@@ -38,7 +38,15 @@ function errorMessage(e: unknown): string {
  * câu trả lời về qua /me/stream (chat.delta → chat.block → chat.done). Người dùng chưa đăng nhập thì chỉ xem,
  * không mở stream và không gửi được.
  */
-export function useChat(agent: string) {
+export type ChatOptions = {
+  /** Gắn nhãn cho mục lịch sử (mặc định: nhãn đơn hàng của buyer). Copilot dùng nhãn kết quả thao tác ghi. */
+  describe?: (state: ChatState) => Pick<HistoryEntry, 'tag'> & Partial<Pick<HistoryEntry, 'kinds' | 'pending'>>
+  /** Sửa trên block (bảng, form, ghế) làm các ConfirmAction đang chờ hết hiệu lực. Admin Copilot bật. */
+  supersedeOnEdit?: boolean
+}
+
+export function useChat(agent: string, options: ChatOptions = {}) {
+  const { describe, supersedeOnEdit = false } = options
   const { user } = useAuth()
   const [state, dispatch] = useReducer(chatReducer, initialChatState)
   const convRef = useRef<Promise<string> | undefined>(undefined)
@@ -98,10 +106,11 @@ export function useChat(agent: string) {
   const sendBlockEvent = useCallback(
     (blockId: string | undefined, type: string, payload: Record<string, unknown>, label?: string) => {
       if (!user) return
+      if (supersedeOnEdit) dispatch({ type: 'supersede' })
       if (label) dispatch({ type: 'userSent', id: `u-${++seq.current}`, text: label })
       void post({ block_event: { block_id: blockId, type, payload } })
     },
-    [user, post],
+    [user, post, supersedeOnEdit],
   )
 
   const showContext = useCallback((label: string, info?: ContextInfo) => {
@@ -150,7 +159,10 @@ export function useChat(agent: string) {
         ? `Chọn ghế · ${ctxItem.info.eventTitle}`
         : undefined
   const lastAssistant = [...items].reverse().find((i) => i.kind === 'assistant')
-  const tag = historyTag(state)
+  const described = describe ? describe(state) : { tag: historyTag(state) }
+  const { tag } = described
+  const kindsKey = described.kinds?.join(',')
+  const pending = described.pending
   useEffect(() => {
     if (!user?.id || !conversationId || !title) return
     upsertHistory(user.id, agent, {
@@ -158,9 +170,11 @@ export function useChat(agent: string) {
       title: title.slice(0, 60),
       preview: lastAssistant?.kind === 'assistant' ? lastAssistant.text.slice(0, 100) : '',
       tag,
+      kinds: kindsKey ? kindsKey.split(',') : undefined,
+      pending,
       updatedAt: Date.now(),
     })
-  }, [user?.id, agent, conversationId, title, lastAssistant, tag])
+  }, [user?.id, agent, conversationId, title, lastAssistant, tag, kindsKey, pending])
 
   return {
     state,

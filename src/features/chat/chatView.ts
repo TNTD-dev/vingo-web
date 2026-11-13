@@ -1,6 +1,7 @@
 import type { MascotState } from '@/design/brand'
 
-import { parseConfirmAction, parseEventList, parseSeatMap } from '@/blocks/payloads'
+import { blockView, parseReviewTable, parseSeatLock } from '@/blocks/adminPayloads'
+import { parseConfirmAction, parseEventList, parseSeatMap, root, str } from '@/blocks/payloads'
 
 import type { ActionState, ChatItem, ChatState } from './chatReducer'
 
@@ -18,7 +19,17 @@ export function stepLines(item: AssistantItem, actions: Record<string, ActionSta
   const lines: StepLine[] = []
   item.blocks.forEach((b, i) => {
     const key = `${item.id}:${b.id ?? i}`
-    if (b.type === 'EventList') {
+    const view = blockView(b)
+    if (view === 'review_table') {
+      lines.push({ key, label: 'LIST_ORDERS', detail: `${parseReviewTable(b).orders.length} ĐƠN` })
+    } else if (view === 'showtime_form') {
+      lines.push({ key, label: 'GET_EVENT', detail: str(root(b).source) })
+    } else if (view === 'seat_lock') {
+      lines.push({ key, label: 'GET_SEATMAP', detail: parseSeatLock(b, parseSeatMap(b).rows).header })
+    } else if (b.type === 'StatCards') {
+      // Chart đi kèm StatCards trong cùng tin chỉ là phần trình bày của cùng một lần get_metrics.
+      lines.push({ key, label: 'GET_METRICS', detail: str(root(b).source) })
+    } else if (b.type === 'EventList') {
       const n = parseEventList(b).events.length
       lines.push({ key, label: 'SEARCH_EVENTS', detail: `${n} KẾT QUẢ` })
     } else if (b.type === 'SeatMap') {
