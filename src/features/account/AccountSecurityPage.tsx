@@ -4,9 +4,9 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
 
-import { deleteMe, updateMe, useGetMe } from '@/api/generated/endpoints/me/me'
+import { deleteMe, updateMe } from '@/api/generated/endpoints/me/me'
 import { useListMyTickets } from '@/api/generated/endpoints/tickets/tickets'
-import { isApiError } from '@/api/problem'
+import { isApiError, isNotImplemented, NOT_IMPLEMENTED_MESSAGE } from '@/api/problem'
 import { useAuth } from '@/auth/auth-context'
 import { Mascot } from '@/design/Mascot'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/design/ui/dialog'
@@ -19,8 +19,7 @@ const pill =
 
 // B17 · Tài khoản & bảo mật (Figma 03 · Buyer): đăng nhập, phiên hiện tại, xoá tài khoản.
 export default function AccountSecurityPage() {
-  const me = useGetMe()
-  const { logout } = useAuth()
+  const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [changing, setChanging] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -39,7 +38,7 @@ export default function AccountSecurityPage() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-col gap-1">
                 <span className="type-mono-small text-ink-tertiary uppercase">Email</span>
-                <span className="type-body-m-strong text-foreground">{me.data?.email ?? '—'}</span>
+                <span className="type-body-m-strong text-foreground">{user?.email ?? '—'}</span>
               </div>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -109,9 +108,11 @@ function ChangePassword({ onDone }: { onDone: () => void }) {
     },
     onError: (e) =>
       setError(
-        isApiError(e) && (e.status === 400 || e.status === 401 || e.status === 403)
-          ? 'Mật khẩu hiện tại chưa đúng.'
-          : 'Chưa đổi được mật khẩu. Vui lòng thử lại.',
+        isNotImplemented(e)
+          ? NOT_IMPLEMENTED_MESSAGE
+          : isApiError(e) && (e.status === 400 || e.status === 401 || e.status === 403)
+            ? 'Mật khẩu hiện tại chưa đúng.'
+            : 'Chưa đổi được mật khẩu. Vui lòng thử lại.',
       ),
   })
 
@@ -188,7 +189,8 @@ function DeleteDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
       await logout().catch(() => undefined)
       navigate('/', { replace: true })
     },
-    onError: () => toast.error('Chưa xoá được tài khoản. Vui lòng thử lại.'),
+    onError: (e) =>
+      toast.error(isNotImplemented(e) ? NOT_IMPLEMENTED_MESSAGE : 'Chưa xoá được tài khoản. Vui lòng thử lại.'),
   })
   const ready = text.trim().toLocaleUpperCase('vi') === CONFIRM_WORD
 

@@ -49,7 +49,7 @@ export default function LoginPage() {
       <ArrowButton variant="primary" type="submit" disabled={pending} className="w-full">
         {pending ? 'Đang đăng nhập…' : 'Đăng nhập'}
       </ArrowButton>
-      <GoogleButton>Tiếp tục với Google</GoogleButton>
+      <GoogleButton next={params.get('next')}>Tiếp tục với Google</GoogleButton>
       <p className="text-center type-caption text-ink-tertiary">
         Chưa có tài khoản?{' '}
         <Link to="/register" className="text-foreground underline">

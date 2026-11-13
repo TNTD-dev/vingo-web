@@ -30,7 +30,7 @@ export function toProfile(draft: ProfileDraft): BuyerProfile {
 export function needsSave(draft: ProfileDraft, saved: BuyerProfile | undefined): boolean {
   if (!saved) return true
   const next = toProfile(draft)
-  return next.full_name !== saved.full_name || next.phone !== saved.phone || next.email !== saved.email
+  return next.full_name !== saved.full_name || next.phone !== normalizePhone(saved.phone) || next.email !== saved.email
 }
 
 /** Che số điện thoại để hiển thị/ghi log: "0901234821" → "090 *** 4821". */

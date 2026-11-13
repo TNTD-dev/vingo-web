@@ -3,7 +3,7 @@ import { Link, Navigate, useNavigate, useSearchParams } from 'react-router'
 import { toast } from 'sonner'
 
 import { resendOtp, verifyOtp } from '@/api/generated/endpoints/auth/auth'
-import { isApiError } from '@/api/problem'
+import { isApiError, isNotImplemented, NOT_IMPLEMENTED_MESSAGE } from '@/api/problem'
 import { tokenStore } from '@/auth/token-store'
 import { ArrowButton } from '@/design/ArrowButton'
 import { OtpInput } from '@/design/OtpInput'
@@ -46,9 +46,11 @@ export default function VerifyOtpPage() {
     } catch (e) {
       setOtp('')
       setError(
-        isApiError(e) && (e.status === 400 || e.status === 401 || e.status === 422)
-          ? 'Mã OTP chưa đúng hoặc đã hết hạn.'
-          : 'Chưa xác thực được. Vui lòng thử lại.',
+        isNotImplemented(e)
+          ? NOT_IMPLEMENTED_MESSAGE
+          : isApiError(e) && (e.status === 400 || e.status === 401 || e.status === 422)
+            ? 'Mã OTP chưa đúng hoặc đã hết hạn.'
+            : 'Chưa xác thực được. Vui lòng thử lại.',
       )
     } finally {
       setPending(false)
@@ -62,8 +64,8 @@ export default function VerifyOtpPage() {
       setExpiresAt(new Date(Date.now() + 5 * 60_000).toISOString())
       setOtp('')
       toast.success('Đã gửi lại mã OTP')
-    } catch {
-      toast.error('Chưa gửi lại được mã. Thử lại sau ít phút.')
+    } catch (e) {
+      toast.error(isNotImplemented(e) ? NOT_IMPLEMENTED_MESSAGE : 'Chưa gửi lại được mã. Thử lại sau ít phút.')
     }
   }
 
