@@ -1,10 +1,11 @@
 import { cn } from '@/lib/cn'
 
-export type PillTone = 'success' | 'warning' | 'info' | 'neutral' | 'agent' | 'ink'
+export type PillTone = 'success' | 'warning' | 'danger' | 'info' | 'neutral' | 'agent' | 'ink'
 
 const dot: Record<PillTone, string> = {
   success: 'bg-success',
   warning: 'bg-warning',
+  danger: 'bg-danger',
   info: 'bg-info',
   neutral: 'bg-ink-tertiary',
   agent: 'bg-ink',
@@ -13,6 +14,7 @@ const dot: Record<PillTone, string> = {
 const box: Record<PillTone, string> = {
   success: 'bg-surface border-line',
   warning: 'bg-surface border-line',
+  danger: 'bg-surface border-line',
   info: 'bg-surface border-line',
   neutral: 'bg-surface border-line',
   agent: 'bg-agent border-transparent',

@@ -13,6 +13,10 @@ const TAG: Record<HistoryTag, { label: string; tone: PillTone }> = {
   PAID: { label: 'PAID', tone: 'success' },
   EXPIRED: { label: 'EXPIRED', tone: 'neutral' },
   QA: { label: 'HỎI ĐÁP', tone: 'info' },
+  EXECUTED: { label: 'ĐÃ THỰC THI', tone: 'success' },
+  AWAITING: { label: 'CHỜ DUYỆT', tone: 'agent' },
+  REJECTED: { label: 'ĐÃ TỪ CHỐI', tone: 'danger' },
+  READ_ONLY: { label: 'CHỈ ĐỌC', tone: 'neutral' },
 }
 
 const time = new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit' })

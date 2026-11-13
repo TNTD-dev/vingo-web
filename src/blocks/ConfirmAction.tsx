@@ -10,12 +10,12 @@ import type { BlockProps } from './types'
  * Block `ConfirmAction` (Figma 10:137): agent đề xuất thao tác ghi (giữ ghế, tạo thanh toán…),
  * chỉ gọi API khi người dùng bấm "Đồng ý". Quyết định đi qua `onDecide`, block không tự gọi API.
  */
-export function ConfirmAction({ block, actionState, onDecide, readOnly }: BlockProps) {
+export function ConfirmAction({ block, actionState, onDecide, readOnly, stale }: BlockProps) {
   const p = parseConfirmAction(block)
   const state = p.actionId ? actionState?.[p.actionId] : undefined
   const resolved = state === 'confirmed' || state === 'rejected' || state === 'expired'
   const busy = state === 'confirming'
-  const disabled = readOnly || busy || !p.actionId || !onDecide
+  const disabled = readOnly || busy || !p.actionId || !onDecide || !!stale
 
   return (
     <section
@@ -36,7 +36,7 @@ export function ConfirmAction({ block, actionState, onDecide, readOnly }: BlockP
         <dl className="mt-4 space-y-2 rounded-md bg-canvas p-4 text-sm">
           {p.rows.map((r) => (
             <div key={r.label} className="flex items-baseline justify-between gap-4">
-              <dt className="type-caption text-ink-secondary">{r.label}</dt>
+              <dt className="shrink-0 type-caption whitespace-nowrap text-ink-secondary">{r.label}</dt>
               <dd className={cn('text-right', r.strong ? 'type-h4' : 'type-body-m text-ink')}>{r.value}</dd>
             </div>
           ))}
@@ -78,6 +78,11 @@ export function ConfirmAction({ block, actionState, onDecide, readOnly }: BlockP
                 {p.rejectLabel}
               </Button>
             </div>
+            {stale && !readOnly && (
+              <p className="mt-2 type-caption text-ink-secondary">
+                Bạn đã đổi lựa chọn phía trên. Bấm “Cập nhật” để Vingo tính lại trước khi duyệt.
+              </p>
+            )}
             {readOnly && <p className="mt-2 type-caption text-ink-secondary">Đăng nhập để đồng ý.</p>}
             {state === 'failed' && (
               <p role="alert" className="mt-2 type-caption text-danger">
