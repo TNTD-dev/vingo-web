@@ -120,9 +120,9 @@ export function deriveOrderPanel(state: ChatState): OrderPanelView {
     },
     {
       key: 'pay',
-      title: paid ? 'Đã thanh toán' : qr ? 'Chờ bạn quét QR' : 'Tạo QR VNPay',
+      title: paid ? 'Đã thanh toán' : qr ? 'Chờ bạn thanh toán VNPay' : 'Thanh toán VNPay',
       code: 'CREATE_PAYMENT',
-      detail: qr ? 'VNPAYQR' : undefined,
+      detail: qr ? 'VNPAY' : undefined,
       status: paid ? 'done' : qr ? 'active' : 'todo',
     },
     { key: 'ticket', title: 'Nhận vé', code: 'TICKET.ISSUED', status: paid ? 'done' : 'todo' },

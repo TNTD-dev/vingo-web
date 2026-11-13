@@ -133,8 +133,6 @@ export type PaymentQrPayload = {
   /** Hạn thanh toán, ISO UTC. */
   expiresAt?: string
   paymentUrl?: string
-  /** Ảnh QR do backend cấp (URL hoặc data URI), nếu có. */
-  qrImage?: string
   status: 'PENDING' | 'PAID' | 'EXPIRED' | 'FAILED'
 }
 
@@ -147,7 +145,6 @@ export function parsePaymentQr(block: ChatBlock): PaymentQrPayload {
     totalAmount: num(p.total_amount),
     expiresAt: str(p.expires_at),
     paymentUrl: str(p.payment_url),
-    qrImage: str(p.qr_image),
     status: s === 'PAID' || s === 'EXPIRED' || s === 'FAILED' ? s : 'PENDING',
   }
 }

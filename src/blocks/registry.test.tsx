@@ -62,21 +62,22 @@ describe('ConfirmAction', () => {
 })
 
 describe('PaymentQR', () => {
-  it('hiện số tiền từ API; đơn đã thanh toán thì bỏ nút mở cổng', () => {
+  it('hiện số tiền từ API, không có mã QR; đơn đã thanh toán thì bỏ nút sang VNPay', () => {
     const block = {
       id: 'q',
       type: ChatBlockType.PaymentQR,
       payload: { total_amount: 1_200_000, payment_url: 'https://pay.example/x', status: 'PENDING' },
     }
     const { rerender } = wrap(<BlockView block={block} />)
-    expect(screen.getByRole('link', { name: 'Mở cổng VNPay' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Thanh toán qua VNPay/ })).toBeInTheDocument()
     expect(screen.getByText(/1\.200\.000/)).toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: /QR/ })).toBeNull()
     rerender(
       <MemoryRouter>
         <BlockView block={block} orderPaid />
       </MemoryRouter>,
     )
-    expect(screen.queryByRole('link', { name: 'Mở cổng VNPay' })).toBeNull()
+    expect(screen.queryByRole('link', { name: /Thanh toán qua VNPay/ })).toBeNull()
     expect(screen.getByText('PAID')).toBeInTheDocument()
   })
 
@@ -84,6 +85,6 @@ describe('PaymentQR', () => {
     wrap(
       <BlockView block={{ id: 'q', type: ChatBlockType.PaymentQR, payload: { payment_url: 'javascript:alert(1)' } }} />,
     )
-    expect(screen.queryByRole('link', { name: 'Mở cổng VNPay' })).toBeNull()
+    expect(screen.queryByRole('link', { name: /Thanh toán qua VNPay/ })).toBeNull()
   })
 })

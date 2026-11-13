@@ -1,5 +1,6 @@
 import { ArrowUpRight, Armchair, Search, Ticket } from 'lucide-react'
-import { Link, useLocation } from 'react-router'
+import { useEffect } from 'react'
+import { Link, useLocation, useOutletContext } from 'react-router'
 
 import { useAuth } from '@/auth/auth-context'
 import { AskBar } from '@/design/AskBar'
@@ -25,11 +26,18 @@ export function AgentWelcome({ send, canSend, onTypingChange, resume, openConver
   const { user } = useAuth()
   const loc = useLocation()
   const name = user?.full_name?.trim().split(/\s+/).at(-1)
+  // Màn chào nằm trên nền ảnh sân (AgentLayout vẽ); rời màn chào thì tắt nền.
+  const outlet = useOutletContext<{ setBackdrop?: (on: boolean) => void } | undefined>()
+  const setBackdrop = outlet?.setBackdrop
+  useEffect(() => {
+    setBackdrop?.(true)
+    return () => setBackdrop?.(false)
+  }, [setBackdrop])
   return (
     <div className="flex w-full flex-col items-center gap-5 sm:gap-7">
       <MascotLive mood="wave" className="size-[150px] sm:size-[204px]" />
       <h1 className="text-center type-h1">{name ? `Chào ${name}, mình là Vingo!` : 'Chào bạn, mình là Vingo!'}</h1>
-      <p className="max-w-[560px] text-center type-body-l text-lg opacity-75">
+      <p className="max-w-[640px] text-center type-body-l text-lg opacity-75">
         Nói mình nghe bạn muốn xem gì — mình tìm suất, chọn ghế, giữ chỗ giúp bạn.
       </p>
       <AskBar
@@ -57,7 +65,7 @@ export function AgentWelcome({ send, canSend, onTypingChange, resume, openConver
               type="button"
               disabled={!canSend}
               onClick={() => send(sample)}
-              className="flex h-full w-full flex-col items-start gap-2.5 rounded-lg border border-line bg-canvas/70 p-[18px] text-left backdrop-blur-md transition-transform enabled:hover:-translate-y-0.5 disabled:opacity-70"
+              className="flex h-full w-full flex-col items-start gap-2.5 rounded-lg border border-surface/70 bg-glass p-[18px] text-left backdrop-blur-md transition-transform enabled:hover:-translate-y-0.5 disabled:opacity-70"
             >
               <span className="flex size-9 items-center justify-center rounded-sm bg-surface">
                 <Icon className="size-[18px]" aria-hidden />

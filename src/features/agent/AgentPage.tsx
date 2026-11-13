@@ -42,6 +42,7 @@ export default function AgentPage() {
       initialQuestion={initialQuestion}
       context={context}
       onInitialHandled={handled}
+      bareWelcome
       welcome={(api) => <AgentWelcome {...api} />}
       side={({ state, setOpen }) => {
         const view = deriveOrderPanel(state)

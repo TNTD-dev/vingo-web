@@ -8,7 +8,7 @@ import { cn } from '@/lib/cn'
 
 import { agentPath } from './agentLink'
 import { AskBar } from '@/design/AskBar'
-import heroImage from './assets/hero.jpg'
+import heroImage from '@/design/brand/stadium.jpg'
 import { usePrefersReducedMotion } from '@/lib/hooks'
 import { MascotLive } from '@/design/MascotLive'
 import { EXAMPLE_PROMPTS, HERO_CHIPS } from './prompts'

@@ -39,6 +39,8 @@ type Props = {
   placeholder?: string
   /** Màn trống trước tin đầu. Mặc định là một dòng chào trơn; Copilot sẽ truyền màn riêng. */
   welcome?: (api: WelcomeApi) => ReactNode
+  /** Màn chào không nằm trong khung trắng, không có header (Figma M1: nổi trên nền ảnh sân). */
+  bareWelcome?: boolean
   /** Panel phụ bên phải (buyer: "Đơn đang làm"). Copilot có thể bỏ trống. */
   side?: (api: SideApi) => SideSlot
   /** Câu hỏi mở đầu (vd từ `?q=` của Landing), gửi một lần khi đã đăng nhập và stream đã mở. */
@@ -59,6 +61,7 @@ export function ChatPage({
   historyKey = agent,
   placeholder = 'Nhắn Vingo…',
   welcome,
+  bareWelcome = false,
   side,
   initialQuestion,
   context,
@@ -136,6 +139,7 @@ export function ChatPage({
     [entries, state.conversationId],
   )
   const panelVisible = started && !!sideSlot && panelOpen
+  const bare = bareWelcome && !started && !!welcome
 
   const open = (id: string) => {
     void openConversation(id)
@@ -144,10 +148,13 @@ export function ChatPage({
 
   return (
     <div
-      className="relative mx-3 mb-3 flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl bg-surface sm:mx-8 sm:mb-6"
+      className={cn(
+        'relative mx-3 mb-3 flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl sm:mx-8 sm:mb-6',
+        !bare && 'bg-surface',
+      )}
       data-agent={agent}
     >
-      <header className="flex items-center justify-between gap-3 px-4 pt-4 pb-2 sm:px-6">
+      <header className={cn('flex items-center justify-between gap-3 px-4 pt-4 pb-2 sm:px-6', bare && 'hidden')}>
         <div className="flex min-w-0 items-center gap-3">
           <MascotAvatar state={view.state} className="size-10" />
           {started && <h1 className="truncate text-[15px] font-medium">{title}</h1>}

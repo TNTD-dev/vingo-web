@@ -12,7 +12,7 @@ export type StepLine = { key: string; label: string; detail?: string }
 /**
  * Dựng các dòng tool từ block đã nhận. Contract chưa có sự kiện riêng cho bước tool,
  * nên suy ra từ loại block: danh sách sự kiện → SEARCH_EVENTS, sơ đồ ghế → GET_SEATMAP,
- * mã QR → CREATE_PAYMENT, ConfirmAction đã đồng ý → tên thao tác (vd CREATE_HOLD).
+ * thanh toán VNPay → CREATE_PAYMENT, ConfirmAction đã đồng ý → tên thao tác (vd CREATE_HOLD).
  */
 export function stepLines(item: AssistantItem, actions: Record<string, ActionState>): StepLine[] {
   const lines: StepLine[] = []
@@ -24,7 +24,7 @@ export function stepLines(item: AssistantItem, actions: Record<string, ActionSta
     } else if (b.type === 'SeatMap') {
       lines.push({ key, label: 'GET_SEATMAP', detail: parseSeatMap(b).zoneLabel })
     } else if (b.type === 'PaymentQR') {
-      lines.push({ key, label: 'CREATE_PAYMENT', detail: 'VNPAYQR' })
+      lines.push({ key, label: 'CREATE_PAYMENT', detail: 'VNPAY' })
     } else if (b.type === 'ConfirmAction') {
       const c = parseConfirmAction(b)
       if (c.actionId && actions[c.actionId] === 'confirmed') {
@@ -68,7 +68,7 @@ export function mascotView(state: ChatState, opts: { typing: boolean; handoff?: 
     return hasContent ? { state: 'working' } : { state: 'thinking', bubble: 'Để mình tìm xem…' }
   }
   if (lastAssistant?.blocks.some((b) => b.type === 'PaymentQR')) {
-    return { state: 'working', bubble: 'Chờ bạn quét QR nha' }
+    return { state: 'working', bubble: 'Chờ bạn thanh toán VNPay nha' }
   }
   if (opts.typing) return { state: 'listening' }
   if (opts.handoff) return { state: 'wave', bubble: 'Mình sang đây cùng bạn nè!' }

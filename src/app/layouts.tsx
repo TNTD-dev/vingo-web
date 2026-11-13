@@ -1,7 +1,9 @@
+import { useMemo, useState } from 'react'
 import { NavLink, Outlet } from 'react-router'
 
 import { useAuth } from '@/auth/auth-context'
 import { AppNav } from '@/design/AppNav'
+import stadium from '@/design/brand/stadium.jpg'
 import { Button } from '@/design/ui/button'
 import { cn } from '@/lib/cn'
 
@@ -114,12 +116,23 @@ export function AdminLayout() {
 }
 
 /** Agent mode (Figma page 04): nền canvas, AppNav kiểu Figma, khung chat chiếm phần còn lại của màn hình. */
+/** Trang con bật nền ảnh sân (màn chào Agent mode, Figma M1) qua `useOutletContext<AgentOutletContext>()`. */
+export type AgentOutletContext = { setBackdrop: (on: boolean) => void }
+
 export function AgentLayout() {
+  const [backdrop, setBackdrop] = useState(false)
+  const ctx = useMemo<AgentOutletContext>(() => ({ setBackdrop }), [])
   return (
-    <div className="flex h-dvh min-h-[560px] flex-col gap-3 bg-canvas sm:gap-4">
+    <div className="relative isolate flex h-dvh min-h-[560px] flex-col gap-3 bg-canvas sm:gap-4">
+      {backdrop && (
+        <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
+          <img src={stadium} alt="" className="size-full object-cover" fetchPriority="high" />
+          <div className="absolute inset-0 bg-linear-to-r from-canvas/90 via-canvas/60 via-50% to-canvas/15" />
+        </div>
+      )}
       <AppNav mode="vingo" />
       <main className="flex min-h-0 flex-1 flex-col">
-        <Outlet />
+        <Outlet context={ctx} />
       </main>
     </div>
   )

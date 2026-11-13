@@ -7,7 +7,7 @@ import { emit } from './sse'
 
 /**
  * Mock agent mua vé (kịch bản Figma M2→M5) cho `npm run dev:mock`: tìm sự kiện → chọn trận → sơ đồ ghế
- * + ConfirmAction → (bấm đồng ý) giữ ghế + QR VNPay → tự "thanh toán" sau vài giây → vé.
+ * + ConfirmAction → (bấm đồng ý) giữ ghế + block thanh toán VNPay → tự "thanh toán" sau vài giây → vé.
  * Nội dung chỉ để dựng UI. Kịch bản thật do vingo-agent quyết định.
  */
 const PAY_AFTER_MS = 15_000
@@ -91,7 +91,7 @@ const confirmBlock = (actionId: string): ChatBlock => ({
       { label: 'Đơn giá', value: '600.000đ × 2' },
       { label: 'Tổng', value: '1.200.000đ', strong: true },
       { label: 'Giữ chỗ', value: '10 phút sau khi đồng ý' },
-      { label: 'Sau đó', value: 'Tạo mã QR VNPay để bạn thanh toán' },
+      { label: 'Sau đó', value: 'Chuyển bạn sang cổng VNPay để thanh toán' },
     ],
     order: {
       event_title: 'HAGL vs Hà Nội FC',
@@ -182,9 +182,10 @@ async function afterConfirm() {
       payment_url: 'https://sandbox.vnpayment.vn/',
     },
   }
-  await reply('Đã giữ ghế J-21, J-22. Quét QR bên dưới bằng app ngân hàng — vé sẽ tự phát hành khi VNPay xác nhận.', [
-    qr,
-  ])
+  await reply(
+    'Đã giữ ghế J-21, J-22. Bấm “Thanh toán qua VNPay” để sang cổng thanh toán — vé sẽ tự phát hành khi VNPay xác nhận.',
+    [qr],
+  )
   await sleep(PAY_AFTER_MS)
   emit('order.paid', { ...base, order_code: 'VG-24117' })
   emit('ticket.issued', { ...base, order_code: 'VG-24117' })

@@ -40,7 +40,7 @@ describe('deriveOrderPanel', () => {
     expect(status(v)).toMatchObject({ GET_SEATMAP: 'done', CREATE_HOLD: 'active' })
   })
 
-  it('có QR chưa trả: PENDING; có order.paid: PAID và đủ các bước', () => {
+  it('có block thanh toán chưa trả: PENDING; có order.paid: PAID và đủ các bước', () => {
     const qr = run([block('PaymentQR', { total_amount: 1_200_000, expires_at: '2030-01-01T00:00:00Z' })])
     expect(deriveOrderPanel(qr)).toMatchObject({ stage: 'payment', status: 'PENDING' })
     const paid = chatReducer(qr, { type: 'event', event: { type: 'order.paid', data: {} } })

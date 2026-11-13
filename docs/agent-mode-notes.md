@@ -18,7 +18,7 @@ Phạm vi: `features/agent`, `features/chat`, `blocks/`. Figma page 04 (M1–M6)
 4. **Gợi ý trả lời nhanh** (chip dưới tin Vingo, M1b/M5): web đọc `quick_replies: string[]` trong data của `chat.done`. Đề xuất thêm vào contract.
 5. **Sự kiện stream thiếu `conversation_id`** (ghi chú: `/me/stream` là của cả người dùng). Web lọc theo `data.conversation_id` nếu có; nếu không có thì mọi tin chat đều vào hội thoại đang mở. Nên thêm `conversation_id` vào `chat.*`.
 6. **`confirmAction` không nhận `Idempotency-Key`** (CLAUDE.md yêu cầu cho giữ ghế/thanh toán). Web gọi không kèm key; nếu cần chống bấm đúp ở backend thì thêm tham số vào contract.
-7. **Ảnh QR**: web chưa có thư viện sinh QR (không thêm thư viện khi chưa hỏi). `QrCode` vẽ `qr_image` nếu backend cấp (https hoặc data URI); không thì vẽ mẫu minh hoạ **không quét được**. Cần chốt: backend trả ảnh/`qr_image`, hoặc cho phép thêm thư viện (vd `qrcode`).
+7. **Thanh toán**: không hiện QR trong chat. Block `PaymentQR` (giữ tên theo contract) chỉ có số tiền, đếm ngược và nút "Thanh toán qua VNPay" chuyển sang `payment_url` (https) ngay trong tab. Kết quả chỉ chốt qua IPN/querydr; vé về lại hội thoại qua stream. Trang trở về từ VNPay (`/payment/vnpay-return`, của Danh) nên có link quay lại `/vingo`. QR trên block `Ticket` là mã soát vé, vẫn giữ (`qr_image` từ backend).
 8. Thứ tự `listMessages` không nêu: web sắp lại theo `created_at` tăng dần.
 9. Orval sinh `createConversation`, `sendMessage`, `confirmAction`… dạng query hook (POST); web gọi thẳng hàm `xxx`, không dùng hook.
 

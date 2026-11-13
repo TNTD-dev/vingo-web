@@ -16,7 +16,7 @@ describe('stepLines', () => {
     const item = s.items[0] as Extract<ChatItem, { kind: 'assistant' }>
     expect(stepLines(item, s.actions).map((l) => `${l.label}|${l.detail}`)).toEqual([
       'SEARCH_EVENTS|2 KẾT QUẢ',
-      'CREATE_PAYMENT|VNPAYQR',
+      'CREATE_PAYMENT|VNPAY',
     ])
   })
 
@@ -54,8 +54,8 @@ describe('mascotView', () => {
     expect(mascotView(run([{ type: 'failed', message: 'lỗi' }]), opts).state).toBe('sorry')
   })
 
-  it('đang chờ QR thì báo "Chờ bạn quét QR nha"', () => {
-    expect(mascotView(run([block('PaymentQR', {})]), opts).bubble).toBe('Chờ bạn quét QR nha')
+  it('đang chờ thanh toán thì báo "Chờ bạn thanh toán VNPay nha"', () => {
+    expect(mascotView(run([block('PaymentQR', {})]), opts).bubble).toBe('Chờ bạn thanh toán VNPay nha')
   })
 })
 
