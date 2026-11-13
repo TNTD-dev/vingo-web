@@ -15,6 +15,7 @@ import { getTicketsMock } from '@/api/generated/endpoints/tickets/tickets.msw'
 
 import { agentHandlers } from './agent'
 import { authHandlers } from './auth'
+import { copilotHandlers } from './copilot'
 import { meStreamHandler } from './sse'
 
 // Handler Orval sinh khớp mọi origin + path (vd. "*" + "/events") nên cũng bắt cả điều hướng trình duyệt tới route SPA cùng tên.
@@ -26,6 +27,7 @@ export const worker = setupWorker(
   navigationPassthrough,
   meStreamHandler,
   ...authHandlers,
+  ...copilotHandlers,
   ...agentHandlers,
   ...getAuthMock(),
   ...getMeMock(),

@@ -84,3 +84,18 @@ describe('chatReducer', () => {
     expect(s).toMatchObject({ awaiting: false, error: 'lỗi' })
   })
 })
+
+describe('chatReducer · supersede (Admin Copilot)', () => {
+  const confirm = (id: string, actionId: string): ChatAction =>
+    ev('chat.block', { message_id: 'm1', block: { id, type: 'ConfirmAction', payload: { action_id: actionId } } })
+
+  it('admin sửa trên block thì ConfirmAction đang chờ hết hiệu lực, không đụng cái đã quyết', () => {
+    const s = run([
+      confirm('b1', 'act1'),
+      confirm('b2', 'act2'),
+      { type: 'actionState', actionId: 'act1', state: 'confirmed' },
+      { type: 'supersede' },
+    ])
+    expect(s.actions).toEqual({ act1: 'confirmed', act2: 'expired' })
+  })
+})

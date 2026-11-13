@@ -1,5 +1,5 @@
 import { Check } from 'lucide-react'
-import { Fragment, useEffect, useRef } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 
 import type { ChatBlock } from '@/api/generated/model'
 import { BlockView } from '@/blocks/registry'
@@ -68,6 +68,8 @@ function Row({
   onDecide,
   onQuickReply,
 }: Props & { item: ChatItem; isLast: boolean }) {
+  // Admin Copilot: block đang có chỉnh sửa chưa gửi thì ConfirmAction cùng tin bị khoá.
+  const [dirty, setDirty] = useState(false)
   if (item.kind === 'context') {
     return (
       <div className="self-center rounded-pill border border-line bg-surface/70 px-4 py-2 type-caption text-ink-secondary">
@@ -110,6 +112,8 @@ function Row({
     orderPaid,
     actionState: state.actions,
     onDecide,
+    onDirtyChange: setDirty,
+    stale: dirty,
     onBlockEvent: (type: string, payload: Record<string, unknown>, label?: string) =>
       onBlockEvent(b.id, type, payload, label),
   })

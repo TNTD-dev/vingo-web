@@ -1,4 +1,5 @@
 import type { ChatBlock, ChatMessage } from '@/api/generated/model'
+import { parseConfirmAction } from '@/blocks/payloads'
 import type { ActionState } from '@/blocks/types'
 
 export type { ActionState }
@@ -50,6 +51,8 @@ export type ChatAction =
   | { type: 'history'; messages: ChatMessage[] }
   | { type: 'actionState'; actionId: string; state: ActionState }
   | { type: 'failed'; message: string }
+  /** Admin Copilot: admin vừa sửa bảng/form/ghế → mọi ConfirmAction đang chờ hết hiệu lực, chờ Vingo gửi bản mới. */
+  | { type: 'supersede' }
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
 
@@ -156,5 +159,18 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       return { ...state, actions: { ...state.actions, [action.actionId]: action.state } }
     case 'failed':
       return { ...state, awaiting: false, error: action.message }
+    case 'supersede': {
+      const next = { ...state.actions }
+      for (const it of state.items) {
+        if (it.kind !== 'assistant') continue
+        for (const b of it.blocks) {
+          if (b.type !== 'ConfirmAction') continue
+          const id = parseConfirmAction(b).actionId
+          const st = id ? next[id] : undefined
+          if (id && (st === undefined || st === 'failed')) next[id] = 'expired'
+        }
+      }
+      return { ...state, actions: next }
+    }
   }
 }

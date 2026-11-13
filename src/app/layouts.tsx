@@ -1,11 +1,15 @@
 import { useMemo, useState } from 'react'
-import { NavLink, Outlet } from 'react-router'
+import { Link, NavLink, Outlet } from 'react-router'
 
 import { useAuth } from '@/auth/auth-context'
+import { AdminNav } from '@/design/AdminNav'
 import { AppNav } from '@/design/AppNav'
 import stadium from '@/design/brand/stadium.jpg'
+import { MascotLive } from '@/design/MascotLive'
 import { Button } from '@/design/ui/button'
 import { cn } from '@/lib/cn'
+
+import { useCopilotShortcut } from './copilotShortcut'
 
 type NavItem = { to: string; label: string; end?: boolean }
 
@@ -84,7 +88,25 @@ const adminNav: NavItem[] = [
   { to: '/admin/audit-logs', label: 'Nhật ký' },
 ]
 
+/** Nút mở Copilot ở góc màn quản trị (Figma `copilot-launcher`): mascot + "Mở Copilot ⌘J". */
+function CopilotLauncher() {
+  return (
+    <Link
+      to="/admin/copilot"
+      aria-label="Mở Copilot (⌘J)"
+      className="group fixed right-3 bottom-3 z-40 flex items-center sm:right-5 sm:bottom-5"
+    >
+      <span className="mr-1 hidden items-center gap-2 rounded-[16px] border border-line bg-surface py-2.5 pr-2.5 pl-3.5 shadow-float transition-transform group-hover:-translate-x-0.5 sm:flex">
+        <span className="type-body-m-strong">Mở Copilot</span>
+        <kbd className="rounded-[6px] bg-canvas px-1.5 py-0.5 type-mono-small text-ink-tertiary">⌘J</kbd>
+      </span>
+      <MascotLive mood="rest" className="size-[72px] drop-shadow-md sm:size-[91px]" />
+    </Link>
+  )
+}
+
 export function AdminLayout() {
+  useCopilotShortcut('/admin/copilot')
   return (
     <div className="flex min-h-dvh flex-col md:flex-row">
       <aside className="border-b p-3 md:w-56 md:border-r md:border-b-0">
@@ -111,6 +133,20 @@ export function AdminLayout() {
           <Outlet />
         </main>
       </div>
+      <CopilotLauncher />
+    </div>
+  )
+}
+
+/** Admin Copilot (Figma C1–C6): màn riêng, không có sidebar; công tắc "Quản trị | Copilot" và ⌘J để quay lại. */
+export function CopilotLayout() {
+  useCopilotShortcut('/admin')
+  return (
+    <div className="relative isolate flex h-dvh min-h-[560px] flex-col gap-3 bg-canvas sm:gap-4">
+      <AdminNav mode="copilot" />
+      <main className="flex min-h-0 flex-1 flex-col">
+        <Outlet />
+      </main>
     </div>
   )
 }
