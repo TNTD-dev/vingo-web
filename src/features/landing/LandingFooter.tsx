@@ -6,7 +6,7 @@ import { Link } from 'react-router'
 import { logoMark } from '@/design/brand'
 
 import footerImage from './assets/footer.jpg'
-import { usePrefersReducedMotion, useScrollProgress } from './hooks'
+import { usePrefersReducedMotion, useScrollProgress } from '@/lib/hooks'
 
 const COLUMNS: { title: string; links: { label: string; to: string }[] }[] = [
   {

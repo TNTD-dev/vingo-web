@@ -1,9 +1,11 @@
 import { cn } from '@/lib/cn'
 
+import './vingo-motion.css'
+
 export type MascotMood = 'rest' | 'wave' | 'listening' | 'celebrate'
 
 /**
- * Mascot Vingo "Live" (Figma page 07): rig nhiều lớp, chuyển động bằng CSS transform (xem landing.css, `.mv-*`).
+ * Mascot Vingo "Live" (Figma page 07): rig nhiều lớp, chuyển động bằng CSS transform (xem design/vingo-motion.css, `.mv-*`).
  * Hình vẽ lấy từ bộ SVG mascot trong `design/brand` (viewBox 230×220), tách lớp để tay, mắt, tia sáng cử động riêng.
  * - rest: thở + chớp mắt 2,4s (chớp mắt chạy cả khi bật giảm chuyển động)
  * - wave: vẫy tay phải. listening: nghiêng người lắng nghe. celebrate: nhảy, giơ hai tay, pháo giấy.

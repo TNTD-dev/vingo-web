@@ -1,9 +1,9 @@
 import { useNavigate } from 'react-router'
 
 import { agentPath } from './agentLink'
-import { AskBar } from './AskBar'
-import { useVisible } from './hooks'
-import { MascotLive } from './MascotLive'
+import { AskBar } from '@/design/AskBar'
+import { useVisible } from '@/lib/hooks'
+import { MascotLive } from '@/design/MascotLive'
 import { EXAMPLE_PROMPTS } from './prompts'
 
 /** CTA "Bạn muốn xem gì?": quầng lime thở, Vingo nhảy ăn mừng; vào giữa màn hình thì ô chat tự focus và gõ (spec #9). */

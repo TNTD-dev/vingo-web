@@ -4,9 +4,11 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 
 import { cn } from '@/lib/cn'
 
-import { useCoarsePointer, usePrefersReducedMotion } from './hooks'
+import './vingo-motion.css'
+
+import { useCoarsePointer, usePrefersReducedMotion } from '@/lib/hooks'
 import { MascotLive } from './MascotLive'
-import { TYPE_MS, typewriterStart, typewriterStep, typewriterText } from './typewriter'
+import { TYPE_MS, typewriterStart, typewriterStep, typewriterText } from '@/lib/typewriter'
 
 /** Placeholder tự gõ lần lượt 4 câu ví dụ (Figma motion spec #2). */
 function useTypewriter(sentences: readonly string[], active: boolean) {
@@ -120,7 +122,7 @@ export function AskBar({
             )}
           >
             <span className="truncate">{placeholder}</span>
-            {animate && typed && <span className="lp-caret ml-px inline-block h-[1.1em] w-px bg-ink-tertiary" />}
+            {animate && typed && <span className="vg-caret ml-px inline-block h-[1.1em] w-px bg-ink-tertiary" />}
           </span>
         )}
       </div>

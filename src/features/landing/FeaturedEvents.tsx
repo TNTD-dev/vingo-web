@@ -9,7 +9,7 @@ import type { EventSummary } from '@/api/generated/model'
 
 import concertImg from './assets/tile-concert.jpg'
 import footballImg from './assets/tile-football.jpg'
-import heroImg from './assets/hero.jpg'
+import heroImg from '@/design/brand/stadium.jpg'
 import sparkle from './assets/sparkle.svg'
 import theaterImg from './assets/tile-theater.jpg'
 

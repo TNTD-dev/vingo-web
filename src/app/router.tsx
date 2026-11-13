@@ -5,7 +5,7 @@ import { RequireAuth } from '@/auth/guards'
 import { FullPageSpinner } from '@/design/FullPageSpinner'
 import { ForbiddenPage, NotFoundPage } from '@/features/StatusPages'
 
-import { AdminLayout, AuthLayout, BuyerLayout, PlainLayout } from './layouts'
+import { AdminLayout, AgentLayout, AuthLayout, BuyerLayout, PlainLayout } from './layouts'
 
 function page(Component: LazyExoticComponent<ComponentType>) {
   return (
@@ -80,10 +80,14 @@ export const routes: RouteObject[] = [
     children: [{ path: '/', element: page(L.Landing) }],
   },
   {
+    // Agent mode xem được khi chưa đăng nhập; gửi tin, giữ ghế thì phải đăng nhập (xử lý trong ChatPage).
+    element: <AgentLayout />,
+    children: [{ path: '/vingo', element: page(L.Agent) }],
+  },
+  {
     element: <BuyerLayout />,
     children: [
-      // Agent mode và danh sách sự kiện xem được khi chưa đăng nhập; gửi tin, giữ ghế thì phải đăng nhập.
-      { path: '/vingo', element: page(L.Agent) },
+      // Danh sách sự kiện xem được khi chưa đăng nhập; giữ ghế thì phải đăng nhập.
       { path: '/events', element: page(L.Events) },
       { path: '/events/:eventId', element: page(L.EventDetail) },
       { path: '/events/:eventId/showtimes/:showtimeId/seats', element: page(L.SeatSelection) },

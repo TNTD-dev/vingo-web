@@ -1,4 +1,4 @@
-import { usePrefersReducedMotion, useScrollProgress } from './hooks'
+import { usePrefersReducedMotion, useScrollProgress } from '@/lib/hooks'
 
 const TEXT = 'Một luồng, từ tìm sự kiện đến vé QR.'
 
