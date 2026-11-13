@@ -4,14 +4,14 @@ Ghi lại các điểm cần hỏi backend, báo nhóm, hoặc khác Figma. Cậ
 
 ## 1. Cần backend (đổi contract trước, theo CLAUDE.md mục 3)
 
-| # | Vấn đề | Ảnh hưởng | Đề xuất |
-| - | ------ | --------- | ------- |
-| 1 | **Người mua chưa có API lấy SVG sơ đồ ghế.** Chỉ có `GET /admin/seat-layouts/{layout_id}/svg` (module `catalog`, tag Admin Catalog, cần quyền admin). `getSeatmap` chỉ trả ghế (x, y), hạng giá, trạng thái; không có hình khu, sân, cổng. | Màn chọn ghế B3/B3b chỉ chạy với `npm run dev:mock`. Backend thật sẽ hiện "Sơ đồ chưa sẵn sàng". | Module `search` thêm endpoint công khai cạnh `getSeatmap`, ví dụ `GET /showtimes/{showtime_id}/seatmap.svg` (suất đã có `seat_layout_id`). Có endpoint thì chỉ sửa thân hàm `loadSeatLayoutSvg` trong `src/seatmap/svgSource.ts`. |
-| 2 | **Quy ước ghép khu API ↔ khu trong SVG chưa được chốt.** Web đang giả định tên khu trong `availability`/`seatmap` là `A1` hoặc `A1-T1` (hàm `sameZone` trong `src/seatmap/svg.ts`). Hợp đồng chưa nói tên khu = mã khu. | Sai quy ước thì không tô được khu và không chọn được ghế. | Backend xác nhận, hoặc thêm trường mã khu (`code`) vào khu trong `getSeatmap` và `getAvailability`. |
-| 3 | `getAvailability` không trả loại khu (SEATED/STANDING) và sức chứa. | B2 không hiện nhãn SEATED/STANDING; tooltip B3 không có "còn X / tổng Y ghế". Web tự suy loại khu từ id trong SVG. | Thêm `kind`, `capacity` vào khu trong availability. |
-| 4 | API tìm sự kiện không có: tổng số kết quả, số đếm theo thể loại, nhiều thể loại cùng lúc, trạng thái "sắp hết vé", lọc "chỉ còn vé". | B1 chỉ chọn được một thể loại, không có số đếm cạnh thể loại, không có "128 sự kiện", không có badge "SẮP HẾT VÉ"; "chỉ hiện còn vé" lọc ngay trên máy theo trang đã tải. | Thêm các trường/tham số tương ứng nếu muốn giống Figma. |
-| 5 | Chưa có API yêu thích sự kiện. | Nút trái tim ở B2 đang bị khoá. | Thêm API hoặc bỏ nút khỏi thiết kế. |
-| 6 | Orval sinh `useHoldSeats` thành `useQuery` (do cấu hình `useQuery: true` cho mọi operation, kể cả POST). | Phải gọi hàm `holdSeats(...)` bằng `useMutation` thủ công. | Cân nhắc cấu hình Orval sinh `useMutation` cho POST/PUT/DELETE. |
+| #   | Vấn đề                                                                                                                                                                                                                                     | Ảnh hưởng                                                                                                                                                                 | Đề xuất                                                                                                                                                                                                                           |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Người mua chưa có API lấy SVG sơ đồ ghế.** Chỉ có `GET /admin/seat-layouts/{layout_id}/svg` (module `catalog`, tag Admin Catalog, cần quyền admin). `getSeatmap` chỉ trả ghế (x, y), hạng giá, trạng thái; không có hình khu, sân, cổng. | Màn chọn ghế B3/B3b chỉ chạy với `npm run dev:mock`. Backend thật sẽ hiện "Sơ đồ chưa sẵn sàng".                                                                          | Module `search` thêm endpoint công khai cạnh `getSeatmap`, ví dụ `GET /showtimes/{showtime_id}/seatmap.svg` (suất đã có `seat_layout_id`). Có endpoint thì chỉ sửa thân hàm `loadSeatLayoutSvg` trong `src/seatmap/svgSource.ts`. |
+| 2   | **Quy ước ghép khu API ↔ khu trong SVG chưa được chốt.** Web đang giả định tên khu trong `availability`/`seatmap` là `A1` hoặc `A1-T1` (hàm `sameZone` trong `src/seatmap/svg.ts`). Hợp đồng chưa nói tên khu = mã khu.                    | Sai quy ước thì không tô được khu và không chọn được ghế.                                                                                                                 | Backend xác nhận, hoặc thêm trường mã khu (`code`) vào khu trong `getSeatmap` và `getAvailability`.                                                                                                                               |
+| 3   | `getAvailability` không trả loại khu (SEATED/STANDING) và sức chứa.                                                                                                                                                                        | B2 không hiện nhãn SEATED/STANDING; tooltip B3 không có "còn X / tổng Y ghế". Web tự suy loại khu từ id trong SVG.                                                        | Thêm `kind`, `capacity` vào khu trong availability.                                                                                                                                                                               |
+| 4   | API tìm sự kiện không có: tổng số kết quả, số đếm theo thể loại, nhiều thể loại cùng lúc, trạng thái "sắp hết vé", lọc "chỉ còn vé".                                                                                                       | B1 chỉ chọn được một thể loại, không có số đếm cạnh thể loại, không có "128 sự kiện", không có badge "SẮP HẾT VÉ"; "chỉ hiện còn vé" lọc ngay trên máy theo trang đã tải. | Thêm các trường/tham số tương ứng nếu muốn giống Figma.                                                                                                                                                                           |
+| 5   | Chưa có API yêu thích sự kiện.                                                                                                                                                                                                             | Nút trái tim ở B2 đang bị khoá.                                                                                                                                           | Thêm API hoặc bỏ nút khỏi thiết kế.                                                                                                                                                                                               |
+| 6   | Orval sinh `useHoldSeats` thành `useQuery` (do cấu hình `useQuery: true` cho mọi operation, kể cả POST).                                                                                                                                   | Phải gọi hàm `holdSeats(...)` bằng `useMutation` thủ công.                                                                                                                | Cân nhắc cấu hình Orval sinh `useMutation` cho POST/PUT/DELETE.                                                                                                                                                                   |
 
 ## 2. Cần báo nhóm (file thuộc hạ tầng dùng chung của Đức)
 
@@ -23,17 +23,20 @@ Ghi lại các điểm cần hỏi backend, báo nhóm, hoặc khác Figma. Cậ
 ## 3. Khác Figma (có chủ đích)
 
 **B1 · Khám phá sự kiện**
+
 - Khoảng ngày tự chọn bằng lịch tự viết (`RangeCalendar`, không thêm thư viện); lọc theo `from`/`to` trên URL, loại trừ với các chip Hôm nay/Cuối tuần/Tháng sau.
 - Công tắc "Chỉ hiện còn vé" làm cỡ chuẩn 46px; trong Figma nó bị kéo dài hết hàng (nhiều khả năng lỗi auto-layout).
 - Giá hiện "120.000 ₫" (có khoảng trắng) vì phải dùng `formatVnd()`; Figma ghi "120.000₫".
 
 **B2 · Chi tiết sự kiện**
+
 - Tab nav sáng theo thể loại của sự kiện đang xem (đã sửa, AppNav đọc `useGetEvent` dùng chung cache với trang).
 - Dòng giải đấu chỉ hiện khi sự kiện bóng đá có đủ `home_team`, `away_team` trong `attributes`.
 - Đoạn giới thiệu có thể xuống 3 dòng thay vì 2 khi thanh cuộn chiếm chỗ (chưa kiểm tra ở trình duyệt thật).
 - Thẻ "Hạng vé & khu" gom theo hạng giá (sân thật có hàng chục khu nhưng chỉ vài hạng).
 
 **B3 · Chọn khu / B3b · Chọn ghế**
+
 - Bỏ dòng "Phí dịch vụ 0₫" (API không có trường này).
 - Tooltip khu không có "/ 353 ghế" (xem mục 1.3).
 - Chưa có tooltip khi rê vào từng ghế.
@@ -62,6 +65,7 @@ Ghi lại các điểm cần hỏi backend, báo nhóm, hoặc khác Figma. Cậ
 Đã làm: B4 thanh toán (+ B4b hộp chờ VNPay, B13a hết hạn giữ ghế dạng hộp thoại), B5 thành công, B6 vé của tôi, B7 đơn hàng, B8 đăng nhập + bước OTP (`/verify-otp`), B9 hồ sơ, B10 chi tiết đơn, B11 vé & QR toàn màn (nền tối), B12 trở về VNPay, B13b chưa thành công, B13c suất hết vé (ở trang chi tiết sự kiện), B14 đăng ký, B15 quên/đặt lại mật khẩu (một trang hai bước; `/reset-password` chuyển về `/forgot-password`), B16 thông báo (chuông trên AppNav), B17 tài khoản & bảo mật.
 
 Khác Figma / cần backend:
+
 - **Ảnh QR vé**: backend trả ảnh (`GET /tickets/{id}/qr.png`, cần Bearer). `api/http.ts` được thêm nhánh trả `Blob` khi `Content-Type` là image; mock trả SVG giả không quét được.
 - **B4b**: không có QR thanh toán (không có API trả mã QR VNPay, chỉ có `payment_url`); hộp thoại có nút "Mở cổng VNPay".
 - **Trang trở về VNPay** đọc `order_id`, `vnp_ResponseCode`, `vnp_TxnRef` trên URL. Hợp đồng chưa nói backend chuyển hướng kèm `order_id` hay không; cần xác nhận.
