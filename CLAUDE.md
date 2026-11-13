@@ -53,7 +53,16 @@ src/
 
 - Page export default, route lazy-load ở `app/router.tsx`.
 - `features/*` không import lẫn nhau, trừ `chat/ChatPage` dùng chung cho `agent` (buyer) và `copilot` (admin).
-- Chủ từng module sẽ chốt sau; trước khi sửa module người khác thì báo trong nhóm.
+- Chủ module (trước khi sửa module người khác thì báo chủ module):
+
+| Chủ  | Phần               | Thư mục                                                                                 |
+| ---- | ------------------ | --------------------------------------------------------------------------------------- |
+| Đức  | Landing            | `features/landing`                                                                      |
+| Đức  | Agent mode         | `features/agent`, `features/copilot`, `features/chat`, `blocks/`                        |
+| Danh | Buyer              | `features/auth`, `features/booking`, `features/account`, `features/checkin`, `seatmap/` |
+| Danh | Admin              | `features/admin-dashboard`, `features/admin-catalog`, `features/admin-ops`              |
+| Đức  | Hạ tầng dùng chung | `app/`, `api/`, `auth/`, `realtime/`, `design/`, `index.css` — sửa thì báo trong nhóm   |
+
 - Component dùng chung ≥ 2 feature → chuyển vào `design/`.
 - Thêm component shadcn: `npx shadcn@latest add <tên>` (vào `src/design/ui`). Sau khi thêm, kiểm tra import `cn` trỏ `@/lib/cn`.
 
