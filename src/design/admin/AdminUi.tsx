@@ -135,16 +135,30 @@ const messages: Record<string, string> = {
   FORBIDDEN: 'Tài khoản không có quyền thực hiện thao tác này.',
   EVENT_LOCKED: 'Sự kiện đã mở bán, đã có đơn hoặc đã kết thúc. Cấu hình này không còn cho phép thay đổi.',
   SHOWTIME_LOCKED: 'Suất diễn đã khóa hoặc kết thúc, không thể thay đổi.',
-  EVENT_NOT_READY: 'Sự kiện chưa đủ cấu hình. Kiểm tra suất diễn, sơ đồ và hạng giá của tất cả khu.',
+  EVENT_INCOMPLETE:
+    'Sự kiện chưa đủ cấu hình để công bố. Cần ít nhất một suất, sơ đồ đã công bố và hạng giá cho mọi khu.',
+  HALL_NAME_TAKEN: 'Sân này đã có phòng trùng tên. Hãy đặt tên khác.',
+  SEAT_LAYOUT_LOCKED: 'Sơ đồ đã công bố nên không đổi tên được. Hãy nhập một bản nháp mới nếu cần sửa.',
+  INVALID_SEAT_LAYOUT: 'Sơ đồ không hợp lệ. Kiểm tra file SVG theo quy ước sơ đồ Vingo (khu ZONE__, ghế SEAT__).',
+  UNSUPPORTED_MEDIA_TYPE: 'Định dạng file không được hỗ trợ. Chỉ nhận file SVG (image/svg+xml).',
+  ACTION_STATE_INVALID: 'Trạng thái hiện tại không cho phép thao tác này. Hãy tải lại dữ liệu.',
   VENUE_IN_USE: 'Địa điểm đang có phòng hoặc suất diễn. Chưa thể xóa địa điểm này.',
 }
 function errorText(error: unknown): string {
   if (isApiError(error))
     return (
       messages[error.code ?? ''] ??
-      (error.status === 400
-        ? 'Thông tin chưa hợp lệ. Hãy kiểm tra các trường đã nhập.'
-        : 'Không thể thực hiện yêu cầu. Vui lòng thử lại.')
+      (error.status === 501
+        ? 'Chức năng này chưa được hỗ trợ ở phía máy chủ. Vui lòng quay lại sau.'
+        : error.status === 413
+          ? 'File quá lớn. Giới hạn là 10 MiB.'
+          : error.status === 415
+            ? 'Định dạng file không được hỗ trợ.'
+            : error.status === 422
+              ? 'Dữ liệu chưa đủ điều kiện để thực hiện thao tác này.'
+              : error.status === 400
+                ? 'Thông tin chưa hợp lệ. Hãy kiểm tra các trường đã nhập.'
+                : 'Không thể thực hiện yêu cầu. Vui lòng thử lại.')
     )
   return 'Không thể kết nối. Vui lòng kiểm tra mạng và thử lại.'
 }
