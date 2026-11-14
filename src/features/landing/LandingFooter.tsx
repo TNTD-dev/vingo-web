@@ -52,7 +52,7 @@ export function LandingFooter() {
   return (
     <footer
       ref={ref}
-      className="relative mt-4 flex flex-col gap-14 overflow-hidden rounded-xl px-5 pt-20 sm:px-8 lg:px-16"
+      className="relative mt-4 flex flex-col gap-14 overflow-hidden rounded-xl px-5 pt-20 sm:px-8 lg:px-[calc(var(--lp-gutter)+4rem)]"
     >
       <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
         <img

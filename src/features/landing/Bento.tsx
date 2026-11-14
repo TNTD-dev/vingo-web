@@ -97,7 +97,10 @@ function ExampleChat() {
 export function Bento() {
   const [qrRef, qrIn] = useInView<HTMLDivElement>()
   return (
-    <section aria-label="Vì sao đặt vé với Vingo" className="px-5 pb-16 sm:px-8 lg:px-16 lg:pb-24">
+    <section
+      aria-label="Vì sao đặt vé với Vingo"
+      className="px-5 pb-16 sm:px-8 lg:px-[calc(var(--lp-gutter)+4rem)] lg:pb-24"
+    >
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Cell i={0} className="flex min-h-[320px] flex-col justify-between overflow-hidden bg-ink lg:min-h-[412px]">
           <span className="flex size-12 items-center justify-center rounded-[12px] bg-agent text-ink">

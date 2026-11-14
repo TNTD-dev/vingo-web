@@ -115,7 +115,7 @@ export function Hero() {
     <header
       ref={rootRef}
       onPointerMove={onPointerMove}
-      className="relative flex min-h-[760px] flex-col overflow-hidden rounded-xl px-4 pt-4 pb-6 sm:px-8 sm:pt-6 sm:pb-8 lg:min-h-[900px]"
+      className="relative flex min-h-[760px] flex-col overflow-hidden rounded-xl px-4 pt-4 pb-6 sm:px-8 sm:pt-6 sm:pb-8 lg:min-h-[900px] lg:px-[calc(var(--lp-gutter)+2rem)]"
     >
       <div aria-hidden className="pointer-events-none absolute inset-0">
         <img src={heroImage} alt="" className="size-full object-cover" fetchPriority="high" />
@@ -202,17 +202,26 @@ export function Hero() {
 
       {/* Vingo + 2 cuống vé trôi (chỉ từ lg: màn nhỏ không đủ chỗ) */}
       <div aria-hidden className="pointer-events-none absolute inset-0 hidden lg:block">
-        <div className="lp-parallax absolute top-[329px] left-[832px]" style={{ ['--k' as string]: 0.8 }}>
+        <div
+          className="lp-parallax absolute top-[329px] left-[calc(var(--lp-gutter)+832px)]"
+          style={{ ['--k' as string]: 0.8 }}
+        >
           <div className="lp-float-a -rotate-12">
             <FlyingTicket tone="lime" code="HAGL · B-14" text="VÉ" />
           </div>
         </div>
-        <div className="lp-parallax absolute top-[140px] right-[48px]" style={{ ['--k' as string]: 1 }}>
+        <div
+          className="lp-parallax absolute top-[140px] right-[calc(var(--lp-gutter)+48px)]"
+          style={{ ['--k' as string]: 1 }}
+        >
           <div className="lp-float-b rotate-[14deg]">
             <FlyingTicket tone="dark" code="KỊCH · F-08" text="VÉ" />
           </div>
         </div>
-        <div className="lp-parallax absolute top-[441px] left-[682px]" style={{ ['--k' as string]: 0.5 }}>
+        <div
+          className="lp-parallax absolute top-[441px] left-[calc(var(--lp-gutter)+682px)]"
+          style={{ ['--k' as string]: 0.5 }}
+        >
           <MascotLive mood={listening ? 'listening' : 'wave'} className="size-[168px]" />
         </div>
       </div>
