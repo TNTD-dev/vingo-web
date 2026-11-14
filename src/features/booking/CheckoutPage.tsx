@@ -7,12 +7,13 @@ import { toast } from 'sonner'
 import { cancelOrder, getGetOrderQueryKey, holdSeats, useGetOrder } from '@/api/generated/endpoints/booking/booking'
 import { putBuyerProfile, useGetBuyerProfile } from '@/api/generated/endpoints/me/me'
 import { createPayment } from '@/api/generated/endpoints/payment/payment'
-import type { CreatePaymentBodyMethod, Order, PaymentIntent } from '@/api/generated/model'
+import type { Order, PaymentIntent } from '@/api/generated/model'
 import { newIdempotencyKey } from '@/api/idempotency'
 import { profileFieldErrors } from '@/lib/profileErrors'
 import { isApiError } from '@/api/problem'
 import { ArrowButton } from '@/design/ArrowButton'
 import { Mascot } from '@/design/Mascot'
+import vnpayLogo from '@/design/brand/vnpay.png'
 import { icons } from '@/design/icons'
 import { StatusBadge } from '@/design/StatusBadge'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/design/ui/dialog'
@@ -71,13 +72,6 @@ export default function CheckoutPage() {
   return <Checkout order={order.data} />
 }
 
-type Method = { value: CreatePaymentBodyMethod; title: string; hint: string; icon: string; dark?: boolean }
-const METHODS: Method[] = [
-  { value: 'VNPAYQR', title: 'VNPay QR', hint: 'Quét mã bằng app ngân hàng / ví', icon: icons.qr, dark: true },
-  { value: 'ATM', title: 'Thẻ ATM nội địa', hint: 'Qua cổng VNPay', icon: icons.bank },
-  { value: 'INTCARD', title: 'Thẻ quốc tế', hint: 'Visa, Mastercard, JCB', icon: icons.card },
-]
-
 function seatLabel(item: NonNullable<Order['items']>[number]) {
   return item.row && item.number != null ? `${item.row}-${item.number}` : undefined
 }
@@ -97,7 +91,6 @@ function Checkout({ order }: { order: Order }) {
   const [draft, setDraft] = useState<ProfileDraft>()
   const values: ProfileDraft = draft ?? saved ?? EMPTY_PROFILE
   const [errors, setErrors] = useState<ProfileErrors>({})
-  const [method, setMethod] = useState<CreatePaymentBodyMethod>('VNPAYQR')
   const [intent, setIntent] = useState<PaymentIntent>()
   const [open, setOpen] = useState(false)
   const keyRef = useRef<{ sig: string; key: string }>(undefined)
@@ -111,9 +104,9 @@ function Checkout({ order }: { order: Order }) {
   const pay = useMutation({
     mutationFn: async () => {
       if (needsSave(values, saved)) await putBuyerProfile(toProfile(values))
-      const sig = `${orderId}:${method}`
-      if (keyRef.current?.sig !== sig) keyRef.current = { sig, key: newIdempotencyKey() }
-      return createPayment(orderId, { method }, { headers: { 'Idempotency-Key': keyRef.current.key } })
+      // Không gửi method: người mua chọn QR / thẻ ATM / thẻ quốc tế ngay trên trang VNPay.
+      if (keyRef.current?.sig !== orderId) keyRef.current = { sig: orderId, key: newIdempotencyKey() }
+      return createPayment(orderId, {}, { headers: { 'Idempotency-Key': keyRef.current.key } })
     },
     onSuccess: (data) => {
       setIntent(data)
@@ -156,7 +149,7 @@ function Checkout({ order }: { order: Order }) {
     const found = validateProfile(values)
     setErrors(found)
     if (hasErrors(found)) return
-    if (intent && intent.order_id === orderId && method === (keyRef.current?.sig.split(':')[1] as string)) {
+    if (intent && intent.order_id === orderId) {
       setOpen(true) // đã tạo thanh toán cho đơn này, mở lại hộp thoại
       return
     }
@@ -256,17 +249,17 @@ function Checkout({ order }: { order: Order }) {
 
           <section className="flex flex-col gap-3.5 rounded-lg bg-surface p-5 sm:p-7">
             <h2 className="type-h3 text-foreground">Phương thức thanh toán</h2>
-            <fieldset className="flex flex-col gap-3.5">
-              <legend className="sr-only">Phương thức thanh toán</legend>
-              {METHODS.map((m) => (
-                <MethodOption
-                  key={m.value}
-                  method={m}
-                  selected={method === m.value}
-                  onSelect={() => setMethod(m.value)}
-                />
-              ))}
-            </fieldset>
+            <div className="flex items-center gap-3.5 rounded-[16px] border-2 border-foreground p-[15px]">
+              <span className="flex h-11 w-14 shrink-0 items-center justify-center rounded-[12px] border border-line bg-white p-1.5">
+                <img src={vnpayLogo} alt="VNPay" className="max-h-full max-w-full object-contain" />
+              </span>
+              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="type-body-m-strong text-foreground">Cổng thanh toán VNPay</span>
+                <span className="type-caption text-ink-tertiary">
+                  Chọn VNPay QR, thẻ ATM nội địa hoặc thẻ quốc tế (Visa, Mastercard, JCB) ở bước tiếp theo
+                </span>
+              </span>
+            </div>
           </section>
         </div>
 
@@ -385,46 +378,6 @@ function Field({
   )
 }
 
-function MethodOption({ method, selected, onSelect }: { method: Method; selected: boolean; onSelect: () => void }) {
-  return (
-    <label
-      className={cn(
-        'flex cursor-pointer items-center gap-3.5 rounded-[16px] p-4 has-focus-visible:ring-2 has-focus-visible:ring-ring',
-        selected ? 'border-2 border-foreground p-[15px]' : 'border border-line hover:bg-canvas',
-      )}
-    >
-      <input
-        type="radio"
-        name="payment-method"
-        value={method.value}
-        checked={selected}
-        onChange={onSelect}
-        className="sr-only"
-      />
-      <span
-        className={cn(
-          'flex size-11 shrink-0 items-center justify-center rounded-[12px]',
-          method.dark ? 'bg-ink' : 'bg-canvas',
-        )}
-      >
-        <img src={method.icon} alt="" className="size-5" />
-      </span>
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="type-body-m-strong text-foreground">{method.title}</span>
-        <span className="type-caption text-ink-tertiary">{method.hint}</span>
-      </span>
-      <span
-        className={cn(
-          'flex size-[22px] shrink-0 items-center justify-center rounded-pill',
-          selected ? 'bg-ink' : 'border border-line',
-        )}
-      >
-        {selected && <span className="size-2 rounded-pill bg-surface" />}
-      </span>
-    </label>
-  )
-}
-
 /** B4b · hộp thoại chờ thanh toán. Chưa vẽ mã QR: dự án chưa có thư viện QR, tạm mở cổng VNPay bằng nút. */
 function WaitingDialog({
   open,
@@ -446,13 +399,13 @@ function WaitingDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[480px] gap-5 rounded-xl border-0 bg-canvas p-6">
-        <DialogTitle className="type-h3 text-foreground">Quét để thanh toán</DialogTitle>
+        <DialogTitle className="type-h3 text-foreground">Thanh toán qua VNPay</DialogTitle>
         <DialogDescription className="sr-only">
           Mở cổng VNPay để hoàn tất thanh toán. Trang sẽ tự cập nhật khi VNPay xác nhận.
         </DialogDescription>
         <div className="flex flex-col gap-5 rounded-lg bg-surface p-5">
           <div className="flex items-center justify-between">
-            <span className="type-mono-small text-foreground">VNPay QR</span>
+            <span className="type-mono-small text-foreground">VNPay</span>
             <StatusBadge tone="warning">PENDING</StatusBadge>
           </div>
           <div className="flex flex-col gap-2">
@@ -461,7 +414,9 @@ function WaitingDialog({
             <span className="flex items-center gap-1.5 type-body-m text-warning">
               <Clock className="size-4" /> Còn {formatCountdown(left)} để thanh toán
             </span>
-            <p className="type-body-m text-ink-secondary">Quét bằng app ngân hàng hoặc ví hỗ trợ VNPay QR.</p>
+            <p className="type-body-m text-ink-secondary">
+              Mở cổng VNPay rồi chọn VNPay QR, thẻ ATM nội địa hoặc thẻ quốc tế.
+            </p>
           </div>
           <div className="flex flex-wrap gap-2.5">
             <button
