@@ -138,13 +138,18 @@ const messages: Record<string, string> = {
   EVENT_NOT_READY: 'Sự kiện chưa đủ cấu hình. Kiểm tra suất diễn, sơ đồ và hạng giá của tất cả khu.',
   VENUE_IN_USE: 'Địa điểm đang có phòng hoặc suất diễn. Chưa thể xóa địa điểm này.',
 }
+/** Lỗi đã có câu tiếng Việt riêng cho một thao tác cụ thể (vd. gửi lại vé thiếu email). */
+export class UiMessageError extends Error {}
 function errorText(error: unknown): string {
+  if (error instanceof UiMessageError) return error.message
   if (isApiError(error))
     return (
       messages[error.code ?? ''] ??
-      (error.status === 400
-        ? 'Thông tin chưa hợp lệ. Hãy kiểm tra các trường đã nhập.'
-        : 'Không thể thực hiện yêu cầu. Vui lòng thử lại.')
+      (error.status === 501
+        ? 'Chức năng này chưa được hỗ trợ ở phía máy chủ. Vui lòng quay lại sau.'
+        : error.status === 400
+          ? 'Thông tin chưa hợp lệ. Hãy kiểm tra các trường đã nhập.'
+          : 'Không thể thực hiện yêu cầu. Vui lòng thử lại.')
     )
   return 'Không thể kết nối. Vui lòng kiểm tra mạng và thử lại.'
 }
