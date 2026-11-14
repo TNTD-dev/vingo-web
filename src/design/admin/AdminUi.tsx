@@ -144,7 +144,10 @@ const messages: Record<string, string> = {
   ACTION_STATE_INVALID: 'Trạng thái hiện tại không cho phép thao tác này. Hãy tải lại dữ liệu.',
   VENUE_IN_USE: 'Địa điểm đang có phòng hoặc suất diễn. Chưa thể xóa địa điểm này.',
 }
+/** Lỗi đã có câu tiếng Việt riêng cho một thao tác cụ thể (vd. gửi lại vé thiếu email). */
+export class UiMessageError extends Error {}
 function errorText(error: unknown): string {
+  if (error instanceof UiMessageError) return error.message
   if (isApiError(error))
     return (
       messages[error.code ?? ''] ??
