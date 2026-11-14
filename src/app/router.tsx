@@ -5,7 +5,8 @@ import { RequireAuth } from '@/auth/guards'
 import { FullPageSpinner } from '@/design/FullPageSpinner'
 import { ForbiddenPage, NotFoundPage } from '@/features/StatusPages'
 
-import { AdminLayout, AgentLayout, AuthLayout, BuyerLayout, CopilotLayout, PlainLayout } from './layouts'
+import { AdminLayout } from './AdminLayout'
+import { AgentLayout, AuthLayout, BuyerLayout, CopilotLayout, PlainLayout } from './layouts'
 
 function page(Component: LazyExoticComponent<ComponentType>) {
   return (
@@ -32,6 +33,7 @@ const L = {
   EventDetail: lazy(() => import('@/features/booking/EventDetailPage')),
   SeatSelection: lazy(() => import('@/features/booking/SeatSelectionPage')),
   Checkout: lazy(() => import('@/features/booking/CheckoutPage')),
+  OrderSuccess: lazy(() => import('@/features/booking/OrderSuccessPage')),
   PaymentReturn: lazy(() => import('@/features/booking/PaymentReturnPage')),
   // account
   Orders: lazy(() => import('@/features/account/OrdersPage')),
@@ -44,9 +46,9 @@ const L = {
   Checkin: lazy(() => import('@/features/checkin/CheckinPage')),
   // admin-dashboard
   Overview: lazy(() => import('@/features/admin-dashboard/OverviewPage')),
-  Reports: lazy(() => import('@/features/admin-dashboard/ReportsPage')),
   // copilot
   Copilot: lazy(() => import('@/features/copilot/CopilotPage')),
+  Reports: lazy(() => import('@/features/admin-dashboard/ReportsPage')),
   // admin-catalog
   Venues: lazy(() => import('@/features/admin-catalog/VenuesPage')),
   VenueDetail: lazy(() => import('@/features/admin-catalog/VenueDetailPage')),
@@ -55,6 +57,8 @@ const L = {
   AdminEventDetail: lazy(() => import('@/features/admin-catalog/AdminEventDetailPage')),
   ShowtimeSeats: lazy(() => import('@/features/admin-catalog/ShowtimeSeatsPage')),
   // admin-ops
+  AdminLogin: lazy(() => import('@/features/admin-ops/AdminLoginPage')),
+  AdminCheckin: lazy(() => import('@/features/admin-ops/AdminCheckinPage')),
   AdminOrders: lazy(() => import('@/features/admin-ops/AdminOrdersPage')),
   AdminOrderDetail: lazy(() => import('@/features/admin-ops/AdminOrderDetailPage')),
   AdminTickets: lazy(() => import('@/features/admin-ops/AdminTicketsPage')),
@@ -64,6 +68,7 @@ const L = {
 const buyer = (el: LazyExoticComponent<ComponentType>) => <RequireAuth>{page(el)}</RequireAuth>
 
 export const routes: RouteObject[] = [
+  { path: '/admin/login', element: page(L.AdminLogin) },
   {
     element: <AuthLayout />,
     children: [
@@ -94,6 +99,7 @@ export const routes: RouteObject[] = [
       { path: '/orders', element: buyer(L.Orders) },
       { path: '/orders/:orderId', element: buyer(L.OrderDetail) },
       { path: '/orders/:orderId/checkout', element: buyer(L.Checkout) },
+      { path: '/orders/:orderId/success', element: buyer(L.OrderSuccess) },
       { path: '/payment/vnpay-return', element: buyer(L.PaymentReturn) },
       { path: '/tickets', element: buyer(L.Tickets) },
       { path: '/tickets/:ticketId', element: buyer(L.TicketDetail) },
@@ -104,7 +110,7 @@ export const routes: RouteObject[] = [
   },
   {
     element: <PlainLayout />,
-    children: [{ path: '/checkin', element: buyer(L.Checkin) }],
+    children: [{ path: '/checkin', element: <RequireAuth allow="ADMIN">{page(L.Checkin)}</RequireAuth> }],
   },
   {
     path: '/admin',
@@ -125,6 +131,7 @@ export const routes: RouteObject[] = [
       { path: 'orders', element: page(L.AdminOrders) },
       { path: 'orders/:orderId', element: page(L.AdminOrderDetail) },
       { path: 'tickets', element: page(L.AdminTickets) },
+      { path: 'checkin', element: page(L.AdminCheckin) },
       { path: 'audit-logs', element: page(L.AuditLogs) },
     ],
   },

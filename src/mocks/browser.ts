@@ -13,10 +13,16 @@ import { getPaymentMock } from '@/api/generated/endpoints/payment/payment.msw'
 import { getSearchMock } from '@/api/generated/endpoints/search/search.msw'
 import { getTicketsMock } from '@/api/generated/endpoints/tickets/tickets.msw'
 
+import { adminCatalogHandlers } from './adminCatalog'
+import { adminOperationsHandlers } from './adminOperations'
+import { copilotHandlers } from './copilot'
 import { agentHandlers } from './agent'
 import { authHandlers } from './auth'
-import { copilotHandlers } from './copilot'
+import { eventDetailHandlers, eventHandlers } from './events'
+import { orderHandlers } from './orders'
+import { seatmapHandlers } from './seatmap'
 import { meStreamHandler } from './sse'
+import { ticketHandlers } from './tickets'
 
 // Handler Orval sinh khớp mọi origin + path (vd. "*" + "/events") nên cũng bắt cả điều hướng trình duyệt tới route SPA cùng tên.
 // Cho mọi request tải trang (navigate) đi thẳng tới Vite.
@@ -27,8 +33,15 @@ export const worker = setupWorker(
   navigationPassthrough,
   meStreamHandler,
   ...authHandlers,
+  ...adminCatalogHandlers,
+  ...adminOperationsHandlers,
   ...copilotHandlers,
   ...agentHandlers,
+  ...eventHandlers,
+  ...eventDetailHandlers,
+  ...seatmapHandlers,
+  ...orderHandlers,
+  ...ticketHandlers,
   ...getAuthMock(),
   ...getMeMock(),
   ...getSearchMock(),

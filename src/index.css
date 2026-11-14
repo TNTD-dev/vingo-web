@@ -37,8 +37,19 @@
   --vg-seat-selected: #1a1a1a;
   --vg-seat-held: rgb(217 138 28 / 35%);
   --vg-seat-sold: rgb(26 26 26 / 12%);
+  --vg-tier-1: #c6f24e;
+  --vg-tier-2: #a9c4ff;
+  --vg-tier-3: #f4d9a6;
+  --vg-tier-4: #e6c6f0;
+  --vg-map-sold: #d9d9d9;
   /* thêm cho mascot (Figma page 07) */
   --vg-mascot-cheek: #ff8fa3;
+  /* thêm cho sơ đồ ghế (Figma B3 · lấy màu từ chú giải hạng giá) */
+  --vg-tier-1: #c6f24e;
+  --vg-tier-2: #a9c4ff;
+  --vg-tier-3: #f4d9a6;
+  --vg-tier-4: #e6c6f0;
+  --vg-map-sold: #d9d9d9;
 
   /* ---- shadcn trỏ về token Vingo ---- */
   --background: var(--vg-bg-canvas);
@@ -83,6 +94,11 @@
 }
 
 @theme inline {
+  --color-tier-1: var(--vg-tier-1);
+  --color-tier-2: var(--vg-tier-2);
+  --color-tier-3: var(--vg-tier-3);
+  --color-tier-4: var(--vg-tier-4);
+  --color-map-sold: var(--vg-map-sold);
   /* ---- font (Figma text styles) ---- */
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', monospace;
@@ -122,6 +138,11 @@
   --color-seat-held: var(--vg-seat-held);
   --color-seat-sold: var(--vg-seat-sold);
   --color-mascot-cheek: var(--vg-mascot-cheek);
+  --color-tier-1: var(--vg-tier-1);
+  --color-tier-2: var(--vg-tier-2);
+  --color-tier-3: var(--vg-tier-3);
+  --color-tier-4: var(--vg-tier-4);
+  --color-map-sold: var(--vg-map-sold);
 
   /* ---- tên shadcn ---- */
   --color-background: var(--background);
@@ -229,5 +250,85 @@
   }
   body {
     @apply bg-background font-sans text-foreground antialiased;
+  }
+}
+
+/* Mascot Vingo chuyển động nhẹ theo trạng thái (design/Mascot.tsx). Tắt khi người dùng chọn giảm chuyển động. */
+@keyframes vg-mascot-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+@keyframes vg-mascot-sway {
+  0%,
+  100% {
+    transform: rotate(-4deg);
+  }
+  50% {
+    transform: rotate(4deg);
+  }
+}
+@keyframes vg-mascot-bounce {
+  0%,
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+  40% {
+    transform: translateY(-14px) scale(0.97, 1.03);
+  }
+  60% {
+    transform: translateY(0) scale(1.03, 0.97);
+  }
+}
+@keyframes vg-mascot-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.04);
+  }
+}
+@keyframes vg-mascot-droop {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+  50% {
+    transform: translateY(3px) rotate(-2deg);
+  }
+}
+.vg-mascot {
+  transform-origin: 50% 90%;
+  will-change: transform;
+}
+.vg-mascot[data-state='wave'] {
+  animation: vg-mascot-sway 2.4s ease-in-out infinite;
+}
+.vg-mascot[data-state='listening'] {
+  animation: vg-mascot-pulse 2.2s ease-in-out infinite;
+}
+.vg-mascot[data-state='thinking'] {
+  animation: vg-mascot-sway 3.2s ease-in-out infinite;
+}
+.vg-mascot[data-state='working'] {
+  animation: vg-mascot-float 1.2s ease-in-out infinite;
+}
+.vg-mascot[data-state='asking'] {
+  animation: vg-mascot-sway 3.6s ease-in-out infinite;
+}
+.vg-mascot[data-state='celebrate'] {
+  animation: vg-mascot-bounce 1.1s ease-in-out infinite;
+}
+.vg-mascot[data-state='sorry'] {
+  animation: vg-mascot-droop 4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .vg-mascot {
+    animation: none !important;
   }
 }

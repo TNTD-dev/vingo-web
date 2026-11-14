@@ -1,14 +1,13 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 
-import { API_BASE } from '@/api/config'
 import { isApiError } from '@/api/problem'
 import { useAuth } from '@/auth/auth-context'
-import { Button } from '@/design/ui/button'
-import { Input } from '@/design/ui/input'
-import { Label } from '@/design/ui/label'
+import { ArrowButton } from '@/design/ArrowButton'
 
-/** Form tối thiểu để đăng nhập được khi dựng khung. Thiết kế lại sau. */
+import { AuthField, AuthHeading, FormError, GoogleButton } from './authUi'
+
+// B8 · Đăng nhập (Figma 03 · Buyer). Bước OTP của B8 dùng ở /verify-otp sau khi đăng ký.
 export default function LoginPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
@@ -20,36 +19,45 @@ export default function LoginPage() {
     setPending(true)
     setError(null)
     try {
-      await login({ identifier: String(form.get('identifier')), password: String(form.get('password')) })
-      navigate(params.get('next') ?? '/', { replace: true })
+      await login({ identifier: String(form.get('identifier')).trim(), password: String(form.get('password')) })
+      const next = params.get('next')
+      navigate(next?.startsWith('/') && !next.startsWith('//') ? next : '/events', { replace: true })
     } catch (e) {
-      setError(isApiError(e) ? (e.problem?.detail ?? e.message) : 'Không đăng nhập được')
+      setError(
+        isApiError(e) && e.status === 401
+          ? 'Email/số điện thoại hoặc mật khẩu chưa đúng.'
+          : isApiError(e)
+            ? (e.problem?.detail ?? e.message)
+            : 'Không đăng nhập được. Vui lòng thử lại.',
+      )
     } finally {
       setPending(false)
     }
   }
 
   return (
-    <form action={onSubmit} className="space-y-4">
-      <h1 className="text-xl font-semibold">Đăng nhập</h1>
-      <div className="space-y-2">
-        <Label htmlFor="identifier">Email hoặc số điện thoại</Label>
-        <Input id="identifier" name="identifier" autoComplete="username" required />
+    <form action={onSubmit} className="flex flex-col gap-5">
+      <AuthHeading eyebrow="Đăng nhập" title="Chào mừng trở lại" />
+      <AuthField label="Email hoặc số điện thoại" name="identifier" autoComplete="username" required />
+      <AuthField label="Mật khẩu" name="password" type="password" autoComplete="current-password" required />
+      <div className="flex justify-end">
+        <Link to="/forgot-password" className="type-caption text-ink-secondary hover:text-foreground">
+          Quên mật khẩu?
+        </Link>
       </div>
-      <div className="space-y-2">
-        <Label htmlFor="password">Mật khẩu</Label>
-        <Input id="password" name="password" type="password" autoComplete="current-password" required />
-      </div>
-      {error && <p className="text-sm text-destructive">{error}</p>}
-      <Button type="submit" className="w-full" disabled={pending}>
-        Đăng nhập
-      </Button>
-      <Button asChild variant="outline" className="w-full">
-        <a href={`${API_BASE}/auth/google`}>Đăng nhập bằng Google</a>
-      </Button>
-      <p className="flex justify-between text-sm text-muted-foreground">
-        <Link to="/register">Đăng ký</Link>
-        <Link to="/forgot-password">Quên mật khẩu</Link>
+      {error && <FormError>{error}</FormError>}
+      <ArrowButton variant="primary" type="submit" disabled={pending} className="w-full">
+        {pending ? 'Đang đăng nhập…' : 'Đăng nhập'}
+      </ArrowButton>
+      <GoogleButton next={params.get('next')}>Tiếp tục với Google</GoogleButton>
+      <p className="text-center type-caption text-ink-tertiary">
+        Chưa có tài khoản?{' '}
+        <Link
+          to={params.get('next') ? `/register?next=${encodeURIComponent(params.get('next')!)}` : '/register'}
+          className="text-foreground underline"
+        >
+          Đăng ký
+        </Link>
       </p>
     </form>
   )

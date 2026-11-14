@@ -124,7 +124,7 @@ export function FeaturedEvents() {
         </div>
       </div>
 
-      <div className="relative flex flex-wrap items-center justify-between gap-4 px-5 pt-6 sm:px-8 lg:px-16">
+      <div className="relative flex flex-wrap items-center justify-between gap-4 px-5 pt-6 sm:px-8 lg:px-[calc(var(--lp-gutter)+4rem)]">
         <h2 id="featured-title" className="text-[36px] leading-none font-medium tracking-[-0.04em] sm:text-[56px]">
           Sự kiện nổi bật
         </h2>
