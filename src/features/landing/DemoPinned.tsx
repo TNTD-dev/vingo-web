@@ -161,7 +161,7 @@ export function DemoPinned() {
       aria-labelledby="demo-title"
       className="relative flex flex-col overflow-hidden rounded-xl bg-ink text-on-ink lg:h-svh lg:min-h-[640px]"
     >
-      <div className="relative px-5 pt-12 sm:px-8 lg:px-16 lg:pt-10">
+      <div className="relative px-5 pt-12 sm:px-8 lg:px-[calc(var(--lp-gutter)+4rem)] lg:pt-10">
         <p className="type-mono-label text-agent">{'// Một lượt đặt vé với Vingo'}</p>
         <h2
           id="demo-title"
@@ -171,14 +171,14 @@ export function DemoPinned() {
           <br />
           Vingo làm.
         </h2>
-        <p className="mt-4 max-w-[440px] type-body-l text-on-ink-secondary lg:absolute lg:top-[clamp(80px,14svh,150px)] lg:right-16 lg:mt-0">
+        <p className="mt-4 max-w-[440px] type-body-l text-on-ink-secondary lg:absolute lg:top-[clamp(80px,14svh,150px)] lg:right-[calc(var(--lp-gutter)+4rem)] lg:mt-0">
           Vingo tìm suất, chọn ghế và tạo QR thanh toán. Mọi bước giữ ghế hay trả tiền đều chờ bạn bấm “Đồng ý”.
         </p>
       </div>
 
       <div
         ref={areaRef}
-        className="relative mt-8 px-4 sm:px-8 lg:mt-4 lg:min-h-0 lg:flex-1 lg:px-16"
+        className="relative mt-8 px-4 sm:px-8 lg:mt-4 lg:min-h-0 lg:flex-1 lg:px-[calc(var(--lp-gutter)+4rem)]"
         style={{ ['--s' as string]: 1 }}
       >
         <div className="relative h-full lg:flex lg:justify-center">

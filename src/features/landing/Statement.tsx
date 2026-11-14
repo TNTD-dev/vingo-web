@@ -11,7 +11,7 @@ export function Statement() {
   const ref = useScrollProgress<HTMLParagraphElement>({ startAt: 0.9, endAt: 0.45, enabled: !reduced, fallback: 1 })
   const words = TEXT.split(' ')
   return (
-    <section className="px-5 pt-16 pb-6 sm:px-8 lg:px-16 lg:pt-24 lg:pb-8">
+    <section className="px-5 pt-16 pb-6 sm:px-8 lg:px-[calc(var(--lp-gutter)+4rem)] lg:pt-24 lg:pb-8">
       <p ref={ref} className="max-w-[1100px] type-h1 leading-none tracking-[-0.04em] lg:text-[48px]">
         {words.map((w, i) => (
           <span
