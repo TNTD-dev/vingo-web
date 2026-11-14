@@ -52,7 +52,10 @@ export default function LoginPage() {
       <GoogleButton next={params.get('next')}>Tiếp tục với Google</GoogleButton>
       <p className="text-center type-caption text-ink-tertiary">
         Chưa có tài khoản?{' '}
-        <Link to="/register" className="text-foreground underline">
+        <Link
+          to={params.get('next') ? `/register?next=${encodeURIComponent(params.get('next')!)}` : '/register'}
+          className="text-foreground underline"
+        >
           Đăng ký
         </Link>
       </p>

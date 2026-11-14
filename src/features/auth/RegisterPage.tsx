@@ -1,18 +1,20 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 
 import { register } from '@/api/generated/endpoints/auth/auth'
-import { isApiError, isNotImplemented, NOT_IMPLEMENTED_MESSAGE } from '@/api/problem'
 import { ArrowButton } from '@/design/ArrowButton'
 import { cn } from '@/lib/cn'
 import { passwordStrength, STRENGTH_HINT } from '@/lib/validate'
 
 import { AuthField, AuthHeading, FormError, GoogleButton } from './authUi'
+import { registerErrorMessage } from './otpErrors'
+import { safeNext, saveOtpSession } from './otpSession'
 import { validateRegister, type RegisterErrors, type RegisterFields } from './registerForm'
 
 // B14 · Đăng ký (Figma 03 · Buyer). Tạo tài khoản xong chuyển sang /verify-otp để kích hoạt.
 export default function RegisterPage() {
   const navigate = useNavigate()
+  const [params] = useSearchParams()
   const [v, setV] = useState<RegisterFields>({ full_name: '', phone: '', email: '', password: '', confirm: '' })
   const [terms, setTerms] = useState(false)
   const [errors, setErrors] = useState<RegisterErrors>({})
@@ -36,14 +38,17 @@ export default function RegisterPage() {
         phone: v.phone.replace(/[\s.-]/g, ''),
         password: v.password,
       })
-      const qs = new URLSearchParams({ session: session.otp_session_id ?? '', email: v.email.trim() })
-      if (session.expires_at) qs.set('exp', session.expires_at)
-      navigate(`/verify-otp?${qs}`)
+      if (!session.otp_session_id) throw new Error('Thiếu otp_session_id')
+      saveOtpSession({
+        sessionId: session.otp_session_id,
+        email: v.email.trim(),
+        expiresAt: session.expires_at,
+        sentAt: Date.now(),
+        next: safeNext(params.get('next')),
+      })
+      navigate('/verify-otp')
     } catch (err) {
-      if (isNotImplemented(err)) setFormError(NOT_IMPLEMENTED_MESSAGE)
-      else if (isApiError(err) && err.status === 409) {
-        setFormError('Email hoặc số điện thoại này đã có tài khoản. Hãy đăng nhập hoặc dùng thông tin khác.')
-      } else setFormError(isApiError(err) ? (err.problem?.detail ?? err.message) : 'Chưa tạo được tài khoản.')
+      setFormError(registerErrorMessage(err))
     } finally {
       setPending(false)
     }
@@ -127,7 +132,10 @@ export default function RegisterPage() {
       <GoogleButton>Đăng ký bằng Google</GoogleButton>
       <p className="type-caption text-ink-tertiary">
         Đã có tài khoản?{' '}
-        <Link to="/login" className="text-foreground underline">
+        <Link
+          to={params.get('next') ? `/login?next=${encodeURIComponent(params.get('next')!)}` : '/login'}
+          className="text-foreground underline"
+        >
           Đăng nhập
         </Link>
       </p>
