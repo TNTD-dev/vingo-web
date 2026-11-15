@@ -32,6 +32,10 @@ jobs:
           push: true
           build-args: |
             VITE_SENTRY_DSN=${{ vars.VITE_SENTRY_DSN }}
+            VITE_SENTRY_ENVIRONMENT=staging
+            SENTRY_RELEASE=vingo-web@${{ steps.meta.outputs.tag }}
+          secrets: |
+            sentry_auth_token=${{ secrets.SENTRY_AUTH_TOKEN }}
           tags: |
             ghcr.io/tntd-dev/vingo-web:${{ steps.meta.outputs.tag }}
             ghcr.io/tntd-dev/vingo-web:staging
