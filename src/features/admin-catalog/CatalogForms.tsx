@@ -3,7 +3,6 @@ import type { EventCreateInput, EventDetail, Venue, VenueCreateInput } from '@/a
 import { Field, ErrorNotice } from '@/design/admin/AdminUi'
 import { Button } from '@/design/ui/button'
 import { categories, cities, venueTypes } from './catalog'
-import { AdminAction } from '@/design/admin/AdminAction'
 
 export { FormDialog } from '@/design/admin/FormDialog'
 
@@ -130,15 +129,11 @@ export function VenueForm({
   pending,
   error,
   onSubmit,
-  compact = false,
-  onCancel,
 }: {
   initial?: Venue
   pending: boolean
   error: unknown
   onSubmit: (data: VenueCreateInput) => void
-  compact?: boolean
-  onCancel?: () => void
 }) {
   const [data, setData] = useState<VenueCreateInput>({
     name: initial?.name ?? '',
@@ -150,67 +145,6 @@ export function VenueForm({
     lat: initial?.lat,
     lng: initial?.lng,
   })
-  if (compact)
-    return (
-      <form
-        className="space-y-4"
-        onSubmit={(e) => {
-          e.preventDefault()
-          onSubmit({ ...data, name: data.name?.trim(), address: data.address?.trim() })
-        }}
-      >
-        <fieldset disabled={pending} className="space-y-4">
-          <Field label="Tên sân *">
-            <input
-              required
-              maxLength={200}
-              value={data.name}
-              onChange={(e) => setData({ ...data, name: e.target.value })}
-            />
-          </Field>
-          <div>
-            <p className="admin-caption mb-2">Loại</p>
-            <div className="admin-type-options">
-              {Object.keys(venueTypes).map((type) => (
-                <button
-                  type="button"
-                  aria-pressed={data.type === type}
-                  key={type}
-                  onClick={() => setData({ ...data, type: type as VenueCreateInput['type'] })}
-                >
-                  {type}
-                </button>
-              ))}
-            </div>
-          </div>
-          <Field label="Thành phố">
-            <select
-              value={data.city}
-              onChange={(e) => setData({ ...data, city: e.target.value as VenueCreateInput['city'] })}
-            >
-              {Object.entries(cities).map(([k, v]) => (
-                <option key={k} value={k}>
-                  {v}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Địa chỉ *">
-            <input required value={data.address} onChange={(e) => setData({ ...data, address: e.target.value })} />
-          </Field>
-        </fieldset>
-        <p className="admin-notice">Sau khi tạo sân, thêm hall rồi nhập sơ đồ ghế SVG cho từng hall.</p>
-        <ErrorNotice error={error} />
-        <div className="flex items-center gap-2">
-          <AdminAction disabled={pending || !data.name?.trim() || !data.address?.trim()}>
-            {pending ? 'Đang tạo…' : 'Tạo sân'}
-          </AdminAction>
-          <Button type="button" className="admin-small-button" variant="outline" disabled={pending} onClick={onCancel}>
-            Hủy
-          </Button>
-        </div>
-      </form>
-    )
   return (
     <form
       onSubmit={(e) => {

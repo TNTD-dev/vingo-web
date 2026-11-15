@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createShowtime } from '@/api/generated/endpoints/admin-catalog/admin-catalog'
 import ShowtimeForm from './ShowtimeForm'
@@ -16,7 +17,7 @@ vi.mock('./catalog', async (original) => ({
     refetch: vi.fn(),
   }),
   useLayoutDirectory: () => ({
-    data: [{ id: 'layout', name: 'Sơ đồ chính', version: 1, status: 'PUBLISHED' }],
+    data: [{ id: 'layout', name: 'Sơ đồ chính', version: 1, status: 'PUBLISHED', zone_count: 3, seat_count: 100 }],
     isPending: false,
     error: null,
   }),
@@ -28,24 +29,27 @@ afterEach(() => {
 function setup() {
   const close = vi.fn()
   render(
-    <QueryClientProvider
-      client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}
-    >
-      <ShowtimeForm eventId="event" onClose={close} />
-    </QueryClientProvider>,
+    <MemoryRouter>
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}
+      >
+        <ShowtimeForm eventId="event" onClose={close} />
+      </QueryClientProvider>
+    </MemoryRouter>,
   )
-  fireEvent.change(screen.getByLabelText(/Phòng \/ sân/), { target: { value: 'hall' } })
-  fireEvent.change(screen.getByLabelText(/Sơ đồ đã phát hành/), { target: { value: 'layout' } })
+  fireEvent.change(screen.getByLabelText('Sân'), { target: { value: 'venue' } })
+  fireEvent.click(screen.getByRole('radio', { name: /Sân chính/ }))
   return close
 }
-function dates(end = '2026-12-20T22:00') {
+function dates(end = '22:00') {
   for (const [label, value] of [
-    [/Bắt đầu diễn/, '2026-12-20T19:00'],
-    [/Kết thúc diễn/, end],
-    [/Mở bán/, '2026-12-01T09:00'],
-    [/Đóng bán/, '2026-12-20T18:00'],
+    ['Ngày', '2026-12-20'],
+    ['Bắt đầu', '19:00'],
+    ['Kết thúc', end],
+    ['Mở bán', '2026-12-01T09:00'],
+    ['Đóng bán', '2026-12-20T18:00'],
   ] as const)
-    fireEvent.input(screen.getByLabelText(label), { target: { value } })
+    fireEvent.change(screen.getByLabelText(label), { target: { value } })
 }
 describe('Lưu suất diễn', () => {
   it('gửi đủ hall, sơ đồ và thời gian Việt Nam dưới dạng UTC', async () => {
@@ -64,10 +68,17 @@ describe('Lưu suất diễn', () => {
     )
     await waitFor(() => expect(close).toHaveBeenCalled())
   })
-  it('không gửi lịch có giờ kết thúc trước giờ bắt đầu', () => {
+  it('không gửi lịch có giờ kết thúc trước giờ bắt đầu và nói rõ lý do', () => {
     setup()
-    dates('2026-12-20T18:00')
+    dates('18:00')
     expect(screen.getByRole('button', { name: 'Lưu suất diễn' })).toBeDisabled()
+    expect(screen.getByRole('status')).toHaveTextContent('Giờ kết thúc phải sau giờ bắt đầu')
     expect(createShowtime).not.toHaveBeenCalled()
+  })
+  it('“Đóng trước 2 giờ” điền giờ đóng bán lùi 2 giờ so với giờ diễn', () => {
+    setup()
+    dates()
+    fireEvent.click(screen.getByRole('radio', { name: 'Đóng trước 2 giờ' }))
+    expect(screen.getByLabelText('Đóng bán')).toHaveValue('2026-12-20T17:00')
   })
 })
