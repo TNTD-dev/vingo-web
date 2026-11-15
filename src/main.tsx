@@ -7,7 +7,18 @@ import { App } from '@/app/App'
 import './index.css'
 
 if (import.meta.env.VITE_SENTRY_DSN) {
-  Sentry.init({ dsn: import.meta.env.VITE_SENTRY_DSN, environment: import.meta.env.MODE })
+  Sentry.init({
+    dsn: import.meta.env.VITE_SENTRY_DSN,
+    environment: import.meta.env.VITE_SENTRY_ENVIRONMENT || import.meta.env.MODE,
+    integrations: [Sentry.browserTracingIntegration(), Sentry.replayIntegration()],
+    // App mới, traffic thấp: trace 100% page load / điều hướng / request.
+    tracesSampleRate: 1.0,
+    // Gắn header sentry-trace + baggage vào request /api để nối trace sang backend (cùng domain).
+    tracePropagationTargets: [/^\/api\//],
+    // Chỉ ghi lại replay khi có lỗi; replay mặc định che chữ và chặn media.
+    replaysSessionSampleRate: 0,
+    replaysOnErrorSampleRate: 1.0,
+  })
 }
 
 async function enableMocks() {
