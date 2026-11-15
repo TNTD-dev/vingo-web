@@ -10,6 +10,7 @@ import { cn } from '@/lib/cn'
 
 import { AppNav as BuyerNav } from './AppNav'
 import { useCopilotShortcut } from './copilotShortcut'
+import { VingoLauncher } from './VingoLauncher'
 
 // Khung buyer theo Figma (B1–B17): nền canvas, AppNav cách đỉnh 16px, lề ngang 32px (16px trên điện thoại),
 // nội dung rộng tối đa 1376px, cách nav 28px.
@@ -22,6 +23,7 @@ export function BuyerLayout() {
       <main className="mx-auto mt-7 flex w-full max-w-[1376px] min-w-0 flex-1 flex-col">
         <Outlet />
       </main>
+      <VingoLauncher />
     </div>
   )
 }
@@ -54,7 +56,7 @@ export function AgentLayout() {
           <div className="absolute inset-0 bg-linear-to-r from-canvas/90 via-canvas/60 via-50% to-canvas/15" />
         </div>
       )}
-      <AppNav mode="vingo" />
+      <AppNav />
       <main className="flex min-h-0 flex-1 flex-col">
         <Outlet context={ctx} />
       </main>
