@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, Navigate, useParams } from 'react-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   useGetAdminEvent,
@@ -27,12 +27,13 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 import more from '@/design/admin/icons/more.svg'
 import { FormDialog, EventForm } from './CatalogForms'
 import ShowtimeForm from './ShowtimeForm'
-import EventPricing from './EventPricing'
 import { toast } from 'sonner'
 
 export default function AdminEventDetailPage() {
   const { eventId = '' } = useParams(),
     query = useGetAdminEvent(eventId)
+  // Sự kiện nháp được hoàn thiện bằng wizard; trang này dành cho sự kiện đã công bố.
+  if (query.data?.status === 'DRAFT') return <Navigate to={`/admin/events/${eventId}/setup`} replace />
   return <QueryState query={query}>{query.data && <EventEditor key={eventId} event={query.data} />}</QueryState>
 }
 function EventEditor({ event }: { event: EventDetail }) {
@@ -46,7 +47,7 @@ function EventEditor({ event }: { event: EventDetail }) {
     })
   const [tierEdits, setTierEdits] = useState<Record<string, number>>({}),
     [editor, setEditor] = useState<Showtime | 'new' | null>(null),
-    [extra, setExtra] = useState<'pricing' | 'info' | null>(null),
+    [extra, setExtra] = useState<'info' | null>(null),
     [action, setAction] = useState<{ kind: 'publish' | 'cancel' | 'showtime'; show?: Showtime } | null>(null),
     [infoSaved, setInfoSaved] = useState(false)
   const [viewedAt] = useState(() => Date.now())
@@ -240,9 +241,9 @@ function EventEditor({ event }: { event: EventDetail }) {
         <Panel>
           <div className="mb-4 flex justify-between gap-2">
             <h2>Giá theo khu</h2>
-            <button className="admin-more" aria-label="Cấu hình hạng giá và khu" onClick={() => setExtra('pricing')}>
-              <img src={more} width={18} height={18} alt="" />
-            </button>
+            <Link className="wz-link" to={`/admin/events/${id}/setup?step=3`}>
+              Cấu hình giá →
+            </Link>
           </div>
           <p className="mb-5 text-xs text-ink-tertiary">Giá áp cho mọi suất. Đơn vị VND, số nguyên.</p>
           <fieldset disabled={priceLocked || save.isPending} className="space-y-4">
@@ -266,9 +267,9 @@ function EventEditor({ event }: { event: EventDetail }) {
             ))}
           </fieldset>
           {!tiers.length && (
-            <Button variant="outline" onClick={() => setExtra('pricing')}>
-              Thêm hạng giá
-            </Button>
+            <Link className="wz-link" to={`/admin/events/${id}/setup?step=3`}>
+              Thêm hạng giá →
+            </Link>
           )}
           <p className="admin-notice my-5">
             {priceLocked
@@ -295,21 +296,13 @@ function EventEditor({ event }: { event: EventDetail }) {
         <ShowtimeForm eventId={id} initial={editor === 'new' ? undefined : editor} onClose={() => setEditor(null)} />
       )}
       {extra && (
-        <FormDialog
-          title={extra === 'pricing' ? 'Hạng giá & gán khu' : 'Thông tin bổ sung'}
-          pending={advanced.isPending}
-          onClose={() => setExtra(null)}
-        >
-          {extra === 'pricing' ? (
-            <EventPricing event={event} />
-          ) : (
-            <EventForm
-              initial={event}
-              pending={advanced.isPending}
-              error={advanced.error}
-              onSubmit={(input) => advanced.mutate(input)}
-            />
-          )}
+        <FormDialog title="Thông tin bổ sung" pending={advanced.isPending} onClose={() => setExtra(null)}>
+          <EventForm
+            initial={event}
+            pending={advanced.isPending}
+            error={advanced.error}
+            onSubmit={(input) => advanced.mutate(input)}
+          />
         </FormDialog>
       )}
       {action && (

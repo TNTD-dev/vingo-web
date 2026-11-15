@@ -1,6 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router'
-import { AdminSearch } from './AdminSearch'
+import { AdminSearch, type SearchScope } from './AdminSearch'
+import './wizard.css'
 import warningWhite from './icons/warning-white.svg'
 import { icons } from '@/design/icons'
 
@@ -16,11 +17,13 @@ export function AdminPage({
   title,
   caption,
   actions,
+  search,
   children,
 }: {
   title: string
   caption?: string
   actions?: ReactNode
+  search?: SearchScope
   children: ReactNode
 }) {
   return (
@@ -31,7 +34,7 @@ export function AdminPage({
           <h1>{title}</h1>
         </div>
         <div className="admin-toolbar">
-          <AdminSearch />
+          <AdminSearch scope={search} />
           <Link to="/admin/orders?status=NEEDS_REVIEW" aria-label="Đơn hàng cần xử lý" className="admin-bell">
             <img src={icons.bell} alt="" width={18} height={18} />
           </Link>

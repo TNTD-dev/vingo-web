@@ -1,0 +1,891 @@
+/* Wizard admin: Stepper, ChecklistRow, ChoiceCard, Segmented, ô tìm có chip phạm vi. Màu lấy từ token --vg-*. */
+.wz-stepper {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 16px;
+  padding: 6px;
+  list-style: none;
+  border-radius: 20px;
+  background: var(--vg-bg-muted);
+}
+.wz-stepper > li {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.wz-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 60px;
+  padding: 10px 16px;
+  border-radius: 16px;
+  text-align: left;
+}
+button.wz-step:hover {
+  background: var(--vg-bg-glass);
+}
+.wz-stepper > li[data-state='active'] .wz-step {
+  background: var(--vg-bg-surface);
+}
+.wz-step-dot {
+  flex: 0 0 28px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 100px;
+  background: var(--vg-bg-surface);
+  font: 12px var(--font-mono);
+  color: var(--vg-text-secondary);
+}
+.wz-step-dot[data-state='active'] {
+  background: var(--vg-bg-inverse);
+  color: var(--vg-text-inverse);
+}
+.wz-step-dot[data-state='done'] {
+  background: var(--vg-accent-agent);
+  color: var(--vg-text-primary);
+}
+.wz-step-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.wz-step-text strong {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wz-step-text small {
+  font-size: 12px;
+  color: var(--vg-text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wz-stepper > li[data-state='todo'] strong {
+  color: var(--vg-text-secondary);
+}
+
+/* Bố cục hai cột: nội dung chính + cột phụ (xem trước / checklist). */
+.wz-body {
+  display: grid;
+  gap: 16px;
+  align-items: start;
+}
+.wz-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  gap: 16px;
+  align-items: start;
+}
+.wz-grid-wide-side {
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 420px);
+}
+.wz-grid-side-left {
+  grid-template-columns: minmax(240px, 280px) minmax(0, 1fr);
+}
+.wz-panel h2 {
+  font-size: 20px;
+  font-weight: 500;
+}
+.wz-panel-hint {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--vg-text-tertiary);
+}
+.wz-section + .wz-section {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--vg-border-subtle);
+}
+.wz-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+.wz-fields > .wz-span {
+  grid-column: 1 / -1;
+}
+.wz-sticky {
+  position: sticky;
+  top: 16px;
+}
+.wz-stack {
+  display: grid;
+  gap: 16px;
+}
+
+/* ChoiceCard */
+.wz-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+.wz-choice {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-height: 112px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid var(--vg-border-subtle);
+  background: var(--vg-bg-surface);
+  text-align: left;
+}
+.wz-choice:hover:not(:disabled) {
+  border-color: var(--vg-text-tertiary);
+}
+.wz-choice[aria-checked='true'] {
+  border: 2px solid var(--vg-bg-inverse);
+  padding: 15px;
+}
+.wz-choice:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.wz-choice-icon {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 8px;
+  border-radius: 12px;
+  background: var(--vg-bg-muted);
+}
+.wz-choice[aria-checked='true'] .wz-choice-icon {
+  background: var(--vg-accent-agent);
+}
+.wz-choice-radio {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 18px;
+  height: 18px;
+  border-radius: 100px;
+  border: 1px solid var(--vg-border-subtle);
+}
+.wz-choice[aria-checked='true'] .wz-choice-radio {
+  border: 5px solid var(--vg-bg-inverse);
+  background: var(--vg-bg-surface);
+}
+.wz-choice strong {
+  font-weight: 500;
+}
+.wz-choice small {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--vg-text-tertiary);
+}
+
+/* ChecklistRow */
+.wz-check {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid var(--vg-border-subtle);
+  background: var(--vg-bg-surface);
+}
+.wz-check + .wz-check {
+  margin-top: 10px;
+}
+.wz-check[data-status='warn'] {
+  background: var(--vg-bg-canvas);
+}
+.wz-check strong {
+  display: block;
+  font-weight: 500;
+}
+.wz-check small {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--vg-text-tertiary);
+}
+.wz-check-icon {
+  flex: 0 0 22px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 100px;
+  border: 1.5px dashed var(--vg-text-tertiary);
+}
+.wz-check[data-status='ok'] .wz-check-icon {
+  border: 0;
+  background: var(--vg-status-success);
+  color: var(--vg-text-inverse);
+}
+.wz-check[data-status='warn'] .wz-check-icon {
+  border: 0;
+  color: var(--vg-status-warning);
+}
+.wz-check-action {
+  font-weight: 500;
+  white-space: nowrap;
+}
+.wz-check-action a,
+.wz-check-action button {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Segmented */
+.wz-seg {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 100px;
+  background: var(--vg-bg-muted);
+}
+.wz-seg button {
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: 100px;
+  color: var(--vg-text-secondary);
+}
+.wz-seg button[aria-checked='true'] {
+  background: var(--vg-bg-surface);
+  color: var(--vg-text-primary);
+}
+.wz-seg-pills {
+  gap: 8px;
+  padding: 0;
+  background: none;
+}
+.wz-seg-pills button {
+  min-height: 44px;
+  border: 1px solid var(--vg-border-subtle);
+  background: var(--vg-bg-surface);
+}
+.wz-seg-pills button[aria-checked='true'] {
+  border-color: var(--vg-bg-inverse);
+  background: var(--vg-bg-inverse);
+  color: var(--vg-text-inverse);
+}
+
+/* Nút nhẹ */
+.wz-light {
+  height: 44px;
+  gap: 6px;
+  padding: 0 18px;
+  border-radius: 100px;
+  border: 0;
+  background: var(--vg-bg-surface);
+  color: var(--vg-text-primary);
+}
+.wz-light:hover {
+  background: var(--vg-bg-glass);
+}
+
+/* Stepper số lượng */
+.wz-qty {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 100px;
+  background: var(--vg-bg-muted);
+}
+.wz-qty button {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 100px;
+  background: var(--vg-bg-surface);
+}
+.wz-qty output {
+  min-width: 36px;
+  text-align: center;
+}
+
+/* Thẻ xem trước */
+.wz-preview {
+  display: grid;
+  gap: 8px;
+}
+.wz-preview-cover {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  min-height: 140px;
+  padding: 12px;
+  border-radius: 16px;
+  background: var(--vg-bg-muted);
+  color: var(--vg-text-tertiary);
+  font-size: 12px;
+}
+.wz-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 100px;
+  background: var(--vg-bg-surface);
+  border: 1px solid var(--vg-border-subtle);
+  font: 10px/1.6 var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.wz-chip::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 100px;
+  background: var(--vg-text-tertiary);
+}
+.wz-chip[data-tone='success']::before {
+  background: var(--vg-status-success);
+}
+.wz-chip[data-tone='warning']::before {
+  background: var(--vg-status-warning);
+}
+.wz-chip[data-tone='danger']::before {
+  background: var(--vg-status-danger);
+}
+.wz-chip[data-tone='info']::before {
+  background: var(--vg-status-info);
+}
+.wz-chip[data-tone='dark'] {
+  background: var(--vg-bg-inverse);
+  border-color: var(--vg-bg-inverse);
+  color: var(--vg-text-inverse);
+}
+.wz-chip[data-tone='agent'] {
+  background: var(--vg-accent-agent);
+  border-color: var(--vg-accent-agent);
+}
+.wz-stat {
+  padding: 14px 8px;
+  border-radius: 14px;
+  background: var(--vg-bg-canvas);
+  text-align: center;
+}
+.wz-stat strong {
+  display: block;
+  font-size: 22px;
+  font-weight: 500;
+}
+.wz-stat small {
+  font: 10px var(--font-mono);
+  text-transform: uppercase;
+  color: var(--vg-text-tertiary);
+}
+.wz-callout {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid var(--vg-border-subtle);
+  background: var(--vg-bg-canvas);
+}
+.wz-callout[data-tone='warning'] {
+  border-color: var(--vg-status-warning);
+}
+.wz-callout strong {
+  display: block;
+  font-weight: 500;
+}
+.wz-callout small {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--vg-text-tertiary);
+}
+.wz-soft {
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--vg-accent-agent-soft);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--vg-text-secondary);
+}
+
+/* Danh sách suất diễn */
+.wz-show {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid transparent;
+  background: var(--vg-bg-canvas);
+  text-align: left;
+}
+.wz-show + .wz-show {
+  margin-top: 10px;
+}
+.wz-show[aria-current='true'] {
+  border: 2px solid var(--vg-bg-inverse);
+  padding: 13px;
+  background: var(--vg-bg-surface);
+}
+.wz-show-day {
+  flex: 0 0 48px;
+  display: grid;
+  place-items: center;
+  height: 52px;
+  border-radius: 12px;
+  background: var(--vg-bg-surface);
+  line-height: 1.1;
+}
+.wz-show[aria-current='true'] .wz-show-day {
+  background: var(--vg-bg-inverse);
+  color: var(--vg-text-inverse);
+}
+.wz-show-day small {
+  font: 9px var(--font-mono);
+}
+.wz-show small {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--vg-text-tertiary);
+}
+.wz-dashed {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 10px;
+  border: 1px dashed var(--vg-text-tertiary);
+  border-radius: 16px;
+}
+.wz-timeline {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--vg-bg-canvas);
+}
+.wz-timeline-bar {
+  display: flex;
+  height: 10px;
+  border-radius: 100px;
+  overflow: hidden;
+  background: var(--vg-bg-muted);
+}
+.wz-timeline-bar i:first-child {
+  background: var(--vg-accent-agent);
+}
+.wz-timeline-bar i:last-child {
+  background: var(--vg-bg-inverse);
+}
+.wz-timeline p {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  font: 10px var(--font-mono);
+  text-transform: uppercase;
+  color: var(--vg-text-secondary);
+}
+
+/* Hạng giá */
+.wz-tier {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 0.9fr) 36px;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 16px;
+  background: var(--vg-bg-canvas);
+  border: 2px solid transparent;
+  text-align: left;
+}
+.wz-tier + .wz-tier {
+  margin-top: 10px;
+}
+.wz-tier[aria-current='true'] {
+  border-color: var(--vg-bg-inverse);
+  background: var(--vg-bg-surface);
+}
+.wz-tier-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.wz-tier-name input {
+  min-width: 0;
+  width: 100%;
+  font-weight: 500;
+  background: transparent;
+}
+.wz-tier-swatch {
+  flex: 0 0 14px;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+}
+.wz-tier-price {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid var(--vg-border-subtle);
+  background: var(--vg-bg-surface);
+  font: 13px var(--font-mono);
+}
+.wz-tier-price input {
+  width: 100%;
+  min-width: 0;
+  background: transparent;
+  text-align: right;
+}
+.wz-money {
+  font: 600 22px/1.2 var(--font-sans);
+}
+.wz-legend {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+.wz-legend p {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.wz-legend p span:last-child {
+  margin-left: auto;
+  font: 13px var(--font-mono);
+}
+
+/* Thanh tổng kết cuối bước */
+.wz-total {
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--vg-bg-muted);
+  font-weight: 500;
+}
+.wz-note {
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: var(--vg-bg-muted);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--vg-text-secondary);
+}
+
+/* Ô tìm kiếm có chip phạm vi */
+.admin-search .wz-scope-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  height: 28px;
+  padding: 0 8px 0 12px;
+  border-radius: 100px;
+  background: var(--vg-bg-inverse);
+  color: var(--vg-text-inverse);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.admin-search .wz-scope-chip button {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+}
+.admin-search.wz-scoped {
+  width: 360px;
+}
+.admin-search kbd {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: var(--vg-bg-canvas);
+  font: 10px var(--font-mono);
+  color: var(--vg-text-tertiary);
+}
+
+/* Danh sách */
+.wz-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--vg-status-warning);
+  background: var(--vg-bg-surface);
+}
+.wz-banner > div {
+  flex: 1;
+  min-width: 0;
+}
+.wz-banner strong {
+  display: block;
+  font-weight: 500;
+}
+.wz-banner small {
+  display: block;
+  font-size: 12px;
+  color: var(--vg-text-tertiary);
+}
+.wz-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.wz-filters .admin-tabs {
+  margin: 0;
+}
+.wz-select {
+  height: 44px;
+  padding: 0 16px;
+  border-radius: 100px;
+  background: var(--vg-bg-surface);
+}
+.wz-venues {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+.wz-venue {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 8px 16px;
+  border-radius: 20px;
+  background: var(--vg-bg-surface);
+}
+.wz-venue-cover {
+  position: relative;
+  display: block;
+  height: 124px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--vg-bg-inverse);
+  color: var(--vg-text-inverse);
+}
+.wz-venue-cover svg {
+  position: absolute;
+  right: 0;
+  top: 0;
+  height: 100%;
+  width: 60%;
+  color: var(--vg-accent-agent);
+  opacity: 0.35;
+}
+.wz-venue-cover .wz-chip {
+  position: absolute;
+  left: 10px;
+  background: var(--vg-bg-inverse);
+  border-color: var(--vg-border-inverse);
+  color: var(--vg-text-inverse);
+}
+.wz-venue-cover .wz-chip:first-child {
+  top: 12px;
+}
+.wz-venue-cover .wz-chip:nth-child(2) {
+  bottom: 12px;
+  background: var(--vg-bg-surface);
+  color: var(--vg-text-primary);
+  border-color: transparent;
+}
+.wz-venue-body {
+  display: grid;
+  gap: 8px;
+  padding: 0 8px;
+}
+.wz-venue-body h2 {
+  font-size: 18px;
+  font-weight: 500;
+}
+.wz-venue-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.wz-venue-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--vg-text-secondary);
+}
+.wz-venue-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.wz-venue-stats span {
+  display: grid;
+  place-items: center;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--vg-bg-canvas);
+  font: 10px var(--font-mono);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.wz-venue-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--vg-text-secondary);
+}
+.wz-link {
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  color: var(--vg-text-primary);
+  white-space: nowrap;
+}
+.wz-danger-text {
+  color: var(--vg-status-danger);
+}
+.wz-warn-text {
+  color: var(--vg-status-warning);
+}
+
+/* Bảng sự kiện */
+.wz-bar {
+  height: 6px;
+  border-radius: 100px;
+  background: var(--vg-bg-muted);
+  overflow: hidden;
+}
+.wz-bar i {
+  display: block;
+  height: 100%;
+  background: var(--vg-bg-inverse);
+}
+.wz-bar i[data-high='true'] {
+  background: var(--vg-status-success);
+}
+.wz-dim {
+  opacity: 0.55;
+}
+.wz-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--vg-text-tertiary);
+}
+.wz-mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.wz-done {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  max-width: 560px;
+  margin: 48px auto;
+  padding: 32px;
+  border-radius: 24px;
+  background: var(--vg-bg-surface);
+  text-align: center;
+}
+.wz-done-mark {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 100px;
+  background: var(--vg-accent-agent);
+}
+.wz-done h2 {
+  font-size: 32px;
+  font-weight: 500;
+}
+.wz-done-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  width: 100%;
+}
+.wz-done-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+}
+.wz-drop {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px dashed var(--vg-text-tertiary);
+}
+.wz-drop[data-active='true'] {
+  border-style: solid;
+  border-color: var(--vg-bg-inverse);
+}
+.wz-hall {
+  display: block;
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--vg-bg-canvas);
+  text-align: left;
+}
+.wz-hall + .wz-hall {
+  margin-top: 10px;
+}
+.wz-hall[aria-current='true'] {
+  background: var(--vg-bg-inverse);
+  color: var(--vg-text-inverse);
+}
+.wz-hall small {
+  display: block;
+  font-size: 12px;
+  color: var(--vg-text-tertiary);
+}
+.wz-hall[aria-current='true'] small {
+  color: var(--vg-text-inverse-secondary);
+}
+
+@media (max-width: 1100px) {
+  .wz-grid,
+  .wz-grid-wide-side,
+  .wz-grid-side-left {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .wz-sticky {
+    position: static;
+  }
+}
+@media (max-width: 760px) {
+  .wz-stepper {
+    overflow-x: auto;
+  }
+  .wz-stepper > li {
+    flex: 0 0 auto;
+    min-width: 160px;
+  }
+  .wz-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .wz-tier {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .wz-done-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .admin-search.wz-scoped {
+    width: 100%;
+  }
+}
+
+fieldset:disabled .wz-tier {
+  opacity: 0.6;
+}

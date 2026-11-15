@@ -66,3 +66,23 @@ export function toUtc(value: string) {
 export function localDateTime(value?: string) {
   return value ? new Date(Date.parse(value) + 7 * 3600000).toISOString().slice(0, 16) : ''
 }
+
+const weekdays = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy']
+/** Tách giờ Việt Nam của một mốc UTC: ngày, tháng, thứ, giờ phút. */
+export function vnParts(iso?: string) {
+  const local = localDateTime(iso)
+  if (!local) return null
+  const [date, time] = local.split('T'),
+    [y, m, d] = date.split('-').map(Number)
+  return {
+    date,
+    time,
+    day: String(d).padStart(2, '0'),
+    month: String(m).padStart(2, '0'),
+    weekday: weekdays[new Date(Date.UTC(y, m - 1, d)).getUTCDay()],
+  }
+}
+/** Giờ Việt Nam hiện tại dạng `YYYY-MM-DDTHH:mm`. */
+export function nowLocal() {
+  return new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 16)
+}

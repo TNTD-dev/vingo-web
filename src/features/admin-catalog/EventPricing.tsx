@@ -1,201 +1,411 @@
 import { useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { putPriceTiers, putZonePrices, getSeatLayout } from '@/api/generated/endpoints/admin-catalog/admin-catalog'
-import { getSeatmap } from '@/api/generated/endpoints/search/search'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { AlertTriangle, X } from 'lucide-react'
+import { getAdminEvent, putPriceTiers, putZonePrices } from '@/api/generated/endpoints/admin-catalog/admin-catalog'
 import type { EventDetail, PriceTierInput } from '@/api/generated/model'
-import { Panel, Field, ErrorNotice, QueryState, Table } from '@/design/admin/AdminUi'
+import { AdminAction } from '@/design/admin/AdminAction'
+import { ErrorNotice, Panel, QueryState } from '@/design/admin/AdminUi'
+import { LightButton } from '@/design/admin/wizard'
 import { Button } from '@/design/ui/button'
 import { formatVnd } from '@/lib/money'
+import { SeatMapView } from '@/seatmap/SeatMapView'
 import { toast } from 'sonner'
+import { dateText } from '@/design/admin/data'
+import { useLayoutSvg } from './catalog'
+import { activeShowtimes, stepLabels, useEventLayouts, useZoneAssignments } from './eventSetup'
+import { formatVndShort } from './readiness'
+import { saveZoneAssignments } from './zoneAssignments'
+import { stepItems, WizardShell } from './WizardShell'
 
-export default function EventPricing({ event }: { event: EventDetail }) {
-  const [tiers, setTiers] = useState<PriceTierInput[]>(event.price_tiers?.map((t) => ({ ...t })) ?? [])
-  const client = useQueryClient()
-  const save = useMutation({
-    mutationFn: () =>
-      putPriceTiers(
-        event.id!,
-        tiers.map((t) => ({ ...t, name: t.name.trim() })),
-      ),
-    onSuccess: async () => {
-      toast.success('Đã lưu hạng giá')
-      await client.invalidateQueries()
-    },
-  })
+type Tier = { key: string; id?: string; name: string; price: number }
+const tierNumber = (index: number) => Math.min(index, 3) + 1
+
+/** Bước 3 của wizard sự kiện: hạng giá + gán khu trên sơ đồ. */
+export default function EventPricing({ event, goStep }: { event: EventDetail; goStep: (step: number) => void }) {
+  const layouts = useEventLayouts(event),
+    saved = useZoneAssignments(event)
+  const shows = activeShowtimes(event)
+  if (layouts.data && saved.data !== undefined && shows.some((s) => s.seat_layout_id))
+    return (
+      <PricingBody key={event.id} event={event} layouts={layouts.data} initial={saved.data ?? {}} goStep={goStep} />
+    )
   return (
-    <div className="space-y-4">
-      <Panel>
-        <h2 className="mb-5">Hạng giá</h2>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault()
-            save.mutate()
-          }}
-          className="space-y-4"
-        >
-          <fieldset disabled={save.isPending} className="space-y-3">
-            {tiers.map((t, i) => (
-              <div key={t.id ?? i} className="grid grid-cols-[1fr_1fr_auto] items-end gap-3">
-                <Field label={`Tên hạng ${i + 1}`}>
-                  <input
-                    required
-                    maxLength={200}
-                    value={t.name}
-                    onChange={(e) => setTiers(tiers.map((v, j) => (j === i ? { ...v, name: e.target.value } : v)))}
-                  />
-                </Field>
-                <Field label="Giá vé (VND)">
-                  <input
-                    required
-                    type="number"
-                    min={0}
-                    step={1}
-                    value={t.price}
-                    onChange={(e) =>
-                      setTiers(tiers.map((v, j) => (j === i ? { ...v, price: Number(e.target.value) } : v)))
-                    }
-                  />
-                </Field>
-                <Button
-                  type="button"
-                  variant="outline"
-                  aria-label={`Xóa ${t.name || `hạng ${i + 1}`}`}
-                  onClick={() => setTiers(tiers.filter((_, j) => i !== j))}
-                >
-                  ×
-                </Button>
-              </div>
-            ))}
-          </fieldset>
-          <div className="flex flex-wrap gap-3">
-            <Button type="button" variant="outline" onClick={() => setTiers([...tiers, { name: '', price: 0 }])}>
-              + Thêm hạng
-            </Button>
-            <Button disabled={save.isPending || !tiers.length || tiers.some((t) => !t.name.trim())}>
-              Lưu hạng giá
-            </Button>
-          </div>
-          <ErrorNotice error={save.error} />
-        </form>
-      </Panel>
-      <ZonePricing event={event} />
-    </div>
+    <WizardShell
+      title="Giá theo khu"
+      caption={`// ${event.title?.toUpperCase()} · BƯỚC 3/4`}
+      steps={stepItems(stepLabels(event), 2)}
+      onSelectStep={(i) => goStep(i + 1)}
+      actions={
+        <>
+          <LightButton back onClick={() => goStep(2)}>
+            Quay lại
+          </LightButton>
+        </>
+      }
+    >
+      {!shows.some((s) => s.seat_layout_id) ? (
+        <Panel>
+          <p className="admin-notice">Thêm suất diễn có sơ đồ trước để gán giá theo khu.</p>
+          <Button className="admin-small-button mt-4" onClick={() => goStep(2)}>
+            Về bước Suất diễn
+          </Button>
+        </Panel>
+      ) : (
+        <QueryState query={layouts}>
+          <QueryState query={saved}>{null}</QueryState>
+        </QueryState>
+      )}
+    </WizardShell>
   )
 }
-function ZonePricing({ event }: { event: EventDetail }) {
-  const shows = event.showtimes?.filter((s) => s.status !== 'CANCELLED') ?? []
-  const layoutIds = [...new Set(shows.flatMap((s) => (s.seat_layout_id ? [s.seat_layout_id] : [])))]
-  const [changes, setChanges] = useState<Record<string, string>>({})
+
+function PricingBody({
+  event,
+  layouts,
+  initial,
+  goStep,
+}: {
+  event: EventDetail
+  layouts: NonNullable<ReturnType<typeof useEventLayouts>['data']>
+  initial: Record<string, string>
+  goStep: (step: number) => void
+}) {
   const client = useQueryClient()
-  const query = useQuery({
-    queryKey: ['admin-all-price-zones', event.id, layoutIds, event.status],
-    enabled: !!layoutIds.length,
-    queryFn: async () => {
-      const layouts = await Promise.all(layoutIds.map((id) => getSeatLayout(id)))
-      // Public seatmap chỉ đọc được sự kiện PUBLISHED; cấu hình nháp dùng trực tiếp các layout admin.
-      const maps =
-        event.status === 'PUBLISHED'
-          ? await Promise.all(shows.filter((s) => s.id && s.status !== 'DRAFT').map((s) => getSeatmap(s.id!)))
-          : []
-      return {
-        zones: [
-          ...new Map(
-            layouts.flatMap((l) => l.zones.map((z) => [z.id, { ...z, layoutName: l.name }] as const)),
-          ).values(),
-        ],
-        prices: Object.fromEntries(
-          maps.flatMap(
-            (m) => m.zones?.filter((z) => z.zone_id && z.tier?.id).map((z) => [z.zone_id!, z.tier!.id!]) ?? [],
-          ),
-        ),
-      }
-    },
-  })
-  const current = (id: string) => changes[id] ?? query.data?.prices[id] ?? ''
+  const layoutList = Object.values(layouts)
+  const [tiers, setTiers] = useState<Tier[]>(() =>
+    event.price_tiers?.length
+      ? event.price_tiers.map((t) => ({ key: t.id!, id: t.id, name: t.name, price: t.price }))
+      : [{ key: 'new-0', name: '', price: 0 }],
+  )
+  // zone_id → key của hạng
+  const [assign, setAssign] = useState<Record<string, string>>(initial)
+  const [active, setActive] = useState(tiers[0].key),
+    [layoutId, setLayoutId] = useState(layoutList[0]?.id ?? ''),
+    [counter, setCounter] = useState(1)
+  const [viewedAt] = useState(() => Date.now())
+  const firstOpen = activeShowtimes(event)
+    .map((s) => s.sale_opens_at)
+    .filter((v): v is string => !!v)
+    .sort()[0]
+  const locked =
+    event.status === 'ENDED' || event.status === 'CANCELLED' || (!!firstOpen && Date.parse(firstOpen) <= viewedAt)
+  const layout = layouts[layoutId] ?? layoutList[0]
+  const svg = useLayoutSvg(layout?.id ?? '')
+  const zones = [...new Map(layoutList.flatMap((l) => l.zones.map((z) => [z.id, z] as const))).values()]
+  const tierKeys = new Set(tiers.map((t) => t.key))
+  const assigned = (zoneId: string) => (tierKeys.has(assign[zoneId]) ? assign[zoneId] : undefined)
+  const unpriced = zones.filter((z) => !assigned(z.id))
+  const names = tiers.map((t) => t.name.trim().toLowerCase())
+  const tiersValid =
+    tiers.length > 0 &&
+    tiers.every((t) => t.name.trim() && Number.isFinite(t.price) && t.price >= 0) &&
+    new Set(names).size === names.length
+
+  const stats = (key: string) => {
+    const mine = zones.filter((z) => assigned(z.id) === key)
+    return { zones: mine, seats: mine.reduce((sum, z) => sum + z.capacity, 0) }
+  }
+  const layoutZones = layout?.zones ?? []
+  const estimate = layoutZones.reduce(
+    (sum, z) => sum + z.capacity * (tiers.find((t) => t.key === assigned(z.id))?.price ?? 0),
+    0,
+  )
+  const pricedHere = layoutZones.filter((z) => assigned(z.id)).length
+
   const save = useMutation({
-    mutationFn: () =>
-      putZonePrices(
-        event.id!,
-        query.data!.zones.map((z) => ({ zone_id: z.id, price_tier_id: current(z.id) })),
-      ),
+    mutationFn: async () => {
+      if (locked) return
+      const body: PriceTierInput[] = tiers.map((t) => ({
+        ...(t.id ? { id: t.id } : {}),
+        name: t.name.trim(),
+        price: t.price,
+      }))
+      await putPriceTiers(event.id!, body)
+      const fresh = tiers.some((t) => !t.id) ? await getAdminEvent(event.id!) : event
+      const idOf = (t: Tier) => t.id ?? fresh.price_tiers?.find((x) => x.name === t.name.trim())?.id
+      const keyToId = Object.fromEntries(tiers.map((t) => [t.key, idOf(t)]))
+      const rows = zones.flatMap((z) => {
+        const tierId = keyToId[assigned(z.id) ?? '']
+        return tierId ? [{ zone_id: z.id, price_tier_id: tierId }] : []
+      })
+      await putZonePrices(event.id!, rows)
+      saveZoneAssignments(event.id!, Object.fromEntries(rows.map((r) => [r.zone_id, r.price_tier_id])))
+    },
     onSuccess: async () => {
-      toast.success('Đã lưu giá của tất cả các khu')
       await client.invalidateQueries()
+      toast.success(locked ? 'Giá đã khóa, không thay đổi' : 'Đã lưu giá theo khu')
+      goStep(4)
     },
   })
+
+  function toggleZone(code: string) {
+    if (locked) return
+    const zone = layoutZones.find((z) => z.code === code)
+    if (!zone) return
+    setAssign((a) => {
+      const next = { ...a }
+      if (next[zone.id] === active) delete next[zone.id]
+      else next[zone.id] = active
+      return next
+    })
+  }
+  const activeIndex = Math.max(
+    0,
+    tiers.findIndex((t) => t.key === active),
+  )
   return (
-    <Panel>
-      <h2 className="mb-4">Gán giá theo khu</h2>
-      <p className="admin-notice mb-5">
-        Bảng này gồm tất cả khu của các suất chưa hủy. Lưu sẽ thay toàn bộ cấu hình giá theo khu; hãy chọn đầy đủ hạng
-        giá trước khi lưu.
-      </p>
-      {!layoutIds.length ? (
-        <p>Thêm suất diễn trước để cấu hình hạng giá theo khu.</p>
-      ) : (
-        <QueryState query={query}>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault()
-              save.mutate()
-            }}
-          >
-            <Field label="Gán nhanh cho tất cả khu">
+    <WizardShell
+      title="Giá theo khu"
+      caption={`// ${event.title?.toUpperCase()} · BƯỚC 3/4`}
+      steps={stepItems(stepLabels(event), 2)}
+      onSelectStep={(i) => goStep(i + 1)}
+      actions={
+        <>
+          <LightButton back onClick={() => goStep(2)}>
+            Quay lại
+          </LightButton>
+          <AdminAction disabled={!tiersValid || save.isPending} onClick={() => save.mutate()}>
+            {save.isPending ? 'Đang lưu…' : 'Tiếp: Xem lại'}
+          </AdminAction>
+        </>
+      }
+    >
+      <div className="wz-grid wz-grid-wide-side">
+        <Panel className="wz-panel">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2>Hạng giá</h2>
+              <p className="wz-panel-hint">Áp cho mọi suất · VND · số nguyên</p>
+            </div>
+            <span className="wz-chip" data-tone={unpriced.length ? 'warning' : 'success'}>
+              {zones.length - unpriced.length}/{zones.length} khu có giá
+            </span>
+          </div>
+          <fieldset disabled={locked || save.isPending} className="mt-4">
+            {tiers.map((t, i) => {
+              const s = stats(t.key)
+              return (
+                <div
+                  key={t.key}
+                  role="group"
+                  aria-label={`Hạng giá ${i + 1}`}
+                  className="wz-tier"
+                  aria-current={t.key === active}
+                  onClick={() => setActive(t.key)}
+                >
+                  <div>
+                    <div className="wz-tier-name">
+                      <span className="wz-tier-swatch" style={{ background: `var(--vg-tier-${tierNumber(i)})` }} />
+                      <input
+                        aria-label={`Tên hạng ${i + 1}`}
+                        required
+                        maxLength={200}
+                        placeholder="Tên hạng, VD: VIP"
+                        value={t.name}
+                        onFocus={() => setActive(t.key)}
+                        onChange={(e) =>
+                          setTiers(tiers.map((v) => (v.key === t.key ? { ...v, name: e.target.value } : v)))
+                        }
+                      />
+                    </div>
+                    <small className="wz-sub">
+                      {s.zones.length
+                        ? `${s.zones
+                            .map((z) => z.code)
+                            .slice(0, 4)
+                            .join(', ')}${s.zones.length > 4 ? '…' : ''} · `
+                        : ''}
+                      {s.seats.toLocaleString('vi-VN')} ghế
+                    </small>
+                  </div>
+                  <label className="wz-tier-price">
+                    <input
+                      aria-label={`Giá ${t.name || `hạng ${i + 1}`}`}
+                      required
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={t.price}
+                      onFocus={() => setActive(t.key)}
+                      onChange={(e) =>
+                        setTiers(tiers.map((v) => (v.key === t.key ? { ...v, price: Number(e.target.value) } : v)))
+                      }
+                    />
+                    <span aria-hidden>₫</span>
+                  </label>
+                  <span>
+                    <strong className="font-medium">{s.zones.length} khu</strong>
+                    <small className="wz-sub">{t.key === active ? 'đang chọn trên sơ đồ' : 'bấm để chọn'}</small>
+                  </span>
+                  <button
+                    type="button"
+                    aria-label={`Xóa ${t.name || `hạng ${i + 1}`}`}
+                    disabled={tiers.length === 1}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      const rest = tiers.filter((v) => v.key !== t.key)
+                      setTiers(rest)
+                      if (active === t.key) setActive(rest[0].key)
+                    }}
+                  >
+                    <X size={16} aria-hidden />
+                  </button>
+                </div>
+              )
+            })}
+            <button
+              type="button"
+              className="wz-dashed"
+              onClick={() => {
+                const key = `new-${counter}`
+                setCounter(counter + 1)
+                setTiers([...tiers, { key, name: '', price: 0 }])
+                setActive(key)
+              }}
+            >
+              + Thêm hạng giá
+            </button>
+          </fieldset>
+          {!!unpriced.length && (
+            <div className="wz-callout mt-4" data-tone="warning">
+              <AlertTriangle className="wz-warn-text" aria-hidden />
+              <div className="flex-1">
+                <strong>
+                  {unpriced.length} khu chưa có giá:{' '}
+                  {unpriced
+                    .slice(0, 4)
+                    .map((z) => z.code)
+                    .join(', ')}
+                  {unpriced.length > 4 ? '…' : ''}
+                </strong>
+                <small>
+                  {unpriced.reduce((s, z) => s + z.capacity, 0).toLocaleString('vi-VN')} ghế sẽ không bán được. Bắt buộc
+                  gán trước khi công bố.
+                </small>
+              </div>
+              {!locked && (
+                <button
+                  type="button"
+                  className="wz-link"
+                  onClick={() =>
+                    setAssign((a) => ({ ...a, ...Object.fromEntries(unpriced.map((z) => [z.id, active])) }))
+                  }
+                >
+                  Gán vào hạng
+                </button>
+              )}
+            </div>
+          )}
+          <details className="mt-4">
+            <summary className="cursor-pointer font-medium">Gán theo danh sách khu</summary>
+            <div className="mt-3 grid max-h-72 gap-2 overflow-auto">
+              {zones.map((z) => (
+                <label key={z.id} className="flex items-center justify-between gap-3">
+                  <span>
+                    {z.label || z.code}
+                    <small className="wz-sub">{z.capacity.toLocaleString('vi-VN')} ghế</small>
+                  </span>
+                  <select
+                    className="admin-input w-48"
+                    aria-label={`Hạng giá khu ${z.label || z.code}`}
+                    disabled={locked}
+                    value={assigned(z.id) ?? ''}
+                    onChange={(e) =>
+                      setAssign((a) => {
+                        const next = { ...a }
+                        if (e.target.value) next[z.id] = e.target.value
+                        else delete next[z.id]
+                        return next
+                      })
+                    }
+                  >
+                    <option value="">Chưa gán</option>
+                    {tiers.map((t) => (
+                      <option key={t.key} value={t.key}>
+                        {t.name || 'Hạng chưa đặt tên'}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ))}
+            </div>
+          </details>
+          <p className="wz-total mt-4">
+            Doanh thu tối đa ước tính ({pricedHere}/{layoutZones.length} khu): ≈ {formatVndShort(estimate)} / suất
+          </p>
+          <p className="wz-note mt-3">
+            {locked
+              ? 'Giá đã khóa vì suất đầu tiên đã mở bán, hoặc sự kiện đã kết thúc/hủy. Đơn đang giữ chỗ giữ nguyên mức giá cũ.'
+              : firstOpen
+                ? `Giá bị khóa khi suất đầu tiên mở bán (${dateText(firstOpen)}). Đơn đang giữ chỗ giữ nguyên mức giá cũ.`
+                : 'Giá bị khóa khi suất đầu tiên mở bán.'}
+          </p>
+          <ErrorNotice error={save.error} />
+          {!tiersValid && <p className="admin-notice mt-3">Mỗi hạng cần tên không trùng nhau và giá không âm.</p>}
+        </Panel>
+        <Panel className="wz-panel wz-sticky">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2>Gán khu trên sơ đồ</h2>
+              <p className="wz-panel-hint">
+                Bấm khu để gán vào hạng đang chọn
+                {tiers[activeIndex]?.name ? ` (${tiers[activeIndex].name})` : ''}. Bấm lại để bỏ gán.
+              </p>
+            </div>
+            {layoutList.length > 1 ? (
               <select
-                defaultValue=""
-                onChange={(e) => {
-                  if (e.target.value)
-                    setChanges(Object.fromEntries(query.data!.zones.map((z) => [z.id, e.target.value])))
-                }}
+                aria-label="Sơ đồ"
+                className="wz-select"
+                value={layout?.id}
+                onChange={(e) => setLayoutId(e.target.value)}
               >
-                <option value="">Chọn một hạng giá…</option>
-                {event.price_tiers?.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name} · {formatVnd(t.price)}
+                {layoutList.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.name} · v{l.version}
                   </option>
                 ))}
               </select>
-            </Field>
-            <div className="mt-5 max-h-[500px] overflow-auto">
-              <Table label="Giá theo khu" headings={['Khu / sơ đồ', 'Sức chứa', 'Hạng giá']}>
-                {query.data?.zones.map((z) => (
-                  <tr key={z.id}>
-                    <td>
-                      {z.label || z.code}
-                      <p className="mt-1 text-xs text-ink-secondary">{z.layoutName}</p>
-                    </td>
-                    <td>{z.capacity.toLocaleString('vi-VN')}</td>
-                    <td>
-                      <Field label={`Hạng giá khu ${z.label || z.code}`}>
-                        <select
-                          required
-                          aria-label={`Hạng giá khu ${z.label || z.code}`}
-                          value={current(z.id)}
-                          onChange={(e) => setChanges({ ...changes, [z.id]: e.target.value })}
-                        >
-                          <option value="">Chưa gán</option>
-                          {event.price_tiers?.map((t) => (
-                            <option key={t.id} value={t.id}>
-                              {t.name} · {formatVnd(t.price)}
-                            </option>
-                          ))}
-                        </select>
-                      </Field>
-                    </td>
-                  </tr>
-                ))}
-              </Table>
-            </div>
-            <ErrorNotice error={save.error} />
-            <Button
-              className="mt-5 rounded-pill"
-              disabled={save.isPending || !query.data?.zones.length || !event.price_tiers?.length}
-            >
-              Lưu giá theo khu
-            </Button>
-          </form>
-        </QueryState>
-      )}
-    </Panel>
+            ) : (
+              <span className="wz-chip">Sơ đồ v{layout?.version}</span>
+            )}
+          </div>
+          <div className="mt-4 h-[380px] overflow-hidden rounded-xl bg-canvas">
+            {svg.data ? (
+              <SeatMapView
+                svg={svg.data}
+                zones={Object.fromEntries(
+                  layoutZones.map((z) => {
+                    const key = assigned(z.id),
+                      i = tiers.findIndex((t) => t.key === key)
+                    return [z.code, i >= 0 ? { tier: tierNumber(i), soldOut: false } : { soldOut: true }]
+                  }),
+                )}
+                selected={new Set()}
+                onZoneClick={toggleZone}
+                onSeatClick={() => {}}
+                className="h-full"
+              />
+            ) : (
+              <p className="grid h-full place-items-center text-ink-tertiary">
+                {svg.isError ? 'Không tải được sơ đồ. Dùng danh sách khu bên trái.' : 'Đang tải sơ đồ…'}
+              </p>
+            )}
+          </div>
+          <div className="wz-legend">
+            {tiers.map((t, i) => (
+              <p key={t.key}>
+                <span className="wz-tier-swatch" style={{ background: `var(--vg-tier-${tierNumber(i)})` }} />
+                <span>{t.name || 'Hạng chưa đặt tên'}</span>
+                <span>{formatVnd(t.price)}</span>
+              </p>
+            ))}
+            <p>
+              <span className="wz-tier-swatch" style={{ background: 'var(--vg-map-sold)' }} />
+              <span>Chưa có giá</span>
+            </p>
+          </div>
+        </Panel>
+      </div>
+    </WizardShell>
   )
 }
