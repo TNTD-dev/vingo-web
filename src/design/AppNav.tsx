@@ -1,4 +1,4 @@
-import { Bell, Sparkles } from 'lucide-react'
+import { Bell } from 'lucide-react'
 import { Link, NavLink } from 'react-router'
 
 import { useAuth } from '@/auth/auth-context'
@@ -7,9 +7,6 @@ import { cn } from '@/lib/cn'
 
 const LINKS = [
   { to: '/events', label: 'Khám phá' },
-  { to: '/events', label: 'Bóng đá' },
-  { to: '/events', label: 'Concert' },
-  { to: '/events', label: 'Sân khấu' },
   { to: '/tickets', label: 'Vé của tôi' },
   { to: '/orders', label: 'Đơn hàng' },
 ] as const
@@ -19,8 +16,8 @@ function initials(name: string) {
   return ((parts[0]?.[0] ?? '') + (parts.length > 1 ? (parts.at(-1)?.[0] ?? '') : '')).toUpperCase()
 }
 
-/** AppNav (Figma 10:70): logo + liên kết, công tắc "Tự đặt | Vingo", chuông, tài khoản. */
-export function AppNav({ mode }: { mode: 'classic' | 'vingo' }) {
+/** AppNav của Agent mode (Figma 10:70, Mode=Vingo): logo + liên kết, chuông, tài khoản. Về tự đặt qua tab "Khám phá". */
+export function AppNav() {
   const { user } = useAuth()
   const name = user?.full_name ?? user?.email ?? ''
   return (
@@ -31,15 +28,9 @@ export function AppNav({ mode }: { mode: 'classic' | 'vingo' }) {
           <span className="font-brand text-[26px] leading-[1.2] font-semibold tracking-[-0.02em]">vingo</span>
         </Link>
         <ul className="hidden items-center gap-8 lg:flex">
-          {LINKS.map((l, i) => (
+          {LINKS.map((l) => (
             <li key={l.label}>
-              <NavLink
-                to={l.to}
-                className={cn(
-                  'type-body-m',
-                  i === 0 ? 'type-body-m-strong text-ink' : 'text-ink-secondary hover:text-ink',
-                )}
-              >
+              <NavLink to={l.to} className={cn('type-body-m', 'text-ink-secondary hover:text-ink')}>
                 {l.label}
               </NavLink>
             </li>
@@ -47,29 +38,6 @@ export function AppNav({ mode }: { mode: 'classic' | 'vingo' }) {
         </ul>
       </div>
       <div className="flex shrink-0 items-center gap-2.5">
-        <div role="group" aria-label="Chế độ đặt vé" className="flex items-center gap-0.5 rounded-pill bg-surface p-1">
-          <Link
-            to="/events"
-            aria-current={mode === 'classic' ? 'page' : undefined}
-            className={cn(
-              'rounded-pill px-3.5 py-2.5 type-body-m-strong sm:px-4',
-              mode === 'classic' ? 'bg-ink text-on-ink' : 'text-ink-secondary',
-            )}
-          >
-            Tự đặt
-          </Link>
-          <Link
-            to="/vingo"
-            aria-current={mode === 'vingo' ? 'page' : undefined}
-            className={cn(
-              'flex items-center gap-1.5 rounded-pill px-3.5 py-2.5 type-body-m-strong sm:px-4',
-              mode === 'vingo' ? 'bg-ink text-on-ink' : 'text-ink-secondary',
-            )}
-          >
-            <Sparkles className={cn('size-3.5', mode === 'vingo' && 'text-agent')} aria-hidden />
-            Vingo
-          </Link>
-        </div>
         <button
           type="button"
           disabled

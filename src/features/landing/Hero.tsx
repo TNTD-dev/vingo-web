@@ -13,11 +13,11 @@ import { usePrefersReducedMotion } from '@/lib/hooks'
 import { MascotLive } from '@/design/MascotLive'
 import { EXAMPLE_PROMPTS, HERO_CHIPS } from './prompts'
 
+// Cùng 3 tab với AppNav buyer (src/app/AppNav.tsx).
 const NAV = [
-  { to: '/events', label: 'Sự kiện' },
-  { to: '/events?category=FOOTBALL', label: 'Bóng đá' },
-  { to: '/events?category=CONCERT', label: 'Concert' },
-  { to: '/events?category=THEATER', label: 'Sân khấu' },
+  { to: '/events', label: 'Khám phá' },
+  { to: '/tickets', label: 'Vé của tôi' },
+  { to: '/orders', label: 'Đơn hàng' },
 ]
 
 function Logo() {
@@ -40,17 +40,8 @@ function Navbar() {
             {n.label}
           </Link>
         ))}
-        <Link to="/tickets" className="hidden type-body-m text-ink-secondary hover:text-ink lg:block">
-          Vé của tôi
-        </Link>
       </div>
       <div className="flex items-center gap-2.5">
-        <Link
-          to="/tickets"
-          className="hidden rounded-pill bg-surface px-[18px] py-3.5 type-body-m-strong text-ink md:block"
-        >
-          Vé của tôi
-        </Link>
         <Link
           to={user ? '/me' : '/login'}
           className="flex items-center gap-2.5 rounded-pill bg-surface py-1.5 pr-4 pl-1.5 type-body-m-strong text-ink"
