@@ -1,82 +1,85 @@
-import { useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import {
-  createEvent,
-  useListAdminEvents,
-  useGetAdminEvent,
-} from '@/api/generated/endpoints/admin-catalog/admin-catalog'
+import { useMemo, useState } from 'react'
+import { Link, useSearchParams } from 'react-router'
+import { useGetAdminEvent, useListAdminEvents } from '@/api/generated/endpoints/admin-catalog/admin-catalog'
 import { useQueryMetric } from '@/api/generated/endpoints/admin-reports/admin-reports'
-import { EventStatus, type EventCreateInput, type AdminEventSummary } from '@/api/generated/model'
-import { AdminPage, Panel, QueryState, Table, StateBadge, Tabs, Pager } from '@/design/admin/AdminUi'
-import { AdminAction } from '@/design/admin/AdminAction'
+import { EventCategory, EventStatus, type AdminEventSummary } from '@/api/generated/model'
+import { AdminPage, Pager, QueryState, StateBadge, Table, Tabs, Panel } from '@/design/admin/AdminUi'
+import { AdminLinkAction } from '@/design/admin/AdminAction'
 import { useCursor } from '@/design/admin/data'
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/design/ui/dropdown-menu'
+import { Button } from '@/design/ui/button'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/design/ui/dropdown-menu'
 import more from '@/design/admin/icons/more.svg'
-import { FormDialog, EventForm } from './CatalogForms'
-import { categories, useEventDirectory } from './catalog'
-import { toast } from 'sonner'
+import { categories, useEventDirectory, vnParts } from './catalog'
+import { duplicateIds, formatVndShort, nextShowtime, saleState } from './readiness'
+
+const saleChip = {
+  ON_SALE: { text: 'Đang bán', tone: 'success' },
+  UPCOMING: { text: 'Sắp mở bán', tone: 'warning' },
+  CLOSED: { text: 'Đã đóng bán', tone: 'neutral' },
+  NONE: { text: 'Chưa có suất', tone: 'neutral' },
+} as const
 
 export default function AdminEventsPage() {
   const directory = useEventDirectory()
-  const [params, setParams] = useSearchParams(),
-    [create, setCreate] = useState(false)
+  const [params, setParams] = useSearchParams()
   const status = Object.values(EventStatus).find((s) => s === params.get('status')),
-    paging = useCursor(params.toString()),
-    client = useQueryClient(),
-    navigate = useNavigate()
-  const query = useListAdminEvents({ status, q: params.get('q') || undefined, cursor: paging.cursor, limit: 20 })
-  const mutation = useMutation({
-    mutationFn: (data: EventCreateInput) => createEvent(data),
-    onSuccess: async (e) => {
-      setCreate(false)
-      await client.invalidateQueries()
-      toast.success('Đã tạo sự kiện nháp')
-      if (e.id) navigate(`/admin/events/${e.id}`)
-    },
-  })
+    category = Object.values(EventCategory).find((c) => c === params.get('category')),
+    q = params.get('q') ?? '',
+    paging = useCursor(params.toString())
+  const query = useListAdminEvents({ status, category, q: q || undefined, cursor: paging.cursor, limit: 20 })
+  const [now] = useState(() => Date.now())
+  const count = (s: string) => directory.data?.filter((e) => e.status === s).length ?? 0
+  const dupes = useMemo(() => duplicateIds(directory.data ?? []), [directory.data])
+  const set = (key: string, value: string) =>
+    setParams(
+      (p) => {
+        if (value) p.set(key, value)
+        else p.delete(key)
+        return p
+      },
+      { replace: key === 'q' },
+    )
   return (
     <AdminPage
       title="Sự kiện & suất diễn"
-      caption={`// CATALOG · ${directory.data?.length ?? '—'} SỰ KIỆN`}
-      actions={
-        <AdminAction
-          onClick={() => {
-            mutation.reset()
-            setCreate(true)
-          }}
-        >
-          Tạo sự kiện
-        </AdminAction>
-      }
+      caption={`// CATALOG · ${directory.data?.length ?? '—'} SỰ KIỆN · ${count('PUBLISHED')} ĐÃ CÔNG BỐ`}
+      search={{ label: 'Sự kiện', placeholder: 'Tìm tên sự kiện…', value: q, onChange: (v) => set('q', v) }}
+      actions={<AdminLinkAction to="/admin/events/new">Tạo sự kiện</AdminLinkAction>}
     >
-      <Tabs
-        value={status ?? ''}
-        onChange={(s) =>
-          setParams((p) => {
-            p.set('status', s)
-            return p
-          })
-        }
-        items={[
-          { value: '', label: `Tất cả · ${directory.data?.length ?? 0}` },
-          { value: 'DRAFT', label: `Nháp · ${directory.data?.filter((e) => e.status === 'DRAFT').length ?? 0}` },
-          {
-            value: 'PUBLISHED',
-            label: `Đã publish · ${directory.data?.filter((e) => e.status === 'PUBLISHED').length ?? 0}`,
-          },
-          { value: 'ENDED', label: `Đã kết thúc · ${directory.data?.filter((e) => e.status === 'ENDED').length ?? 0}` },
-          {
-            value: 'CANCELLED',
-            label: `Đã hủy · ${directory.data?.filter((e) => e.status === 'CANCELLED').length ?? 0}`,
-          },
-        ]}
-      />
+      <div className="wz-filters">
+        <Tabs
+          value={status ?? ''}
+          onChange={(s) => set('status', s)}
+          items={[
+            { value: '', label: `Tất cả · ${directory.data?.length ?? 0}` },
+            { value: 'DRAFT', label: `Nháp · ${count('DRAFT')}` },
+            { value: 'PUBLISHED', label: `Đã công bố · ${count('PUBLISHED')}` },
+            { value: 'ENDED', label: `Đã kết thúc · ${count('ENDED')}` },
+            { value: 'CANCELLED', label: `Đã hủy · ${count('CANCELLED')}` },
+          ]}
+        />
+        <select
+          aria-label="Thể loại"
+          className="wz-select"
+          value={category ?? ''}
+          onChange={(e) => set('category', e.target.value)}
+        >
+          <option value="">Thể loại</option>
+          {Object.entries(categories).map(([k, v]) => (
+            <option key={k} value={k}>
+              {v}
+            </option>
+          ))}
+        </select>
+      </div>
       <Panel className="admin-table-panel">
         <QueryState query={query} empty={!query.data?.data?.length}>
-          <Table label="Danh sách sự kiện" headings={['Sự kiện', 'Suất', 'Trạng thái', 'Lấp đầy', 'Thao tác']}>
+          <Table
+            label="Danh sách sự kiện"
+            headings={['Sự kiện', 'Suất tiếp theo', 'Bán vé', 'Lấp đầy', 'Doanh thu', '']}
+          >
             {query.data?.data?.map((e) => (
-              <EventRow key={e.id} event={e} />
+              <EventRow key={e.id} event={e} duplicate={dupes.has(e.id)} now={now} />
             ))}
           </Table>
           <Pager
@@ -87,22 +90,31 @@ export default function AdminEventsPage() {
           />
         </QueryState>
       </Panel>
-      {create && (
-        <FormDialog title="Tạo sự kiện mới" pending={mutation.isPending} onClose={() => setCreate(false)}>
-          <EventForm pending={mutation.isPending} error={mutation.error} onSubmit={(d) => mutation.mutate(d)} />
-        </FormDialog>
-      )}
     </AdminPage>
   )
 }
-function EventRow({ event: e }: { event: AdminEventSummary }) {
+
+function EventRow({ event: e, duplicate, now }: { event: AdminEventSummary; duplicate: boolean; now: number }) {
+  // Mỗi dòng đọc chi tiết sự kiện (tối đa 20 dòng/trang) vì danh sách chưa trả suất diễn, doanh thu, giá.
   const detail = useGetAdminEvent(e.id),
-    fill = useQueryMetric(
-      { metric: 'fill_rate', event_id: e.id, group_by: 'none' },
-      { query: { enabled: e.status === 'PUBLISHED' || e.status === 'ENDED' } },
-    )
+    live = e.status === 'PUBLISHED' || e.status === 'ENDED',
+    fill = useQueryMetric({ metric: 'fill_rate', event_id: e.id, group_by: 'none' }, { query: { enabled: live } }),
+    revenue = useQueryMetric({ metric: 'revenue', event_id: e.id, group_by: 'none' }, { query: { enabled: live } })
+  const shows = detail.data?.showtimes
+  const next = nextShowtime(shows, now),
+    p = vnParts(next?.starts_at),
+    venue = next?.venue?.name ?? detail.data?.venue?.name
+  const extra = (shows?.filter((s) => s.status !== 'CANCELLED').length ?? 0) - 1
+  const sale = saleState(shows, now)
+  const missing = [
+    !shows?.some((s) => s.status !== 'CANCELLED') && 'suất diễn',
+    !detail.data?.price_tiers?.length && 'hạng giá',
+  ].filter(Boolean)
+  const draft = e.status === 'DRAFT',
+    dim = e.status === 'CANCELLED'
+  const pct = fill.data?.value
   return (
-    <tr>
+    <tr className={dim ? 'wz-dim' : undefined}>
       <td>
         <div className="flex min-w-52 items-center gap-3">
           {(e.poster_mobile_url || e.poster_desktop_url) && (
@@ -115,46 +127,97 @@ function EventRow({ event: e }: { event: AdminEventSummary }) {
             />
           )}
           <div>
-            <strong>{e.title}</strong>
-            <p className="mt-0.5 text-xs text-ink-tertiary">
+            <Link to={draft ? `/admin/events/${e.id}/setup` : `/admin/events/${e.id}`}>
+              <strong>{e.title}</strong>
+            </Link>
+            <p className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-ink-tertiary">
               {categories[e.category]}
-              {detail.data?.venue?.name ? ` · ${detail.data.venue.name}` : ''}
+              {duplicate && (
+                <span className="wz-chip" data-tone="warning">
+                  Có thể trùng
+                </span>
+              )}
             </p>
           </div>
         </div>
       </td>
-      <td className="w-[120px] whitespace-nowrap">
-        {detail.data ? `${detail.data.showtimes?.length ?? 0} suất` : '—'}
+      <td className="whitespace-nowrap">
+        {next && p ? (
+          <>
+            <span className="wz-mono">
+              {p.weekday} {p.day}/{p.month} · {p.time}
+            </span>
+            <span className="wz-sub">
+              {venue}
+              {extra > 0 ? ` · +${extra} suất` : ''}
+            </span>
+          </>
+        ) : (
+          <span className="wz-sub">{detail.data ? 'Chưa có suất' : '—'}</span>
+        )}
+      </td>
+      <td>
+        {draft ? (
+          <>
+            <StateBadge value="DRAFT" />
+            <span className={`wz-sub ${missing.length ? 'wz-warn-text' : ''}`}>
+              {detail.data ? (missing.length ? `Thiếu ${missing.join(', ')}` : 'Cần xem lại & công bố') : ''}
+            </span>
+          </>
+        ) : e.status === 'CANCELLED' ? (
+          <StateBadge value="CANCELLED" />
+        ) : e.status === 'ENDED' ? (
+          <StateBadge value="ENDED" />
+        ) : detail.data ? (
+          <span className="wz-chip" data-tone={saleChip[sale].tone}>
+            {saleChip[sale].text}
+          </span>
+        ) : (
+          '—'
+        )}
       </td>
       <td className="w-[150px]">
-        <StateBadge value={e.status} />
+        {draft ? (
+          <Button asChild className="admin-small-button">
+            <Link to={`/admin/events/${e.id}/setup`}>Tiếp tục tạo</Link>
+          </Button>
+        ) : pct !== undefined ? (
+          <>
+            <div className="wz-bar" role="img" aria-label={`Lấp đầy ${Math.round(pct)}%`}>
+              <i style={{ width: `${Math.min(100, pct)}%` }} data-high={pct >= 80} />
+            </div>
+            <span className="wz-sub wz-mono">{Math.round(pct)}%</span>
+          </>
+        ) : (
+          '—'
+        )}
       </td>
-      <td className="w-[120px] font-medium">
-        {fill.data?.value !== undefined
-          ? `${fill.data.value.toLocaleString('vi-VN', { maximumFractionDigits: 0 })}%`
-          : '—'}
+      <td className="font-medium whitespace-nowrap">
+        {revenue.data?.value !== undefined ? formatVndShort(revenue.data.value) : '—'}
       </td>
-      <td className="w-[120px]" aria-label={`Thao tác ${e.title}`}>
-        <div className="admin-row-actions">
-          <Link to={`/admin/events/${e.id}`} className="font-medium">
-            Sửa
-          </Link>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button type="button" className="admin-more" aria-label={`Thao tác ${e.title}`}>
-                <img src={more} alt="" width={18} height={18} />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+      <td className="w-14" aria-label={`Thao tác ${e.title}`}>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button type="button" className="admin-more" aria-label={`Thao tác ${e.title}`}>
+              <img src={more} alt="" width={18} height={18} />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem asChild>
+              <Link to={draft ? `/admin/events/${e.id}/setup` : `/admin/events/${e.id}`}>
+                {draft ? 'Tiếp tục tạo' : 'Quản lý sự kiện'}
+              </Link>
+            </DropdownMenuItem>
+            {!draft && (
               <DropdownMenuItem asChild>
                 <Link to={`/admin/events/${e.id}#showtimes`}>Quản lý suất diễn</Link>
               </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to={`/admin/orders?event_id=${e.id}`}>Xem đơn hàng</Link>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+            )}
+            <DropdownMenuItem asChild>
+              <Link to={`/admin/orders?event_id=${e.id}`}>Xem đơn hàng</Link>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </td>
     </tr>
   )

@@ -1,10 +1,29 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { X } from 'lucide-react'
 import { Link } from 'react-router'
 import { useAdminListOrders, useAdminListTickets } from '@/api/generated/endpoints/admin-operations/admin-operations'
 import { useListAdminEvents } from '@/api/generated/endpoints/admin-catalog/admin-catalog'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/design/ui/dialog'
 import { icons } from '@/design/icons'
-export function AdminSearch() {
+/** Phạm vi tìm trong một danh sách: chip “Trong: …”; xoá chip hoặc ⌘K thì tìm toàn hệ thống. */
+export type SearchScope = { label: string; placeholder: string; value: string; onChange: (value: string) => void }
+
+export function AdminSearch({ scope }: { scope?: SearchScope }) {
+  const [scoped, setScoped] = useState(!!scope),
+    input = useRef<HTMLInputElement>(null),
+    inScope = scoped && !!scope
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        scope?.onChange('')
+        setScoped(false)
+        input.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [scope])
   const [draft, setDraft] = useState(''),
     [q, setQ] = useState(''),
     [open, setOpen] = useState(false),
@@ -15,23 +34,42 @@ export function AdminSearch() {
   return (
     <>
       <form
-        className="admin-search"
+        className={inScope ? 'admin-search wz-scoped' : 'admin-search'}
         onSubmit={(e) => {
           e.preventDefault()
+          if (inScope) return
           setQ(draft.trim())
           setOpen(true)
         }}
       >
         <img src={icons.search} alt="" width={16} height={16} />
+        {inScope && (
+          <span className="wz-scope-chip">
+            Trong: {scope.label}
+            <button
+              type="button"
+              aria-label={`Bỏ phạm vi ${scope.label}, tìm toàn hệ thống`}
+              onClick={() => {
+                scope.onChange('')
+                setScoped(false)
+                input.current?.focus()
+              }}
+            >
+              <X size={12} aria-hidden />
+            </button>
+          </span>
+        )}
         <input
+          ref={input}
           id="admin-search"
-          aria-label="Tìm đơn, vé, sự kiện"
-          minLength={3}
-          required
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder="Tìm đơn, vé, sự kiện… ⌘K"
+          aria-label={inScope ? `Tìm trong ${scope.label}` : 'Tìm đơn, vé, sự kiện'}
+          minLength={inScope ? undefined : 3}
+          required={!inScope}
+          value={inScope ? scope.value : draft}
+          onChange={(e) => (inScope ? scope.onChange(e.target.value) : setDraft(e.target.value))}
+          placeholder={inScope ? scope.placeholder : 'Tìm đơn, vé, sự kiện… ⌘K'}
         />
+        {inScope && <kbd>⌘K</kbd>}
       </form>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="admin admin-dialog">
