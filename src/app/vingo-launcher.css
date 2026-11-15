@@ -1,0 +1,56 @@
+/* Vingo Launcher: mascot nhún tại chỗ (Figma: Nghỉ ↔ Nhún, ~1,6s), bong bóng mời trượt vào. */
+
+.vl-bubble {
+  opacity: 0;
+  transform: translateY(6px) scale(0.96);
+  transform-origin: bottom right;
+}
+.vl-bubble[data-open='true'] {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .vl-bubble {
+    transition:
+      opacity 200ms ease,
+      transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  @keyframes vl-hop {
+    0%,
+    60%,
+    100% {
+      transform: translateY(0);
+      animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    30% {
+      transform: translateY(-12px);
+      animation-timing-function: ease-in;
+    }
+  }
+  @keyframes vl-shadow {
+    0%,
+    60%,
+    100% {
+      transform: scaleX(1);
+      opacity: 1;
+    }
+    30% {
+      transform: scaleX(0.75);
+      opacity: 0.6;
+    }
+  }
+  .vl-hop {
+    animation: vl-hop 1.6s infinite;
+  }
+  .vl-shadow {
+    animation: vl-shadow 1.6s infinite;
+  }
+  /* rê chuột: đứng yên vẫy tay */
+  .group:hover .vl-hop,
+  .group:hover .vl-shadow,
+  .group:focus-visible .vl-hop,
+  .group:focus-visible .vl-shadow {
+    animation: none;
+  }
+}
