@@ -3,6 +3,7 @@ import { Navigate } from 'react-router'
 import { useSearchParams } from 'react-router'
 
 import { refreshSession } from '@/api/http'
+import { loginDestination } from '@/auth/redirect'
 import { useAuth } from '@/auth/auth-context'
 import { ArrowButton } from '@/design/ArrowButton'
 import { Mascot } from '@/design/Mascot'
@@ -16,6 +17,7 @@ import { clearNext, googleOutcome, peekNext } from './googleCallback'
  */
 export default function GoogleCallbackPage() {
   const [params] = useSearchParams()
+  const [next] = useState(peekNext)
   const { user } = useAuth()
   const outcome = googleOutcome(params.get('google_login'))
   const signedIn = outcome.kind === 'signed_in'
@@ -36,7 +38,7 @@ export default function GoogleCallbackPage() {
     if (signedIn && user) clearNext()
   }, [signedIn, user])
 
-  if (signedIn && user) return <Navigate to={peekNext()} replace />
+  if (signedIn && user) return <Navigate to={loginDestination(user.role, next)} replace />
 
   if (signedIn && !refreshFailed) {
     return (

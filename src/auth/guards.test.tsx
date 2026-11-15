@@ -8,7 +8,12 @@ import { AuthContext, type AuthState } from './auth-context'
 import { RequireAuth } from './guards'
 
 function renderAt(path: string, user: User | null) {
-  const auth: AuthState = { ready: true, user, login: async () => {}, logout: async () => {} }
+  const auth: AuthState = {
+    ready: true,
+    user,
+    login: async () => ({ id: 'u1', role: 'BUYER' }),
+    logout: async () => {},
+  }
   const router = createMemoryRouter(
     [
       { path: '/admin', element: <RequireAuth allow="ADMIN">trang admin</RequireAuth> },

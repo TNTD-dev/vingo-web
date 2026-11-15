@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 
 import { isApiError } from '@/api/problem'
+import { loginDestination } from '@/auth/redirect'
 import { useAuth } from '@/auth/auth-context'
 import { ArrowButton } from '@/design/ArrowButton'
 
@@ -19,9 +20,12 @@ export default function LoginPage() {
     setPending(true)
     setError(null)
     try {
-      await login({ identifier: String(form.get('identifier')).trim(), password: String(form.get('password')) })
+      const user = await login({
+        identifier: String(form.get('identifier')).trim(),
+        password: String(form.get('password')),
+      })
       const next = params.get('next')
-      navigate(next?.startsWith('/') && !next.startsWith('//') ? next : '/events', { replace: true })
+      navigate(loginDestination(user.role, next), { replace: true })
     } catch (e) {
       setError(
         isApiError(e) && e.status === 401
