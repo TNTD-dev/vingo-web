@@ -152,7 +152,8 @@ function IconButton({
   )
 }
 
-function UserPill() {
+/** Pill tài khoản; landing dùng chung để giống các trang khác. */
+export function UserPill() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
 
