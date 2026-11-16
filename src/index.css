@@ -332,3 +332,19 @@
     animation: none !important;
   }
 }
+
+/* ScrollPane: thanh cuộn mảnh nằm trong khung trang. */
+.vg-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line) transparent;
+}
+.vg-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.vg-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--color-line);
+}
+.vg-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}

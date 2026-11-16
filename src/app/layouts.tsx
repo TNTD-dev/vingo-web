@@ -5,6 +5,7 @@ import { AdminNav } from '@/design/AdminNav'
 import { AppNav } from '@/design/AppNav'
 import authStadium from '@/design/brand/auth-stadium.png'
 import { Logo } from '@/design/Logo'
+import { ScrollPane } from '@/design/ScrollPane'
 import stadium from '@/design/brand/stadium.jpg'
 import { cn } from '@/lib/cn'
 
@@ -17,7 +18,10 @@ import { VingoLauncher } from './VingoLauncher'
 export function BuyerLayout() {
   // B11 (vé & QR toàn màn) dùng nền tối.
   const dark = useMatch('/tickets/:ticketId') !== null
-  return (
+  // Khám phá: cả trang là một vùng cuộn (ScrollPane) với thanh cuộn mảnh nằm trong trang,
+  // thay cho thanh cuộn của cửa sổ.
+  const ownScroll = useMatch('/events') !== null
+  const page = (
     <div className={cn('flex min-h-dvh flex-col px-4 pt-4 pb-16 sm:px-8', dark ? 'bg-ink' : 'bg-canvas')}>
       <BuyerNav />
       <main className="mx-auto mt-7 flex w-full max-w-[1376px] min-w-0 flex-1 flex-col">
@@ -26,6 +30,7 @@ export function BuyerLayout() {
       <VingoLauncher />
     </div>
   )
+  return ownScroll ? <ScrollPane className="h-dvh bg-canvas">{page}</ScrollPane> : page
 }
 
 /** Agent mode (Figma page 04): nền canvas, AppNav kiểu Figma, khung chat chiếm phần còn lại của màn hình. */
