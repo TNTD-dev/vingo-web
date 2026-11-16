@@ -46,6 +46,8 @@ type Props = {
   tierFilter?: number | 'standing' | null
   onZoneClick: (code: string) => void
   onSeatClick: (svgSeatId: string) => void
+  /** Bấm vào chỗ trống (không phải khu/ghế): thường dùng để thoát về toàn cảnh. */
+  onBackgroundClick?: () => void
   /** Admin có thể chọn ghế BLOCKED để mở khóa; buyer mặc định chỉ chọn AVAILABLE. */
   selectableStatuses?: readonly SeatState[]
   /** Nội dung tooltip khi rê chuột vào khu; trả null để không hiện. */
@@ -71,6 +73,7 @@ export function SeatMapView({
   tierFilter = null,
   onZoneClick,
   onSeatClick,
+  onBackgroundClick,
   selectableStatuses = ['AVAILABLE'],
   tooltip,
   minimap = true,
@@ -89,6 +92,8 @@ export function SeatMapView({
   const miniRef = useRef<HTMLDivElement>(null)
   const drag = useRef<{ x: number; y: number; view: Box; moved: boolean } | null>(null)
   const suppressClick = useRef(false)
+  const pointers = useRef(new Map<number, { x: number; y: number }>())
+  const pinch = useRef<{ dist: number; view: Box } | null>(null)
 
   // ---- chèn SVG một lần ----
   useLayoutEffect(() => {
@@ -280,14 +285,61 @@ export function SeatMapView({
     }
     const code = zoneOf(e.target)
     if (code) onZoneClick(code)
+    else onBackgroundClick?.()
   }
+
+  // Đưa điểm (clientX, clientY) về toạ độ bản vẽ của khung nhìn hiện tại.
+  function toMap(v: Box, clientX: number, clientY: number) {
+    const rect = frameRef.current?.getBoundingClientRect()
+    if (!rect || !rect.width || !rect.height) return { x: v.x + v.w / 2, y: v.y + v.h / 2 }
+    return { x: v.x + ((clientX - rect.left) / rect.width) * v.w, y: v.y + ((clientY - rect.top) / rect.height) * v.h }
+  }
+
+  function zoomAt(factor: number, clientX: number, clientY: number, from?: Box) {
+    const v = from ?? viewRef.current
+    if (!v || !full) return
+    cancelAnimationFrame(animation.current)
+    const p = toMap(v, clientX, clientY)
+    const next = zoomAround(v, factor, p.x, p.y, full)
+    viewRef.current = next
+    setView(next)
+  }
+
+  // Lăn chuột để phóng/thu quanh con trỏ (listener không-passive để chặn cuộn trang).
+  useEffect(() => {
+    const host = hostRef.current
+    if (!host) return
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      zoomAt(Math.exp(-e.deltaY * (e.deltaMode === 1 ? 0.05 : 0.0015)), e.clientX, e.clientY)
+    }
+    host.addEventListener('wheel', onWheel, { passive: false })
+    return () => host.removeEventListener('wheel', onWheel)
+  })
 
   function onPointerDown(e: ReactPointerEvent) {
     if (!viewRef.current) return
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    if (pointers.current.size === 2) {
+      const [a, b] = [...pointers.current.values()]
+      pinch.current = { dist: Math.hypot(a.x - b.x, a.y - b.y), view: viewRef.current }
+      drag.current = null
+      suppressClick.current = true
+      return
+    }
     drag.current = { x: e.clientX, y: e.clientY, view: viewRef.current, moved: false }
   }
 
   function onPointerMove(e: ReactPointerEvent) {
+    if (pointers.current.has(e.pointerId)) pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    if (pinch.current && pointers.current.size === 2) {
+      const [a, b] = [...pointers.current.values()]
+      const dist = Math.hypot(a.x - b.x, a.y - b.y)
+      if (pinch.current.dist > 0 && dist > 0) {
+        zoomAt(dist / pinch.current.dist, (a.x + b.x) / 2, (a.y + b.y) / 2, pinch.current.view)
+      }
+      return
+    }
     const d = drag.current
     const frame = frameRef.current
     if (d && frame && e.buttons === 1) {
@@ -315,7 +367,13 @@ export function SeatMapView({
     setHover({ code, x: e.clientX - rect.left, y: e.clientY - rect.top })
   }
 
-  function onPointerUp() {
+  function onPointerUp(e?: ReactPointerEvent) {
+    if (e) pointers.current.delete(e.pointerId)
+    if (pinch.current) {
+      if (pointers.current.size < 2) pinch.current = null
+      drag.current = null
+      return
+    }
     if (drag.current?.moved) suppressClick.current = true
     drag.current = null
   }
@@ -367,8 +425,9 @@ export function SeatMapView({
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-        onPointerLeave={() => {
-          onPointerUp()
+        onPointerCancel={onPointerUp}
+        onPointerLeave={(e) => {
+          onPointerUp(e)
           setHover(null)
         }}
       />
