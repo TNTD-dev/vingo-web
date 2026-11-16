@@ -99,7 +99,7 @@ export default function TicketsPage() {
 function TicketGroupCard({ group }: { group: TicketGroup }) {
   const first = group.tickets[0]
   const used = group.tickets.every((t) => t.status !== 'ISSUED')
-  const status = used ? (first.status === 'VOID' ? 'VOID' : 'USED') : 'ISSUED'
+  const status = used ? (first.status === 'VOID' ? 'Vô hiệu' : 'Đã sử dụng') : 'Hợp lệ'
   const start = first.showtime?.starts_at
   return (
     <Link

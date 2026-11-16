@@ -1,16 +1,26 @@
 import { useState } from 'react'
-import { useSearchParams } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   useAdminListTickets,
-  useAdminListOrders,
   voidTicket,
   reissueTicketQr,
   adminResendTicket,
 } from '@/api/generated/endpoints/admin-operations/admin-operations'
 import { useGetAdminEvent } from '@/api/generated/endpoints/admin-catalog/admin-catalog'
 import { TicketStatus, type Ticket } from '@/api/generated/model'
-import { AdminPage, Panel, QueryState, Table, StateBadge, Tabs, Pager, ConfirmDialog } from '@/design/admin/AdminUi'
+import {
+  AdminPage,
+  Panel,
+  QueryState,
+  Table,
+  StateBadge,
+  Tabs,
+  Pager,
+  ConfirmDialog,
+  UiMessageError,
+} from '@/design/admin/AdminUi'
+import { isApiError } from '@/api/problem'
 import { useCursor, dateText, useEventDirectory } from '@/design/admin/data'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/design/ui/dropdown-menu'
 import { icons } from '@/design/icons'
@@ -20,26 +30,22 @@ type Action = 'void' | 'reissue' | 'resend'
 const labels = { void: 'Hủy hiệu lực vé (VOID)', reissue: 'Cấp lại mã QR', resend: 'Gửi lại vé qua email' }
 const descriptions = {
   void: 'Vé sẽ không quét được tại cổng. Hệ thống không hoàn tiền tự động. Hành động được ghi vào audit log.',
-  reissue: 'Mã QR cũ sẽ mất hiệu lực. Vé mới được gửi tới email của người mua.',
+  reissue: 'Mã QR cũ sẽ mất hiệu lực và không quét được nữa. Hành động được ghi vào audit log.',
   resend: 'Gửi lại vé tới email đã lưu trong đơn hàng.',
 }
 function TicketRow({ ticket: t, onAction }: { ticket: Ticket; onAction: (action: Action) => void }) {
-  const owner = useAdminListOrders({ q: t.order_code, limit: 1 }, { query: { enabled: !!t.order_code } }),
-    o = owner.data?.data?.[0],
-    email = o?.buyer?.email
   return (
     <tr>
       <td className="font-mono text-xs">{t.code}</td>
       <td>
-        <strong>{o?.buyer?.full_name ?? '—'}</strong>
-        <p className="mt-1 text-xs text-ink-tertiary">
-          {email ? `${email.slice(0, 1)}***@${email.split('@')[1] ?? ''}` : t.order_code}
-        </p>
+        <Link to={`/admin/orders?q=${encodeURIComponent(t.order_code ?? '')}`} className="font-mono text-xs underline">
+          #{t.order_code}
+        </Link>
       </td>
       <td>
         {t.zone} · {t.row ? `${t.row}-${t.number}` : 'Khu đứng'}
       </td>
-      <td className="text-xs whitespace-nowrap">{dateText(o?.paid_at)}</td>
+      <td className="text-xs whitespace-nowrap">{dateText(t.used_at)}</td>
       <td>
         <StateBadge value={t.status} />
       </td>
@@ -95,7 +101,15 @@ export default function AdminTicketsPage() {
     mutationFn: async ({ id, action, reason }: { id: string; action: Action; reason: string }) => {
       if (action === 'void') await voidTicket(id, { reason })
       else if (action === 'reissue') await reissueTicketQr(id, { reason })
-      else await adminResendTicket(id)
+      else {
+        try {
+          await adminResendTicket(id)
+        } catch (e) {
+          if (isApiError(e, 'ORDER_STATE_INVALID'))
+            throw new UiMessageError('Đơn này chưa lưu email người mua nên chưa thể gửi lại vé.')
+          throw e
+        }
+      }
     },
     onSuccess: async () => {
       toast.success('Đã thực hiện thao tác với vé')
@@ -193,7 +207,7 @@ export default function AdminTicketsPage() {
           query={eventId && (!event.data || !showtimeId) ? event : query}
           empty={(!!eventId && !event.isPending && !showtimeId) || !query.data?.data?.length}
         >
-          <Table label="Danh sách vé" headings={['Mã vé', 'Người sở hữu', 'Khu · ghế', 'Thanh toán', 'Trạng thái', '']}>
+          <Table label="Danh sách vé" headings={['Mã vé', 'Đơn', 'Khu · ghế', 'Đã quét lúc', 'Trạng thái', '']}>
             {query.data?.data?.map((t) => (
               <TicketRow
                 key={t.id}

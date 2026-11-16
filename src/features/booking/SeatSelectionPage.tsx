@@ -5,8 +5,13 @@ import { Link, useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
 
 import { holdSeats } from '@/api/generated/endpoints/booking/booking'
-import { useGetAvailability, useGetEvent, useGetSeatmap } from '@/api/generated/endpoints/search/search'
-import type { EventDetail, HoldRequest } from '@/api/generated/model'
+import { getSeatmap, useGetAvailability, useGetEvent, useGetSeatmap } from '@/api/generated/endpoints/search/search'
+import type {
+  EventDetail,
+  GetAvailability200ZonesItem,
+  HoldRequest,
+  SeatMapZonesItemSeatsItem,
+} from '@/api/generated/model'
 import { newIdempotencyKey } from '@/api/idempotency'
 import { isApiError } from '@/api/problem'
 import { useAuth } from '@/auth/auth-context'
@@ -24,6 +29,7 @@ import { bannerText } from './eventDetailView'
 import {
   buildMapModel,
   DEFAULT_MAX_TICKETS,
+  describeHoldError,
   holdBody,
   previewTotal,
   standingLimit,
@@ -34,6 +40,7 @@ import {
   type TierSummary,
 } from './seatSelection'
 import { Steps } from './Steps'
+import { ZoneListPicker } from './ZoneListPicker'
 
 // B3 · Chọn khu (toàn cảnh) → B3b · Chọn ghế trong khu (Figma 03 · Buyer, page 09 · Sơ đồ ghế).
 export default function SeatSelectionPage() {
@@ -66,6 +73,8 @@ function SeatSelection({ event, showtimeId }: { event: EventDetail; showtimeId: 
   const [tierFilter, setTierFilter] = useState<number | 'standing' | null>(null)
   const [picks, setPicks] = useState<PickedSeat[]>([])
   const [standing, setStanding] = useState<Standing | null>(null)
+  // Ghế gợi ý khi SEAT_TAKEN (cùng khu, cùng số lượng).
+  const [suggestion, setSuggestion] = useState<{ zoneId?: string; seatIds: string[] } | null>(null)
 
   // ---- dữ liệu ----
   const svg = useQuery({
@@ -162,6 +171,90 @@ function SeatSelection({ event, showtimeId }: { event: EventDetail; showtimeId: 
     setPicks(result.picks)
   }
 
+  // ---- chế độ danh sách (khi API chưa có SVG sơ đồ cho người mua) ----
+  const listMode = svg.isError && Boolean(availability.data?.zones)
+
+  function listSeatToPicked(zone: GetAvailability200ZonesItem, s: SeatMapZonesItemSeatsItem): PickedSeat {
+    return {
+      seatId: s.seat_id!,
+      zoneId: zone.zone_id,
+      svgId: s.seat_id!,
+      zoneCode: zone.name ?? '',
+      zoneName: zone.name ?? '',
+      row: s.row ?? '',
+      number: s.number ?? 0,
+      price: zone.tier?.price ?? 0,
+      pairSeatId: s.pair_seat_id,
+    }
+  }
+
+  function onListSeatClick(
+    zone: GetAvailability200ZonesItem,
+    seat: SeatMapZonesItemSeatsItem,
+    seats: SeatMapZonesItemSeatsItem[],
+  ) {
+    if (!seat.seat_id) return
+    const partner = seat.pair_seat_id ? seats.find((s) => s.seat_id === seat.pair_seat_id) : undefined
+    const result = toggleSeat(
+      picks,
+      listSeatToPicked(zone, seat),
+      partner && partner.seat_id ? listSeatToPicked(zone, partner) : undefined,
+      max,
+    )
+    if (result.error) {
+      toast.error(`Mỗi đơn mua tối đa ${max} vé.`)
+      return
+    }
+    setStanding(null)
+    setSuggestion(null)
+    setPicks(result.picks)
+  }
+
+  function onListStandingClick(zone: GetAvailability200ZonesItem) {
+    if (!zone.zone_id || !zone.tier) return
+    if (picks.length) toast.info('Đã bỏ các ghế đang chọn vì khu đứng không chọn kèm ghế ngồi')
+    setPicks([])
+    setSuggestion(null)
+    setStanding((cur) =>
+      cur?.zoneId === zone.zone_id
+        ? cur
+        : {
+            zoneId: zone.zone_id!,
+            zoneCode: zone.name ?? '',
+            zoneName: zone.name ?? '',
+            price: zone.tier!.price,
+            quantity: 1,
+            left: zone.seats_left ?? 0,
+          },
+    )
+  }
+
+  async function applySuggestion() {
+    if (!suggestion) return
+    try {
+      const data = await getSeatmap(showtimeId, { zone_id: suggestion.zoneId })
+      const found: PickedSeat[] = []
+      for (const z of data.zones ?? []) {
+        const zone = availability.data?.zones?.find((a) => a.zone_id === z.zone_id)
+        for (const s of z.seats ?? []) {
+          if (s.seat_id && zone && suggestion.seatIds.includes(s.seat_id) && s.status === 'AVAILABLE') {
+            found.push(listSeatToPicked(zone, s))
+          }
+        }
+      }
+      if (found.length === suggestion.seatIds.length) {
+        setPicks(found)
+        setSuggestion(null)
+        toast.success('Đã chọn ghế gợi ý. Bấm “Giữ ghế” để tiếp tục.')
+      } else {
+        toast.error('Ghế gợi ý đã có người giữ. Vui lòng chọn lại.')
+        setSuggestion(null)
+      }
+    } catch {
+      toast.error('Chưa tải được ghế gợi ý. Vui lòng chọn lại.')
+    }
+  }
+
   const hold = useMutation({
     mutationFn: ({ body, key }: { body: HoldRequest; key: string }) =>
       holdSeats(showtimeId, body, { headers: { 'Idempotency-Key': key } }),
@@ -181,28 +274,24 @@ function SeatSelection({ event, showtimeId }: { event: EventDetail; showtimeId: 
     hold.mutate(
       { body, key: keyRef.current.key },
       {
-        onSuccess: (order) => navigate(`/orders/${order.id}/checkout`),
-        onError: (error) => {
+        onSuccess: (order) => {
           keyRef.current = undefined
-          if (isApiError(error, 'SEAT_TAKEN')) {
-            const taken = new Set(
-              Array.isArray(error.problem?.taken_seat_ids) ? (error.problem.taken_seat_ids as string[]) : [],
-            )
+          navigate(`/orders/${order.id}/checkout`)
+        },
+        onError: (error) => {
+          const failure = describeHoldError(error, max)
+          // Lỗi chưa chắc chắn (mạng, 5xx, 429): giữ khoá để retry đúng một thao tác. Lỗi nghiệp vụ: bỏ khoá.
+          if (!failure.retrySameKey) keyRef.current = undefined
+          if (failure.takenSeatIds.length) {
+            const taken = new Set(failure.takenSeatIds)
+            const zoneId = picks.find((p) => taken.has(p.seatId))?.zoneId ?? picks[0]?.zoneId
             setPicks((cur) => cur.filter((p) => !taken.has(p.seatId)))
-            toast.error('Có ghế vừa được người khác giữ. Mình đã bỏ ghế đó khỏi lựa chọn.')
+            setSuggestion(failure.suggestedSeatIds.length ? { zoneId, seatIds: failure.suggestedSeatIds } : null)
+          }
+          toast.error(failure.message)
+          if (failure.refresh) {
             void seatmap.refetch()
             void availability.refetch()
-          } else if (isApiError(error, 'NOT_ENOUGH_STOCK')) {
-            toast.error('Khu đứng không còn đủ chỗ. Hãy giảm số lượng.')
-            void availability.refetch()
-          } else if (isApiError(error, 'MAX_TICKETS_EXCEEDED')) {
-            toast.error(`Tối đa ${max} vé cho mỗi đơn`)
-          } else if (isApiError(error, 'ORDER_STATE_INVALID')) {
-            toast.error('Bạn đang có một đơn chờ thanh toán cho suất này. Hãy thanh toán hoặc huỷ đơn đó trước.')
-          } else if (isApiError(error, 'SHOWTIME_NOT_ON_SALE')) {
-            toast.error('Suất này hiện không mở bán.')
-          } else {
-            toast.error('Chưa giữ được ghế. Vui lòng thử lại.')
           }
         },
       },
@@ -239,12 +328,21 @@ function SeatSelection({ event, showtimeId }: { event: EventDetail; showtimeId: 
 
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
         <section className="flex min-w-0 flex-1 flex-col gap-4 rounded-lg bg-surface p-4 sm:p-7">
-          {svg.isError || availability.isError ? (
+          {availability.isError || (svg.isError && !availability.data) ? (
             <Message
               inline
               title="Sơ đồ chỗ ngồi chưa sẵn sàng"
               hint="Chưa tải được sơ đồ của suất này. Vui lòng thử lại sau."
               action={{ label: 'Thử lại', onClick: () => void Promise.all([svg.refetch(), availability.refetch()]) }}
+            />
+          ) : listMode ? (
+            <ZoneListPicker
+              showtimeId={showtimeId}
+              zones={availability.data?.zones ?? []}
+              selected={selectedIds}
+              standingZoneId={standing?.zoneId}
+              onSeatClick={onListSeatClick}
+              onStandingClick={onListStandingClick}
             />
           ) : (
             <>
@@ -333,9 +431,13 @@ function SeatSelection({ event, showtimeId }: { event: EventDetail; showtimeId: 
             />
           ) : (
             <>
-              <TierList tiers={model?.tiers ?? []} active={tierFilter} onPick={setTierFilter} loading={!model} />
+              {!listMode && (
+                <TierList tiers={model?.tiers ?? []} active={tierFilter} onPick={setTierFilter} loading={!model} />
+              )}
               <p className="rounded-md bg-canvas p-3.5 type-body-m text-ink-secondary">
-                Chưa chọn ghế. Chạm vào một khu trên sơ đồ để bắt đầu.
+                {listMode
+                  ? 'Chưa chọn ghế. Chọn một khu để bắt đầu.'
+                  : 'Chưa chọn ghế. Chạm vào một khu trên sơ đồ để bắt đầu.'}
               </p>
             </>
           )}
@@ -361,6 +463,21 @@ function SeatSelection({ event, showtimeId }: { event: EventDetail; showtimeId: 
                 <img src={icons.arrowRight} alt="" className="size-3.5" />
               </Link>
             </>
+          )}
+
+          {suggestion && (
+            <output className="flex flex-col gap-2 rounded-md bg-agent-soft p-3.5">
+              <p className="type-caption text-ink-secondary">
+                Còn {suggestion.seatIds.length} ghế trống cùng khu có thể thay thế.
+              </p>
+              <button
+                type="button"
+                onClick={() => void applySuggestion()}
+                className="self-start rounded-pill bg-ink px-4 py-2 type-body-m-strong text-on-ink outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Dùng ghế gợi ý
+              </button>
+            </output>
           )}
 
           <button

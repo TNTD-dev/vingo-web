@@ -6,6 +6,9 @@
  */
 .lp {
   --lp-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* Nền section tràn hết màn; nội dung giữ trong lưới 1440 (khung Figma). Dưới 1440 → 0.
+     Dùng trong padding/right nên 100% là bề rộng khối chứa (luôn full màn ở landing). */
+  --lp-gutter: max(0px, calc((100% - 1440px) / 2));
 }
 
 /* ---------- Vào khung (IntersectionObserver 20%, chạy một lần) ---------- */

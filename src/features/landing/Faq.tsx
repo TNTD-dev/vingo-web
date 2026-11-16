@@ -32,7 +32,7 @@ export function Faq() {
   return (
     <section
       aria-labelledby="faq-title"
-      className="flex flex-col gap-10 px-5 py-16 sm:px-8 lg:flex-row lg:gap-16 lg:px-16 lg:py-24"
+      className="flex flex-col gap-10 px-5 py-16 sm:px-8 lg:flex-row lg:gap-16 lg:px-[calc(var(--lp-gutter)+4rem)] lg:py-24"
     >
       <div className="flex shrink-0 flex-col items-start gap-5 lg:w-[440px]">
         <p className="type-mono-label text-ink-secondary">{'// Câu hỏi thường gặp'}</p>

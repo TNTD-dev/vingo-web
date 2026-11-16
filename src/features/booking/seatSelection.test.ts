@@ -118,3 +118,35 @@ describe('holdBody / previewTotal / standingLimit', () => {
     expect(standingLimit(6, 0)).toBe(0)
   })
 })
+
+import { ApiError } from '@/api/problem'
+import type { Problem } from '@/api/generated/model'
+
+import { describeHoldError } from './seatSelection'
+
+const problem = (status: number, code: string, extra: Record<string, unknown> = {}) =>
+  new ApiError(status, { title: 't', status, code, ...extra } as Problem)
+
+describe('describeHoldError', () => {
+  it('SEAT_TAKEN kèm gợi ý: trả ghế bị giữ và ghế gợi ý, bỏ khoá', () => {
+    const f = describeHoldError(
+      problem(409, 'SEAT_TAKEN', { taken_seat_ids: ['a'], suggested_seat_ids: ['b', 'c'] }),
+      6,
+    )
+    expect(f.takenSeatIds).toEqual(['a'])
+    expect(f.suggestedSeatIds).toEqual(['b', 'c'])
+    expect(f.refresh).toBe(true)
+    expect(f.retrySameKey).toBe(false)
+    expect(f.message).toContain('gợi ý')
+  })
+  it('NOT_ENOUGH_STOCK nói rõ số chỗ còn lại', () => {
+    expect(describeHoldError(problem(409, 'NOT_ENOUGH_STOCK', { seats_left: 2 }), 6).message).toContain('còn 2 chỗ')
+  })
+  it('MAX_TICKETS_EXCEEDED nêu giới hạn', () => {
+    expect(describeHoldError(problem(422, 'MAX_TICKETS_EXCEEDED'), 4).message).toContain('4 vé')
+  })
+  it('429 và lỗi mạng giữ khoá để retry cùng thao tác', () => {
+    expect(describeHoldError(problem(429, 'RATE_LIMITED'), 6).retrySameKey).toBe(true)
+    expect(describeHoldError(new Error('network'), 6).retrySameKey).toBe(true)
+  })
+})

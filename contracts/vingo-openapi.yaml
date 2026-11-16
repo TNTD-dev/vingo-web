@@ -339,6 +339,7 @@ paths:
       operationId: getBuyerProfile
       tags: [Me]
       summary: Hồ sơ người mua dùng để điền sẵn khi thanh toán
+      description: Đọc hồ sơ của người đang đăng nhập; chưa khai báo trả 404 NOT_FOUND.
       responses:
         '200':
           description: OK
@@ -350,6 +351,7 @@ paths:
       operationId: putBuyerProfile
       tags: [Me]
       summary: Tạo hoặc cập nhật hồ sơ người mua
+      description: Lưu hồ sơ của người đang đăng nhập; dữ liệu trống hoặc email sai trả 400 VALIDATION_ERROR.
       requestBody:
         required: true
         content:
@@ -361,6 +363,17 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/BuyerProfile' }
+        '400':
+          description: Dữ liệu trống hoặc email sai định dạng (VALIDATION_ERROR).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                title: Dữ liệu không hợp lệ
+                status: 400
+                code: VALIDATION_ERROR
+                detail: Dữ liệu trống hoặc email không đúng định dạng.
   /me/stream:
     get:
       operationId: streamMyEvents
@@ -543,6 +556,34 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/SeatMap' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /showtimes/{showtime_id}/seatmap.svg:
+    get:
+      operationId: getSeatmapSvg
+      tags: [Search]
+      summary: Ảnh SVG sơ đồ sân của suất
+      description: |
+        Gọi khi giao diện cần vẽ sơ đồ sân cho trang chọn ghế. Trả SVG đã chuẩn hóa của sơ đồ sân gắn với suất, dùng cùng dữ liệu ghế và trạng thái của `getSeatmap` (ghép theo `svg_id` của khu).
+        Chỉ trả khi suất không phải DRAFT, sự kiện đang PUBLISHED và sơ đồ đã PUBLISHED. SVG không đổi sau khi publish nên có thể cache dài: phản hồi có `Cache-Control: public, max-age=3600`.
+
+        Ví dụ lỗi 404 (suất không tồn tại, suất DRAFT, sự kiện chưa PUBLISHED, hoặc sơ đồ không có SVG):
+        ```json
+        { "title": "Không tìm thấy suất", "status": 404, "code": "NOT_FOUND", "detail": "Suất không tồn tại" }
+        ```
+        Ví dụ lỗi 429 (kèm header `Retry-After`):
+        ```json
+        { "title": "Gọi quá nhanh", "status": 429, "code": "RATE_LIMITED", "detail": "Thử lại sau 10 giây" }
+        ```
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/ShowtimeId'
+      responses:
+        '200':
+          description: Nội dung SVG
+          content:
+            image/svg+xml:
+              schema: { type: string, format: binary }
         '404': { $ref: '#/components/responses/NotFound' }
         '429': { $ref: '#/components/responses/RateLimited' }
   /showtimes/{showtime_id}/availability:
@@ -762,7 +803,7 @@ paths:
       security: []
       parameters:
         - { name: vnp_TxnRef, in: query, required: true, schema: { type: string } }
-        - { name: vnp_Amount, in: query, required: true, schema: { type: integer, format: int64 } }
+        - { name: vnp_Amount, in: query, required: false, schema: { type: string } }
         - { name: vnp_ResponseCode, in: query, required: true, schema: { type: string } }
         - { name: vnp_TransactionStatus, in: query, required: true, schema: { type: string } }
         - { name: vnp_TransactionNo, in: query, schema: { type: string } }
@@ -831,6 +872,12 @@ paths:
       operationId: getTicketQr
       tags: [Tickets]
       summary: Ảnh mã QR vào cổng
+      description: |
+        Chỉ chủ vé ISSUED được lấy ảnh PNG 320x320, nội dung là qr_token hiện tại.
+        Trả Cache-Control: no-store vì ảnh chứa token vào cổng; reissue-qr làm token trong ảnh cũ mất hiệu lực.
+        QR có lề 2 module và mức sửa lỗi M.
+        Vé không tồn tại hoặc không thuộc người gọi trả 404 NOT_FOUND, kể cả ADMIN không phải chủ vé.
+        Vé USED trả 409 TICKET_USED; vé VOID trả 409 TICKET_NOT_VALID. Chưa đăng nhập trả 401 UNAUTHORIZED.
       parameters: [ { $ref: '#/components/parameters/TicketId' } ]
       responses:
         '200':
@@ -838,8 +885,10 @@ paths:
           content:
             image/png:
               schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
         '409':
-          description: Vé không còn hiệu lực (TICKET_NOT_VALID)
+          description: Vé đã dùng (TICKET_USED) hoặc đã vô hiệu (TICKET_NOT_VALID)
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
@@ -2464,6 +2513,7 @@ components:
       required: [access_token, expires_in, user]
       properties:
         access_token: { type: string }
+        profile_completed: { type: boolean, description: Đã khai báo đủ hồ sơ người mua để thanh toán }
         refresh_token: { type: string, description: Chỉ có khi refresh token được gửi trong JSON }
         expires_in: { type: integer, description: Giây }
         user: { $ref: '#/components/schemas/User' }
@@ -2943,7 +2993,7 @@ components:
         expires_at: { type: string, format: date-time, description: Hạn giữ ghế khi PENDING }
         paid_at: { type: [string, 'null'], format: date-time }
         buyer: { $ref: '#/components/schemas/BuyerProfile' }
-        review_reason: { type: [string, 'null'], enum: [PAID_AFTER_EXPIRY, PAID_AFTER_CANCEL, AMOUNT_MISMATCH, null] }
+        review_reason: { type: [string, 'null'], enum: [PAID_AFTER_EXPIRY, PAID_AFTER_CANCEL, AMOUNT_MISMATCH, PAYMENT_SUSPECTED, null] }
         created_at: { type: string, format: date-time }
     PaymentIntent:
       type: object

@@ -66,3 +66,11 @@ describe('isSafePaymentUrl', () => {
     expect(isSafePaymentUrl(undefined)).toBe(false)
   })
 })
+
+describe('needsSave với số điện thoại dạng +84', () => {
+  it('hồ sơ lưu +84… và form hiện 0… cùng số thì không cần lưu lại', () => {
+    const saved = { full_name: 'A B', phone: '+84900000002', email: 'a@b.vn' }
+    expect(needsSave({ full_name: 'A B', phone: '+84900000002', email: 'a@b.vn' }, saved)).toBe(false)
+    expect(needsSave({ full_name: 'A B', phone: '0900000002', email: 'a@b.vn' }, saved)).toBe(false)
+  })
+})

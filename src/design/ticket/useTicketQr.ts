@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 
+import { isApiError } from '@/api/problem'
 import { getTicketQr } from '@/api/generated/endpoints/tickets/tickets'
 
 function toDataUrl(blob: Blob): Promise<string> {
@@ -18,6 +19,13 @@ export function useTicketQr(ticketId: string | undefined, enabled = true) {
     queryFn: async () => toDataUrl(await getTicketQr(ticketId!)),
     enabled: enabled && !!ticketId,
     staleTime: 60_000,
+    // Lỗi API (vd. 501 chưa làm, 404) không tự khỏi nhờ thử lại; chỉ thử lại lỗi mạng.
+    retry: (count, error) => !isApiError(error) && count < 2,
   })
-  return { url: query.data, isPending: query.isPending, isError: query.isError }
+  return {
+    url: query.data,
+    isPending: query.isPending && query.fetchStatus !== 'idle',
+    isError: query.isError,
+    error: query.error,
+  }
 }

@@ -10,6 +10,8 @@ import { Button } from '@/design/ui/button'
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/design/ui/sheet'
 import { initials } from '@/lib/initials'
 import '@/design/admin/admin.css'
+
+import { useCopilotShortcut } from './copilotShortcut'
 import home from '@/design/admin/icons/home.svg'
 import chart from '@/design/admin/icons/chart.svg'
 import venue from '@/design/admin/icons/venue.svg'
@@ -46,18 +48,19 @@ const groups = [
   { label: 'Hệ thống', links: [{ to: '/admin/audit-logs', label: 'Nhật ký audit', icon: audit }] },
 ]
 
+/** Nút mở Copilot ở góc màn quản trị (Figma `copilot-launcher`): mascot + "Mở Copilot ⌘J". */
 function CopilotLauncher() {
   return (
     <Link
       to="/admin/copilot"
-      aria-label="Mở Copilot"
-      title="Mở Copilot"
-      className="group fixed right-3 bottom-3 z-50 sm:right-5 sm:bottom-5"
+      aria-label="Mở Copilot (⌘J)"
+      className="group fixed right-3 bottom-3 z-40 flex items-center sm:right-5 sm:bottom-5"
     >
-      <MascotLive
-        mood="rest"
-        className="size-[72px] drop-shadow-md transition-transform group-hover:scale-105 sm:size-[91px]"
-      />
+      <span className="mr-1 hidden items-center gap-2 rounded-[16px] border border-line bg-surface py-2.5 pr-2.5 pl-3.5 shadow-float transition-transform group-hover:-translate-x-0.5 sm:flex">
+        <span className="type-body-m-strong">Mở Copilot</span>
+        <kbd className="rounded-[6px] bg-canvas px-1.5 py-0.5 type-mono-small text-ink-tertiary">⌘J</kbd>
+      </span>
+      <MascotLive mood="rest" className="size-[72px] drop-shadow-md sm:size-[91px]" />
     </Link>
   )
 }
@@ -65,6 +68,7 @@ function CopilotLauncher() {
 export function AdminLayout() {
   const { user, logout } = useAuth()
   const [open, setOpen] = useState(false)
+  useCopilotShortcut('/admin/copilot')
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey)) return

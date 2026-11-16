@@ -2,7 +2,8 @@ import { Check } from 'lucide-react'
 import { useEffect } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 
-import { useGetOrder } from '@/api/generated/endpoints/booking/booking'
+import { useGetOrder, useListMyOrders } from '@/api/generated/endpoints/booking/booking'
+import { useGetPayment } from '@/api/generated/endpoints/payment/payment'
 import { ArrowButton } from '@/design/ArrowButton'
 import { Mascot } from '@/design/Mascot'
 import { cn } from '@/lib/cn'
@@ -10,7 +11,7 @@ import { formatCountdown, remainingSeconds } from '@/lib/countdown'
 import { useNow } from '@/lib/useNow'
 import { useMeStream } from '@/realtime/useMeStream'
 
-import { responseMessage, returnKind } from './paymentReturn'
+import { orderCodeFromTxnRef, recallPayingOrder, responseMessage, returnView } from './paymentReturn'
 
 // B12 · Trở về từ VNPay và B13b · Thanh toán chưa thành công (Figma 03 · Buyer).
 // Trang chỉ hiển thị: đơn chỉ chuyển PAID khi backend nhận IPN, web đợi order.paid trên /me/stream hoặc đọc lại đơn.
@@ -18,11 +19,15 @@ export default function PaymentReturnPage() {
   const [params] = useSearchParams()
   const navigate = useNavigate()
   useMeStream()
-  const orderId = params.get('order_id') ?? ''
-  const code = params.get('vnp_ResponseCode')
-  const txnRef = params.get('vnp_TxnRef')
-  const kind = returnKind(code)
+  // Backend chỉ gửi ?txn_ref=...; tìm đơn theo mã đơn trong txn_ref (nhớ từ lúc sang VNPay hoặc tra danh sách đơn).
+  const txnRef = params.get('txn_ref') ?? params.get('vnp_TxnRef')
+  const urlCode = params.get('vnp_ResponseCode')
+  const orderCode = orderCodeFromTxnRef(txnRef)
+  const remembered = params.get('order_id') ?? recallPayingOrder(orderCode)
   const now = useNow()
+
+  const orders = useListMyOrders(undefined, { query: { enabled: !remembered && !!orderCode } })
+  const orderId = remembered ?? orders.data?.data?.find((o) => o.code === orderCode)?.id ?? ''
 
   const order = useGetOrder(orderId, {
     query: {
@@ -30,11 +35,22 @@ export default function PaymentReturnPage() {
       refetchInterval: (q) => (q.state.data?.status === 'PENDING' ? 3000 : false),
     },
   })
+  const payment = useGetPayment(orderId, {
+    query: {
+      enabled: !!orderId,
+      retry: false,
+      refetchInterval: (q) => (q.state.data?.status === 'OPEN' ? 3000 : false),
+    },
+  })
   const o = order.data
+  const code = payment.data?.last_response_code ?? urlCode
+  const view = returnView(o, payment.data, urlCode)
+  const kind = view === 'failed' ? 'failed' : 'confirming'
 
   useEffect(() => {
-    if (o?.status === 'PAID') navigate(`/orders/${orderId}/success`, { replace: true })
-  }, [o?.status, orderId, navigate])
+    if (view === 'paid') navigate(`/orders/${orderId}/success`, { replace: true })
+    else if (view === 'review') navigate(`/orders/${orderId}`, { replace: true })
+  }, [view, orderId, navigate])
 
   const seats = (o?.items ?? [])
     .map((i) => (i.row && i.number != null ? `${i.row}-${i.number}` : null))
@@ -56,7 +72,7 @@ export default function PaymentReturnPage() {
             nhé.
           </p>
           <ol className="flex w-full flex-col gap-3 rounded-[16px] bg-canvas p-5 text-left">
-            <Step state="done">Đã nhận phản hồi từ VNPay (mã {code})</Step>
+            <Step state="done">Đã nhận phản hồi từ VNPay{code ? ` (mã ${code})` : ''}</Step>
             <Step state="active">Chờ VNPay xác nhận qua IPN</Step>
             <Step state="todo">{count > 0 ? `Phát hành ${count} vé và gửi email` : 'Phát hành vé và gửi email'}</Step>
           </ol>

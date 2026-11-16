@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 
 import { forgotPassword, resetPassword } from '@/api/generated/endpoints/auth/auth'
 import type { OtpSession } from '@/api/generated/model'
-import { isApiError } from '@/api/problem'
+import { isApiError, isNotImplemented, NOT_IMPLEMENTED_MESSAGE } from '@/api/problem'
 import { ArrowButton } from '@/design/ArrowButton'
 import { OtpInput } from '@/design/OtpInput'
 import { StatusBadge } from '@/design/StatusBadge'
@@ -38,9 +38,11 @@ export default function ForgotPasswordPage() {
       toast.success('Đã gửi mã đặt lại')
     } catch (err) {
       setEmailError(
-        isApiError(err) && err.status === 429
-          ? 'Bạn thử quá nhanh, vui lòng đợi một lát.'
-          : 'Chưa gửi được mã. Thử lại sau.',
+        isNotImplemented(err)
+          ? NOT_IMPLEMENTED_MESSAGE
+          : isApiError(err) && err.status === 429
+            ? 'Bạn thử quá nhanh, vui lòng đợi một lát.'
+            : 'Chưa gửi được mã. Thử lại sau.',
       )
     } finally {
       setSending(false)
@@ -63,9 +65,11 @@ export default function ForgotPasswordPage() {
       navigate('/login', { replace: true })
     } catch (err) {
       setFormError(
-        isApiError(err) && (err.status === 400 || err.status === 401 || err.status === 422)
-          ? 'Mã OTP chưa đúng hoặc đã hết hạn.'
-          : 'Chưa đặt lại được mật khẩu. Vui lòng thử lại.',
+        isNotImplemented(err)
+          ? NOT_IMPLEMENTED_MESSAGE
+          : isApiError(err) && (err.status === 400 || err.status === 401 || err.status === 422)
+            ? 'Mã OTP chưa đúng hoặc đã hết hạn.'
+            : 'Chưa đặt lại được mật khẩu. Vui lòng thử lại.',
       )
     } finally {
       setResetting(false)

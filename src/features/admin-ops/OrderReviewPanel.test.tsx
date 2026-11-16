@@ -2,7 +2,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { resolveReview } from '@/api/generated/endpoints/admin-operations/admin-operations'
+import { resolveReview, reconcileOrder } from '@/api/generated/endpoints/admin-operations/admin-operations'
+import { ApiError } from '@/api/problem'
 import OrderReviewPanel from './OrderReviewPanel'
 vi.mock('@/api/generated/endpoints/admin-operations/admin-operations', () => ({
   resolveReview: vi.fn(),
@@ -67,5 +68,12 @@ describe('Xử lý đơn cần duyệt', () => {
         expect.objectContaining({ headers: expect.any(Object) }),
       ),
     )
+  })
+  it('đối soát chưa được backend hỗ trợ (501) thì báo rõ, không vỡ trang', async () => {
+    vi.mocked(reconcileOrder).mockRejectedValueOnce(new ApiError(501, null))
+    setup()
+    fireEvent.click(screen.getByText('Người mua, vé & đối soát'))
+    fireEvent.click(screen.getByRole('button', { name: 'Đối soát lại với VNPay' }))
+    expect(await screen.findByText(/chưa được hỗ trợ ở phía máy chủ/)).toBeInTheDocument()
   })
 })

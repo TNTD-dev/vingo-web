@@ -137,7 +137,9 @@ export default function OrderReviewPanel({ orderId, onClose }: { orderId: string
           <summary className="cursor-pointer text-ink-secondary">Người mua, vé & đối soát</summary>
           <div className="mt-4 space-y-3">
             <p>
-              {order?.buyer?.full_name} · {order?.buyer?.email}
+              {order?.buyer
+                ? `${order.buyer.full_name ?? ''} · ${order.buyer.email ?? ''}`
+                : 'Đơn chưa có thông tin người mua.'}
             </p>
             <p>
               {order?.event?.title} · {dateText(order?.showtime?.starts_at)}

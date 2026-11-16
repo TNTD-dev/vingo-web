@@ -20,4 +20,9 @@ describe('ticketGroups', () => {
     expect(seatSummary([t('s1', 'B', 'B', 14), t('s1', 'B', 'B', 15)])).toBe('Khu B · B-14, B-15')
     expect(seatSummary([t('s1', 'GA')])).toBe('Khu GA · Đứng')
   })
+  it('gộp vé đứng thành một cụm', () => {
+    expect(seatSummary([t('s1', 'GA'), t('s1', 'GA', undefined, 2), t('s1', 'GA', undefined, 3)])).toBe(
+      'Khu GA · 3 vé đứng',
+    )
+  })
 })

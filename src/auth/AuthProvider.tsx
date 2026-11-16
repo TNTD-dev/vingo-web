@@ -1,11 +1,14 @@
+import * as Sentry from '@sentry/react'
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
 
 import { login as loginApi, logout as logoutApi } from '@/api/generated/endpoints'
 import type { LoginBody } from '@/api/generated/model'
 import { refreshSession } from '@/api/http'
+import { isApiError } from '@/api/problem'
 import { tokenStore } from '@/auth/token-store'
 
 import { AuthContext } from './auth-context'
+import { toSentryUser } from './sentry-user'
 
 /**
  * Khi tải trang thử làm mới phiên bằng cookie refresh (Google login).
@@ -14,6 +17,13 @@ import { AuthContext } from './auth-context'
 export function AuthProvider({ children }: { children: ReactNode }) {
   const session = useSyncExternalStore(tokenStore.subscribe, tokenStore.get)
   const [ready, setReady] = useState(false)
+  const userId = session?.user.id
+  const userRole = session?.user.role
+
+  // Gắn user cho event/trace Sentry để lọc theo user.id; đăng xuất hoặc mất phiên thì gỡ.
+  useEffect(() => {
+    Sentry.setUser(toSentryUser(userId ? { id: userId, role: userRole } : null))
+  }, [userId, userRole])
 
   useEffect(() => {
     let cancelled = false
@@ -28,11 +38,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (body: LoginBody) => {
     const pair = await loginApi(body)
     tokenStore.set({ accessToken: pair.access_token, refreshToken: pair.refresh_token, user: pair.user })
+    return pair.user
   }
 
   const logout = async () => {
     try {
-      await logoutApi({}, { credentials: 'include' })
+      await logoutApi({}, { credentials: 'include' }).catch(async (e) => {
+        // Access token hết hạn: làm mới phiên rồi thu hồi lại, nếu không cookie refresh vẫn còn và tải lại trang sẽ đăng nhập lại.
+        if (isApiError(e) && e.status === 401 && (await refreshSession())) {
+          await logoutApi({}, { credentials: 'include' })
+        } else throw e
+      })
     } finally {
       tokenStore.set(null)
     }

@@ -173,17 +173,17 @@ export const seatmapHandlers = [
     const showtime = detail.showtimes?.find((s) => s.id === params.showtimeId) ?? detail.showtimes?.[0]
     const now = Date.now()
     const order: Order = {
-        id: crypto.randomUUID(),
-        code: `VG-${String(now).slice(-5)}`,
-        status: 'PENDING',
-        event,
-        showtime,
-        items,
-        total_amount: items.reduce((sum, i) => sum + (i.unit_price ?? 0) * (i.quantity ?? 1), 0),
-        currency: 'VND',
-        expires_at: new Date(now + 10 * 60_000).toISOString(),
-        created_at: new Date(now).toISOString(),
-      }
+      id: crypto.randomUUID(),
+      code: `VG-${String(now).slice(-5)}`,
+      status: 'PENDING',
+      event,
+      showtime,
+      items,
+      total_amount: items.reduce((sum, i) => sum + (i.unit_price ?? 0) * (i.quantity ?? 1), 0),
+      currency: 'VND',
+      expires_at: new Date(now + 10 * 60_000).toISOString(),
+      created_at: new Date(now).toISOString(),
+    }
     saveOrder(order)
     return HttpResponse.json<Order>(order, { status: 201 })
   }),

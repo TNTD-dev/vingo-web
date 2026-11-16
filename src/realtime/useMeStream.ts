@@ -37,6 +37,8 @@ export function useMeStream(onEvent?: MeStreamHandler, onOpen?: () => void) {
     const controller = new AbortController()
     const accept = createDeduper()
     let lastEventId: string | undefined
+    let opened = false
+    let failures = 0
 
     void fetchEventSource(`${API_BASE}/me/stream`, {
       signal: controller.signal,
@@ -50,11 +52,17 @@ export function useMeStream(onEvent?: MeStreamHandler, onOpen?: () => void) {
       },
       async onopen(res) {
         if (res.ok) {
+          // Nối lại sau khi mất kết nối: có thể đã lỡ sự kiện, nên làm mới đơn/vé.
+          if (opened) invalidateFor('order.paid', queryClient)
+          opened = true
+          failures = 0
           openRef.current?.()
           return
         }
         if (res.status === 401 && (await refreshSession())) throw new RetriableError()
-        throw new Error(`Không mở được /me/stream: HTTP ${res.status}`)
+        // 4xx khác (trừ 429) là lỗi cố định: không nối lại mãi. 5xx/429: thử lại có giãn cách.
+        if (res.status >= 400 && res.status < 500 && res.status !== 429) throw new Error(`HTTP ${res.status}`)
+        throw new RetriableError()
       },
       onmessage(msg) {
         if (!msg.event || !accept(msg.id)) return
@@ -72,7 +80,12 @@ export function useMeStream(onEvent?: MeStreamHandler, onOpen?: () => void) {
         throw new RetriableError()
       },
       onerror(err) {
-        if (err instanceof RetriableError) return 1000
+        // Mất mạng (TypeError của fetch) hay server đóng: nối lại, giãn dần tới 30 giây.
+        if (controller.signal.aborted) throw err
+        if (err instanceof RetriableError || err instanceof TypeError) {
+          failures += 1
+          return Math.min(1000 * 2 ** Math.min(failures - 1, 5), 30_000)
+        }
         throw err
       },
     }).catch(() => {
@@ -83,11 +96,17 @@ export function useMeStream(onEvent?: MeStreamHandler, onOpen?: () => void) {
   }, [user, queryClient])
 }
 
-function invalidateFor(type: StreamEventEvent, queryClient: ReturnType<typeof useQueryClient>) {
+/** Khoá query của Orval có dạng ['/orders/{id}'], ['/orders', params], ['/tickets'…]: so khớp theo tiền tố của phần tử đầu. */
+export function invalidateFor(type: StreamEventEvent, queryClient: ReturnType<typeof useQueryClient>) {
+  const startsWith = (prefix: string) => ({
+    predicate: (q: { queryKey: readonly unknown[] }) =>
+      typeof q.queryKey[0] === 'string' && q.queryKey[0].startsWith(prefix),
+  })
   if (type.startsWith('order.') || type === 'payment.failed') {
-    void queryClient.invalidateQueries({ queryKey: ['/orders'] })
+    void queryClient.invalidateQueries(startsWith('/orders'))
   }
-  if (type === 'ticket.issued') {
-    void queryClient.invalidateQueries({ queryKey: ['/tickets'] })
+  // Vé phát hành bất đồng bộ sau thanh toán: order.paid cũng làm mới vé để không lỡ nếu ticket.issued đến trễ.
+  if (type === 'ticket.issued' || type === 'order.paid') {
+    void queryClient.invalidateQueries(startsWith('/tickets'))
   }
 }

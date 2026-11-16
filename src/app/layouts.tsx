@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, Outlet, useMatch } from 'react-router'
 
+import { AdminNav } from '@/design/AdminNav'
 import { AppNav } from '@/design/AppNav'
 import authStadium from '@/design/brand/auth-stadium.png'
 import { Logo } from '@/design/Logo'
@@ -8,6 +9,8 @@ import stadium from '@/design/brand/stadium.jpg'
 import { cn } from '@/lib/cn'
 
 import { AppNav as BuyerNav } from './AppNav'
+import { useCopilotShortcut } from './copilotShortcut'
+import { VingoLauncher } from './VingoLauncher'
 
 // Khung buyer theo Figma (B1–B17): nền canvas, AppNav cách đỉnh 16px, lề ngang 32px (16px trên điện thoại),
 // nội dung rộng tối đa 1376px, cách nav 28px.
@@ -20,12 +23,26 @@ export function BuyerLayout() {
       <main className="mx-auto mt-7 flex w-full max-w-[1376px] min-w-0 flex-1 flex-col">
         <Outlet />
       </main>
+      <VingoLauncher />
     </div>
   )
 }
 
 /** Agent mode (Figma page 04): nền canvas, AppNav kiểu Figma, khung chat chiếm phần còn lại của màn hình. */
 /** Trang con bật nền ảnh sân (màn chào Agent mode, Figma M1) qua `useOutletContext<AgentOutletContext>()`. */
+/** Admin Copilot (Figma C1–C6): màn riêng, không có sidebar; công tắc "Quản trị | Copilot" và ⌘J để quay lại. */
+export function CopilotLayout() {
+  useCopilotShortcut('/admin')
+  return (
+    <div className="relative isolate flex h-dvh min-h-[560px] flex-col gap-3 bg-canvas sm:gap-4">
+      <AdminNav mode="copilot" />
+      <main className="flex min-h-0 flex-1 flex-col">
+        <Outlet />
+      </main>
+    </div>
+  )
+}
+
 export type AgentOutletContext = { setBackdrop: (on: boolean) => void }
 
 export function AgentLayout() {
@@ -39,7 +56,7 @@ export function AgentLayout() {
           <div className="absolute inset-0 bg-linear-to-r from-canvas/90 via-canvas/60 via-50% to-canvas/15" />
         </div>
       )}
-      <AppNav mode="vingo" />
+      <AppNav />
       <main className="flex min-h-0 flex-1 flex-col">
         <Outlet context={ctx} />
       </main>

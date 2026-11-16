@@ -1,13 +1,13 @@
 import { lazy, Suspense, type ComponentType, type LazyExoticComponent } from 'react'
 import { createBrowserRouter, type RouteObject } from 'react-router'
 
+import { EntryRedirect } from '@/auth/EntryRedirect'
 import { RequireAuth } from '@/auth/guards'
 import { FullPageSpinner } from '@/design/FullPageSpinner'
-import { Placeholder } from '@/design/Placeholder'
 import { ForbiddenPage, NotFoundPage } from '@/features/StatusPages'
 
 import { AdminLayout } from './AdminLayout'
-import { AgentLayout, AuthLayout, BuyerLayout, PlainLayout } from './layouts'
+import { AgentLayout, AuthLayout, BuyerLayout, CopilotLayout, PlainLayout } from './layouts'
 
 function page(Component: LazyExoticComponent<ComponentType>) {
   return (
@@ -47,9 +47,13 @@ const L = {
   Checkin: lazy(() => import('@/features/checkin/CheckinPage')),
   // admin-dashboard
   Overview: lazy(() => import('@/features/admin-dashboard/OverviewPage')),
+  // copilot
+  Copilot: lazy(() => import('@/features/copilot/CopilotPage')),
   Reports: lazy(() => import('@/features/admin-dashboard/ReportsPage')),
   // admin-catalog
   Venues: lazy(() => import('@/features/admin-catalog/VenuesPage')),
+  VenueWizard: lazy(() => import('@/features/admin-catalog/VenueWizardPage')),
+  EventWizard: lazy(() => import('@/features/admin-catalog/EventWizardPage')),
   VenueDetail: lazy(() => import('@/features/admin-catalog/VenueDetailPage')),
   HallLayouts: lazy(() => import('@/features/admin-catalog/HallLayoutsPage')),
   AdminEvents: lazy(() => import('@/features/admin-catalog/AdminEventsPage')),
@@ -67,11 +71,11 @@ const L = {
 const buyer = (el: LazyExoticComponent<ComponentType>) => <RequireAuth>{page(el)}</RequireAuth>
 
 export const routes: RouteObject[] = [
-  { path: '/admin/login', element: page(L.AdminLogin) },
+  { path: '/admin/login', element: <EntryRedirect>{page(L.AdminLogin)}</EntryRedirect> },
   {
     element: <AuthLayout />,
     children: [
-      { path: '/login', element: page(L.Login) },
+      { path: '/login', element: <EntryRedirect>{page(L.Login)}</EntryRedirect> },
       { path: '/register', element: page(L.Register) },
       { path: '/verify-otp', element: page(L.VerifyOtp) },
       { path: '/forgot-password', element: page(L.ForgotPassword) },
@@ -81,7 +85,7 @@ export const routes: RouteObject[] = [
   },
   {
     element: <PlainLayout />,
-    children: [{ path: '/', element: page(L.Landing) }],
+    children: [{ path: '/', element: <EntryRedirect>{page(L.Landing)}</EntryRedirect> }],
   },
   {
     // Agent mode xem được khi chưa đăng nhập; gửi tin, giữ ghế thì phải đăng nhập (xử lý trong ChatPage).
@@ -109,15 +113,7 @@ export const routes: RouteObject[] = [
   },
   {
     element: <PlainLayout />,
-    children: [{ path: '/checkin', element: buyer(L.Checkin) }],
-  },
-  {
-    path: '/admin/copilot',
-    element: (
-      <RequireAuth allow="ADMIN">
-        <Placeholder title="Copilot">Khu vực Copilot để tiếp tục phát triển.</Placeholder>
-      </RequireAuth>
-    ),
+    children: [{ path: '/checkin', element: <RequireAuth allow="ADMIN">{page(L.Checkin)}</RequireAuth> }],
   },
   {
     path: '/admin',
@@ -130,9 +126,13 @@ export const routes: RouteObject[] = [
       { index: true, element: page(L.Overview) },
       { path: 'reports', element: page(L.Reports) },
       { path: 'venues', element: page(L.Venues) },
+      { path: 'venues/new', element: page(L.VenueWizard) },
+      { path: 'venues/:venueId/setup', element: page(L.VenueWizard) },
       { path: 'venues/:venueId', element: page(L.VenueDetail) },
       { path: 'halls/:hallId/layouts', element: page(L.HallLayouts) },
       { path: 'events', element: page(L.AdminEvents) },
+      { path: 'events/new', element: page(L.EventWizard) },
+      { path: 'events/:eventId/setup', element: page(L.EventWizard) },
       { path: 'events/:eventId', element: page(L.AdminEventDetail) },
       { path: 'showtimes/:showtimeId/seats', element: page(L.ShowtimeSeats) },
       { path: 'orders', element: page(L.AdminOrders) },
@@ -141,6 +141,16 @@ export const routes: RouteObject[] = [
       { path: 'checkin', element: page(L.AdminCheckin) },
       { path: 'audit-logs', element: page(L.AuditLogs) },
     ],
+  },
+  {
+    // Admin Copilot: màn riêng, ngoài AdminLayout (không sidebar), vẫn chỉ cho ADMIN.
+    path: '/admin/copilot',
+    element: (
+      <RequireAuth allow="ADMIN">
+        <CopilotLayout />
+      </RequireAuth>
+    ),
+    children: [{ index: true, element: page(L.Copilot) }],
   },
   { path: '*', element: <NotFoundPage /> },
 ]

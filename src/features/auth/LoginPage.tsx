@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 
 import { isApiError } from '@/api/problem'
+import { loginDestination } from '@/auth/redirect'
 import { useAuth } from '@/auth/auth-context'
 import { ArrowButton } from '@/design/ArrowButton'
 
@@ -19,9 +20,12 @@ export default function LoginPage() {
     setPending(true)
     setError(null)
     try {
-      await login({ identifier: String(form.get('identifier')).trim(), password: String(form.get('password')) })
+      const user = await login({
+        identifier: String(form.get('identifier')).trim(),
+        password: String(form.get('password')),
+      })
       const next = params.get('next')
-      navigate(next?.startsWith('/') && !next.startsWith('//') ? next : '/events', { replace: true })
+      navigate(loginDestination(user.role, next), { replace: true })
     } catch (e) {
       setError(
         isApiError(e) && e.status === 401
@@ -49,10 +53,13 @@ export default function LoginPage() {
       <ArrowButton variant="primary" type="submit" disabled={pending} className="w-full">
         {pending ? 'Đang đăng nhập…' : 'Đăng nhập'}
       </ArrowButton>
-      <GoogleButton>Tiếp tục với Google</GoogleButton>
+      <GoogleButton next={params.get('next')}>Tiếp tục với Google</GoogleButton>
       <p className="text-center type-caption text-ink-tertiary">
         Chưa có tài khoản?{' '}
-        <Link to="/register" className="text-foreground underline">
+        <Link
+          to={params.get('next') ? `/register?next=${encodeURIComponent(params.get('next')!)}` : '/register'}
+          className="text-foreground underline"
+        >
           Đăng ký
         </Link>
       </p>

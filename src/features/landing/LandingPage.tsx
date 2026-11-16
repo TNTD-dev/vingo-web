@@ -13,7 +13,7 @@ import './landing.css'
 // Demo ghim → FAQ → CTA → Footer. Ô chat dẫn sang Agent mode `/vingo?q=…` (xem agentLink.ts).
 export default function LandingPage() {
   return (
-    <div className="lp mx-auto w-full max-w-[1440px] bg-canvas text-ink">
+    <div className="lp w-full bg-canvas text-ink">
       <Hero />
       <Statement />
       <Bento />
@@ -24,7 +24,7 @@ export default function LandingPage() {
       </div>
       <CtaSection />
       <LandingFooter />
-      <p className="flex flex-col gap-1 px-5 py-6 type-caption text-ink-tertiary sm:flex-row sm:justify-between sm:px-12">
+      <p className="flex flex-col gap-1 px-5 py-6 type-caption text-ink-tertiary sm:flex-row sm:justify-between sm:px-12 lg:px-[calc(var(--lp-gutter)+3rem)]">
         <span>© 2026 Vingo. Đặt vé sự kiện qua chat.</span>
         <span>Thanh toán được bảo đảm bởi VNPay</span>
       </p>

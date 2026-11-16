@@ -1,4 +1,5 @@
 import type { GetAvailability200ZonesItem, HoldRequest } from '@/api/generated/model'
+import { isApiError } from '@/api/problem'
 import { sameZone, type ZoneRef } from '@/seatmap/svg'
 import type { MapZone } from '@/seatmap/SeatMapView'
 
@@ -100,6 +101,8 @@ export function compressZoneCodes(codes: string[]): string {
 export type PickedSeat = {
   /** UUID ghế của API (dùng để giữ ghế). */
   seatId: string
+  /** UUID khu của API (để tải lại ghế gợi ý khi SEAT_TAKEN). */
+  zoneId?: string
   /** Id ghế trong SVG (dùng để tô). */
   svgId: string
   zoneCode: string
@@ -157,4 +160,62 @@ export function previewTotal(picks: PickedSeat[], standing: Standing | null): nu
 /** Tối đa mua được ở khu đứng: giới hạn đơn và số chỗ còn. */
 export function standingLimit(max: number, left: number): number {
   return Math.max(0, Math.min(max, left))
+}
+
+function idList(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : []
+}
+
+export type HoldFailure = {
+  message: string
+  /** Chỉ SEAT_TAKEN: ghế vừa bị giữ/bán và ghế trống gợi ý cùng khu. */
+  takenSeatIds: string[]
+  suggestedSeatIds: string[]
+  /** Làm mới số chỗ/ghế sau lỗi này. */
+  refresh: boolean
+  /** Dùng lại Idempotency-Key khi bấm lại: chỉ khi lỗi chưa chắc chắn (mạng, 5xx, 429). */
+  retrySameKey: boolean
+}
+
+/** Chuyển lỗi giữ ghế thành câu tiếng Việt dễ hiểu theo `error.code` (không theo chuỗi detail). */
+export function describeHoldError(error: unknown, max: number): HoldFailure {
+  const base = { takenSeatIds: [], suggestedSeatIds: [], refresh: false, retrySameKey: false }
+  if (isApiError(error, 'SEAT_TAKEN')) {
+    const suggested = idList(error.problem?.suggested_seat_ids)
+    return {
+      ...base,
+      message: suggested.length
+        ? 'Có ghế vừa được người khác giữ. Bạn có thể dùng ghế gợi ý cùng khu hoặc chọn lại.'
+        : 'Có ghế vừa được người khác giữ. Mình đã bỏ ghế đó khỏi lựa chọn, bạn chọn thêm ghế khác nhé.',
+      takenSeatIds: idList(error.problem?.taken_seat_ids),
+      suggestedSeatIds: suggested,
+      refresh: true,
+    }
+  }
+  if (isApiError(error, 'NOT_ENOUGH_STOCK')) {
+    const left = error.problem?.seats_left
+    return {
+      ...base,
+      message:
+        typeof left === 'number'
+          ? `Khu đứng chỉ còn ${left} chỗ. Hãy giảm số lượng vé.`
+          : 'Khu đứng không còn đủ chỗ. Hãy giảm số lượng vé.',
+      refresh: true,
+    }
+  }
+  if (isApiError(error, 'MAX_TICKETS_EXCEEDED')) return { ...base, message: `Mỗi đơn mua tối đa ${max} vé.` }
+  if (isApiError(error, 'SHOWTIME_NOT_ON_SALE'))
+    return { ...base, message: 'Suất này hiện không mở bán.', refresh: true }
+  if (isApiError(error, 'ORDER_STATE_INVALID'))
+    return {
+      ...base,
+      message: 'Bạn đang có một đơn chờ thanh toán cho suất này. Hãy thanh toán hoặc huỷ đơn đó trước.',
+    }
+  if (isApiError(error, 'IDEMPOTENCY_CONFLICT'))
+    return { ...base, message: 'Yêu cầu giữ ghế này đã được gửi với lựa chọn khác. Hãy bấm giữ ghế lại.' }
+  if (isApiError(error) && error.status === 429)
+    return { ...base, message: 'Bạn thao tác quá nhanh. Đợi vài giây rồi thử lại.', retrySameKey: true }
+  if (isApiError(error, 'UNAUTHORIZED') || (isApiError(error) && error.status === 401))
+    return { ...base, message: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.' }
+  return { ...base, message: 'Chưa giữ được ghế. Vui lòng thử lại.', retrySameKey: true }
 }

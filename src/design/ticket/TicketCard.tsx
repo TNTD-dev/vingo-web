@@ -4,12 +4,12 @@ import { cn } from '@/lib/cn'
 import { formatHm, formatWeekdayDayMonth } from '@/lib/time'
 
 import { seatLabel } from './seat'
-import { useTicketQr } from './useTicketQr'
+import { QrImage } from './QrImage'
 
 const STATUS: Record<NonNullable<Ticket['status']>, { label: string; tone: BadgeTone }> = {
-  ISSUED: { label: 'ISSUED', tone: 'dark' },
-  USED: { label: 'USED', tone: 'neutral' },
-  VOID: { label: 'VOID', tone: 'danger' },
+  ISSUED: { label: 'Hợp lệ', tone: 'dark' },
+  USED: { label: 'Đã sử dụng', tone: 'neutral' },
+  VOID: { label: 'Vô hiệu', tone: 'danger' },
 }
 
 function Field({ label, value }: { label: string; value: string }) {
@@ -35,7 +35,6 @@ export function TicketCard({
   className?: string
   onClick?: () => void
 }) {
-  const qr = useTicketQr(ticket.id, ticket.status === 'ISSUED')
   const status = STATUS[ticket.status ?? 'ISSUED']
   const start = ticket.showtime?.starts_at
   const body = (
@@ -61,7 +60,7 @@ export function TicketCard({
       <div className="mx-5 border-t border-dashed border-line-inverse" />
       <div className="flex items-center gap-4 bg-surface p-5">
         <div className="flex size-[90px] shrink-0 items-center justify-center overflow-hidden rounded-[7px] border border-line bg-surface">
-          {qr.url ? <img src={qr.url} alt={`Mã QR vé ${ticket.code}`} className="size-full object-contain" /> : null}
+          <QrImage ticket={ticket} compact className="size-full" />
         </div>
         <div className="flex min-w-0 flex-col gap-1.5">
           <p className="type-caption text-muted-foreground">{gateNote}</p>

@@ -255,34 +255,80 @@
 
 /* Mascot Vingo chuyển động nhẹ theo trạng thái (design/Mascot.tsx). Tắt khi người dùng chọn giảm chuyển động. */
 @keyframes vg-mascot-float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-6px); }
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
 }
 @keyframes vg-mascot-sway {
-  0%, 100% { transform: rotate(-4deg); }
-  50% { transform: rotate(4deg); }
+  0%,
+  100% {
+    transform: rotate(-4deg);
+  }
+  50% {
+    transform: rotate(4deg);
+  }
 }
 @keyframes vg-mascot-bounce {
-  0%, 100% { transform: translateY(0) scale(1, 1); }
-  40% { transform: translateY(-14px) scale(0.97, 1.03); }
-  60% { transform: translateY(0) scale(1.03, 0.97); }
+  0%,
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+  40% {
+    transform: translateY(-14px) scale(0.97, 1.03);
+  }
+  60% {
+    transform: translateY(0) scale(1.03, 0.97);
+  }
 }
 @keyframes vg-mascot-pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.04); }
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.04);
+  }
 }
 @keyframes vg-mascot-droop {
-  0%, 100% { transform: translateY(0) rotate(0); }
-  50% { transform: translateY(3px) rotate(-2deg); }
+  0%,
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+  50% {
+    transform: translateY(3px) rotate(-2deg);
+  }
 }
-.vg-mascot { transform-origin: 50% 90%; will-change: transform; }
-.vg-mascot[data-state='wave'] { animation: vg-mascot-sway 2.4s ease-in-out infinite; }
-.vg-mascot[data-state='listening'] { animation: vg-mascot-pulse 2.2s ease-in-out infinite; }
-.vg-mascot[data-state='thinking'] { animation: vg-mascot-sway 3.2s ease-in-out infinite; }
-.vg-mascot[data-state='working'] { animation: vg-mascot-float 1.2s ease-in-out infinite; }
-.vg-mascot[data-state='asking'] { animation: vg-mascot-sway 3.6s ease-in-out infinite; }
-.vg-mascot[data-state='celebrate'] { animation: vg-mascot-bounce 1.1s ease-in-out infinite; }
-.vg-mascot[data-state='sorry'] { animation: vg-mascot-droop 4s ease-in-out infinite; }
+.vg-mascot {
+  transform-origin: 50% 90%;
+  will-change: transform;
+}
+.vg-mascot[data-state='wave'] {
+  animation: vg-mascot-sway 2.4s ease-in-out infinite;
+}
+.vg-mascot[data-state='listening'] {
+  animation: vg-mascot-pulse 2.2s ease-in-out infinite;
+}
+.vg-mascot[data-state='thinking'] {
+  animation: vg-mascot-sway 3.2s ease-in-out infinite;
+}
+.vg-mascot[data-state='working'] {
+  animation: vg-mascot-float 1.2s ease-in-out infinite;
+}
+.vg-mascot[data-state='asking'] {
+  animation: vg-mascot-sway 3.6s ease-in-out infinite;
+}
+.vg-mascot[data-state='celebrate'] {
+  animation: vg-mascot-bounce 1.1s ease-in-out infinite;
+}
+.vg-mascot[data-state='sorry'] {
+  animation: vg-mascot-droop 4s ease-in-out infinite;
+}
 @media (prefers-reduced-motion: reduce) {
-  .vg-mascot { animation: none !important; }
+  .vg-mascot {
+    animation: none !important;
+  }
 }

@@ -42,7 +42,9 @@ export default function OrderDetailPage() {
       <div className="mt-8 flex flex-col items-center gap-3 rounded-[20px] bg-surface px-6 py-16 text-center">
         <Mascot state="sorry" className="h-24 w-auto" />
         <h1 className="type-h3">
-          {isApiError(query.error, 'NOT_FOUND') ? 'Không tìm thấy đơn hàng' : 'Không tải được đơn hàng'}
+          {isApiError(query.error) && [400, 403, 404].includes(query.error.status)
+            ? 'Không tìm thấy đơn hàng'
+            : 'Không tải được đơn hàng'}
         </h1>
         <Link to="/orders" className="rounded-pill bg-ink px-5 py-2.5 type-body-m-strong text-on-ink">
           Đơn hàng của tôi
