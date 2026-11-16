@@ -3,7 +3,7 @@ import { useRef, useState, type PointerEvent } from 'react'
 import { Link, useNavigate } from 'react-router'
 
 import { useAuth } from '@/auth/auth-context'
-import { logoMark } from '@/design/brand'
+import { Logo } from '@/design/Logo'
 import { cn } from '@/lib/cn'
 
 import { agentPath } from './agentLink'
@@ -20,21 +20,19 @@ const NAV = [
   { to: '/orders', label: 'Đơn hàng' },
 ]
 
-function Logo() {
-  return (
-    <Link to="/" className="flex items-center gap-2" aria-label="Vingo, trang chủ">
-      <img src={logoMark.light} alt="" className="h-[30px] w-[23px]" />
-      <span className="font-brand text-[26px] leading-[1.2] font-semibold tracking-[-0.02em] text-ink">vingo</span>
-    </Link>
-  )
-}
-
 function Navbar() {
   const { user } = useAuth()
   return (
     <nav aria-label="Điều hướng chính" className="relative z-20 flex items-center justify-between gap-3">
-      <div className="flex items-center gap-9 rounded-pill bg-surface py-2 pr-8 pl-4 max-lg:pr-4">
-        <Logo />
+      {/* Cùng kích thước và khoảng cách với pill của AppNav (src/app/AppNav.tsx). */}
+      <div className="flex items-center gap-8 rounded-pill bg-surface py-2 pr-4 pl-4 lg:pr-7">
+        <Link
+          to="/"
+          aria-label="Vingo, trang chủ"
+          className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Logo />
+        </Link>
         {NAV.map((n) => (
           <Link key={n.label} to={n.to} className="hidden type-body-m text-ink-secondary hover:text-ink lg:block">
             {n.label}
@@ -116,7 +114,7 @@ export function Hero() {
     <header
       ref={rootRef}
       onPointerMove={onPointerMove}
-      className="relative flex min-h-[760px] flex-col overflow-hidden rounded-xl px-4 pt-4 pb-6 sm:px-8 sm:pt-6 sm:pb-8 lg:min-h-[900px] lg:px-[calc(var(--lp-gutter)+2rem)]"
+      className="relative flex min-h-[760px] flex-col overflow-hidden rounded-xl px-4 pt-4 pb-6 sm:px-8 sm:pb-8 lg:min-h-[900px] lg:px-[calc(var(--lp-gutter)+2rem)]"
     >
       <div aria-hidden className="pointer-events-none absolute inset-0">
         <img src={heroImage} alt="" className="size-full object-cover" fetchPriority="high" />
