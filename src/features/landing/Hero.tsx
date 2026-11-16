@@ -1,8 +1,8 @@
-import { ArrowUpRight, Sparkle, User } from 'lucide-react'
+import { ArrowUpRight, Sparkle } from 'lucide-react'
 import { useRef, useState, type PointerEvent } from 'react'
 import { Link, useNavigate } from 'react-router'
 
-import { useAuth } from '@/auth/auth-context'
+import { UserPill } from '@/app/AppNav'
 import { Logo } from '@/design/Logo'
 import { cn } from '@/lib/cn'
 
@@ -21,7 +21,6 @@ const NAV = [
 ]
 
 function Navbar() {
-  const { user } = useAuth()
   return (
     <nav aria-label="Điều hướng chính" className="relative z-20 flex items-center justify-between gap-3">
       {/* Cùng kích thước và khoảng cách với pill của AppNav (src/app/AppNav.tsx). */}
@@ -39,17 +38,7 @@ function Navbar() {
           </Link>
         ))}
       </div>
-      <div className="flex items-center gap-2.5">
-        <Link
-          to={user ? '/me' : '/login'}
-          className="flex items-center gap-2.5 rounded-pill bg-surface py-1.5 pr-4 pl-1.5 type-body-m-strong text-ink"
-        >
-          <span className="flex size-8 items-center justify-center rounded-[10px] bg-ink text-on-ink">
-            <User className="size-4" />
-          </span>
-          <span className="max-w-[140px] truncate">{user ? (user.full_name ?? 'Tài khoản') : 'Đăng nhập'}</span>
-        </Link>
-      </div>
+      <UserPill />
       {/* Dưới lg không đủ chỗ trên thanh chính: đưa 3 tab xuống hàng riêng */}
       <ul className="absolute top-full left-0 mt-3 flex items-center gap-1 rounded-pill bg-surface p-1 lg:hidden">
         {NAV.map((n) => (
