@@ -39,3 +39,14 @@ describe('trang trả về theo txn_ref', () => {
     expect(returnView({ status: 'NEEDS_REVIEW' }, undefined)).toBe('review')
   })
 })
+
+import { isConfirmSlow } from './paymentReturn'
+
+describe('chờ xác nhận quá lâu', () => {
+  it('dưới 30 giây vẫn là đang xác nhận bình thường', () => {
+    expect(isConfirmSlow(1000, 1000 + 29_999)).toBe(false)
+  })
+  it('từ 30 giây trở đi báo lâu hơn bình thường', () => {
+    expect(isConfirmSlow(1000, 1000 + 30_000)).toBe(true)
+  })
+})
