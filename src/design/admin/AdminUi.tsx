@@ -1,15 +1,14 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
-import { Link } from 'react-router'
 import { AdminSearch, type SearchScope } from './AdminSearch'
 import './wizard.css'
 import warningWhite from './icons/warning-white.svg'
-import { icons } from '@/design/icons'
 
 import { isApiError } from '@/api/problem'
 import { mascot } from '@/design/brand'
 import { StatusBadge } from '@/design/StatusBadge'
 import { stateLabel, stateTones } from './labels'
 import './admin-redesign.css'
+import { AdminNotifications } from './AdminNotifications'
 import { Button } from '@/design/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/design/ui/dialog'
 import { Skeleton } from '@/design/ui/skeleton'
@@ -37,9 +36,7 @@ export function AdminPage({
         </div>
         <div className="admin-toolbar">
           <AdminSearch scope={search} />
-          <Link to="/admin/orders?status=NEEDS_REVIEW" aria-label="Đơn hàng cần xử lý" className="admin-bell">
-            <img src={icons.bell} alt="" width={18} height={18} />
-          </Link>
+          <AdminNotifications />
           {actions}
         </div>
       </header>

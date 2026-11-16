@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import OverviewPage from './OverviewPage'
 
 vi.mock('@/design/admin/AdminSearch', () => ({ AdminSearch: () => null }))
+vi.mock('@/design/admin/AdminNotifications', () => ({ AdminNotifications: () => null }))
 vi.mock('./OnSaleShowtimes', () => ({ OnSaleShowtimes: () => null }))
 let showtimesToday = false
 let review: Record<string, unknown>[] = []

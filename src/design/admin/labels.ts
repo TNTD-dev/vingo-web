@@ -15,6 +15,17 @@ export const stateLabels: Record<string, string> = {
   ISSUED: 'Hợp lệ',
   USED: 'Đã quét',
   VOID: 'Đã huỷ',
+  DRAFT: 'Nháp',
+  PUBLISHED: 'Đã công bố',
+  ENDED: 'Đã kết thúc',
+  SCHEDULED: 'Sắp mở bán',
+  ON_SALE: 'Đang bán',
+  SALES_CLOSED: 'Đã đóng bán',
+  FINISHED: 'Đã diễn',
+  OK: 'Hợp lệ',
+  ALREADY_USED: 'Đã dùng',
+  TICKET_VOID: 'Vé đã huỷ',
+  WRONG_SHOWTIME: 'Sai suất',
 }
 
 /** Tab trạng thái đơn: nhãn ngắn hơn nhãn huy hiệu. */

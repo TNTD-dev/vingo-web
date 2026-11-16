@@ -1,4 +1,5 @@
 import { Link, useParams } from 'react-router'
+import { ArrowLeft } from 'lucide-react'
 import { useAdminGetOrder } from '@/api/generated/endpoints/admin-operations/admin-operations'
 import { AdminPage } from '@/design/admin/AdminUi'
 import OrderReviewPanel from './OrderReviewPanel'
@@ -11,12 +12,10 @@ export default function AdminOrderDetailPage() {
     <AdminPage
       title={order.data?.code ? `Đơn ${order.data.code}` : 'Chi tiết đơn'}
       caption={
-        <>
-          {'// ĐƠN HÀNG · '}
-          <Link to="/admin/orders" className="admin-backlink">
-            ← QUAY LẠI DANH SÁCH
-          </Link>
-        </>
+        <Link to="/admin/orders" className="admin-backlink">
+          <ArrowLeft size={14} strokeWidth={2} aria-hidden />
+          Đơn hàng
+        </Link>
       }
     >
       {orderId && <OrderReviewPanel orderId={orderId} />}

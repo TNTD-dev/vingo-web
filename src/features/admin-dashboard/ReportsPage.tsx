@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useQueryMetric } from '@/api/generated/endpoints/admin-reports/admin-reports'
 import type { QueryMetricGroupBy, QueryMetricMetric } from '@/api/generated/model'
-import { AdminPage, Field, Panel, QueryState } from '@/design/admin/AdminUi'
+import { DateField } from '@/design/admin/DateTimePicker'
+import { AdminPage, Panel, QueryState } from '@/design/admin/AdminUi'
 import { AdminAction } from '@/design/admin/AdminAction'
 import { csvText, dateBounds, dateText, daysAgo, download, vnToday, useEventDirectory } from '@/design/admin/data'
 import { WEEKDAY_SHORT } from '@/design/admin/format'
@@ -184,24 +185,8 @@ export default function ReportsPage() {
           <p className="admin-caption mb-1.5">Từ – đến (giờ VN)</p>
           {preset === 'custom' ? (
             <div className="admin-range-inputs">
-              <Field label="Từ ngày">
-                <input
-                  type="date"
-                  required
-                  value={customFrom}
-                  max={customTo}
-                  onChange={(e) => setCustomFrom(e.target.value)}
-                />
-              </Field>
-              <Field label="Đến hết ngày">
-                <input
-                  type="date"
-                  required
-                  value={customTo}
-                  min={customFrom}
-                  onChange={(e) => setCustomTo(e.target.value)}
-                />
-              </Field>
+              <DateField label="Từ ngày" value={customFrom} max={customTo} onChange={setCustomFrom} />
+              <DateField label="Đến hết ngày" value={customTo} min={customFrom} onChange={setCustomTo} />
             </div>
           ) : (
             <p className="admin-range-text">{valid ? formatDateRange(range.from, range.to) : '—'}</p>

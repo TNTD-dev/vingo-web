@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AdminOrdersPage from './AdminOrdersPage'
 
 vi.mock('@/design/admin/AdminSearch', () => ({ AdminSearch: () => null }))
+vi.mock('@/design/admin/AdminNotifications', () => ({ AdminNotifications: () => null }))
 vi.mock('@/design/admin/data', async (original) => ({
   ...(await original<typeof import('@/design/admin/data')>()),
   useEventDirectory: () => ({ data: [{ id: 'event', title: 'Sự kiện A' }] }),
