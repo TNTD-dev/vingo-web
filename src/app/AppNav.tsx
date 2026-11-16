@@ -141,6 +141,7 @@ function UserPill() {
         <span className="hidden max-w-40 truncate type-body-m-strong lg:inline">{name}</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" sideOffset={8} className="min-w-48 rounded-md">
+        {user.role === 'ADMIN' && item('/admin', 'Quản trị')}
         {item('/me', 'Hồ sơ')}
         {item('/me/security', 'Tài khoản & bảo mật')}
         <DropdownMenuSeparator />

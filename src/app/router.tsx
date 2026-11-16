@@ -1,6 +1,7 @@
 import { lazy, Suspense, type ComponentType, type LazyExoticComponent } from 'react'
 import { createBrowserRouter, type RouteObject } from 'react-router'
 
+import { EntryRedirect } from '@/auth/EntryRedirect'
 import { RequireAuth } from '@/auth/guards'
 import { FullPageSpinner } from '@/design/FullPageSpinner'
 import { ForbiddenPage, NotFoundPage } from '@/features/StatusPages'
@@ -70,11 +71,11 @@ const L = {
 const buyer = (el: LazyExoticComponent<ComponentType>) => <RequireAuth>{page(el)}</RequireAuth>
 
 export const routes: RouteObject[] = [
-  { path: '/admin/login', element: page(L.AdminLogin) },
+  { path: '/admin/login', element: <EntryRedirect>{page(L.AdminLogin)}</EntryRedirect> },
   {
     element: <AuthLayout />,
     children: [
-      { path: '/login', element: page(L.Login) },
+      { path: '/login', element: <EntryRedirect>{page(L.Login)}</EntryRedirect> },
       { path: '/register', element: page(L.Register) },
       { path: '/verify-otp', element: page(L.VerifyOtp) },
       { path: '/forgot-password', element: page(L.ForgotPassword) },
@@ -84,7 +85,7 @@ export const routes: RouteObject[] = [
   },
   {
     element: <PlainLayout />,
-    children: [{ path: '/', element: page(L.Landing) }],
+    children: [{ path: '/', element: <EntryRedirect>{page(L.Landing)}</EntryRedirect> }],
   },
   {
     // Agent mode xem được khi chưa đăng nhập; gửi tin, giữ ghế thì phải đăng nhập (xử lý trong ChatPage).

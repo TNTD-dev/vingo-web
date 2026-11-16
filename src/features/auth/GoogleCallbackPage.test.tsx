@@ -16,13 +16,17 @@ function renderAt(search: string, user: User | null) {
     [
       { path: '/auth/google', element: <GoogleCallbackPage /> },
       { path: '/', element: <>trang chủ</> },
+      { path: '/events', element: <>sự kiện</> },
+      { path: '/admin', element: <>quản trị</> },
       { path: '/orders', element: <>đơn của tôi</> },
       { path: '/login', element: <>trang login</> },
     ],
     { initialEntries: [`/auth/google${search}`] },
   )
   render(
-    <AuthContext.Provider value={{ ready: true, user, login: async () => {}, logout: async () => {} }}>
+    <AuthContext.Provider
+      value={{ ready: true, user, login: async () => ({ id: 'u1', role: 'BUYER' }), logout: async () => {} }}
+    >
       <RouterProvider router={router} />
     </AuthContext.Provider>,
   )
@@ -48,10 +52,10 @@ describe('GoogleCallbackPage', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/orders'))
   })
 
-  it('không nhớ trang nào thì về trang chủ', async () => {
+  it('không nhớ trang nào thì về sự kiện', async () => {
     refreshSession.mockResolvedValue(true)
     const router = renderAt('?google_login=success', { id: 'u1', role: 'BUYER' })
-    await waitFor(() => expect(router.state.location.pathname).toBe('/'))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/events'))
   })
 
   it('làm mới phiên thất bại thì báo lỗi, không kẹt ở đang đăng nhập', async () => {
