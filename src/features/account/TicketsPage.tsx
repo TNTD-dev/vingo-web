@@ -8,8 +8,10 @@ import { icons } from '@/design/icons'
 import { StatusBadge } from '@/design/StatusBadge'
 import { Skeleton } from '@/design/ui/skeleton'
 import { cn } from '@/lib/cn'
+import { matchesQuery } from '@/lib/textMatch'
 import { formatHm, formatWeekdayDayMonth } from '@/lib/time'
 
+import { SearchChip } from './SearchChip'
 import { groupTickets, seatSummary, type TicketGroup } from './ticketGroups'
 
 type When = 'upcoming' | 'past'
@@ -27,7 +29,11 @@ export default function TicketsPage() {
     getNextPageParam: (last) => last.next_cursor ?? undefined,
   })
   const tickets = query.data?.pages.flatMap((p) => p.data ?? []) ?? []
-  const groups = groupTickets(tickets)
+  // Ô tìm kiếm ở thanh nav lọc ngay trong trang này (?q=).
+  const q = params.get('q') ?? ''
+  const groups = groupTickets(tickets).filter((g) =>
+    matchesQuery(q, g.tickets[0]?.event?.title, g.tickets[0]?.venue?.name, seatSummary(g.tickets)),
+  )
   const count = tickets.filter((t) => t.status === 'ISSUED').length
 
   return (
@@ -39,6 +45,7 @@ export default function TicketsPage() {
             {when === 'upcoming' ? `${count} vé sắp diễn ra` : 'vé đã qua'}
           </p>
           <h1 className="type-display-l text-foreground">Vé của tôi</h1>
+          <SearchChip />
         </div>
         <fieldset className="flex gap-1 rounded-pill bg-surface p-1.5">
           <legend className="sr-only">Lọc vé</legend>
@@ -67,6 +74,8 @@ export default function TicketsPage() {
         </div>
       ) : query.isError ? (
         <Empty title="Không tải được vé" hint="Kiểm tra kết nối rồi thử lại." action={() => void query.refetch()} />
+      ) : groups.length === 0 && q ? (
+        <Empty title={`Không có vé khớp “${q}”`} hint="Thử từ khoá khác hoặc xoá ô tìm kiếm." />
       ) : groups.length === 0 ? (
         <Empty
           title={when === 'upcoming' ? 'Bạn chưa có vé sắp diễn ra' : 'Chưa có vé đã qua'}

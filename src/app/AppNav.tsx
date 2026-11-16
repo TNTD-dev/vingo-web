@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router'
 
 import { useAuth } from '@/auth/auth-context'
 import { icons } from '@/design/icons'
@@ -68,9 +68,18 @@ function Tabs() {
   )
 }
 
+const SEARCH_SCOPES = [
+  { path: '/tickets', placeholder: 'Tìm trong vé của tôi' },
+  { path: '/orders', placeholder: 'Tìm trong đơn hàng' },
+]
+
 function SearchBox({ wide, focusOnMount, onDone }: { wide?: boolean; focusOnMount?: boolean; onDone?: () => void }) {
   const navigate = useNavigate()
-  const [q, setQ] = useState('')
+  const { pathname } = useLocation()
+  const [params] = useSearchParams()
+  // Ở Vé của tôi / Đơn hàng thì tìm ngay trong trang đó; còn lại tìm sự kiện ở Khám phá.
+  const scope = SEARCH_SCOPES.find((s) => pathname === s.path)
+  const [q, setQ] = useState(scope ? (params.get('q') ?? '') : '')
   const inputRef = useRef<HTMLInputElement>(null)
   // Người dùng vừa bấm biểu tượng tìm kiếm nên đưa con trỏ vào ô.
   useEffect(() => {
@@ -79,7 +88,14 @@ function SearchBox({ wide, focusOnMount, onDone }: { wide?: boolean; focusOnMoun
   function submit(e: FormEvent) {
     e.preventDefault()
     const query = q.trim()
-    navigate(query ? `/events?q=${encodeURIComponent(query)}` : '/events')
+    if (scope) {
+      const next = new URLSearchParams(params)
+      if (query) next.set('q', query)
+      else next.delete('q')
+      navigate({ pathname: scope.path, search: next.toString() }, { replace: true })
+    } else {
+      navigate(query ? `/events?q=${encodeURIComponent(query)}` : '/events')
+    }
     onDone?.()
   }
   return (
@@ -97,8 +113,8 @@ function SearchBox({ wide, focusOnMount, onDone }: { wide?: boolean; focusOnMoun
           type="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Tìm sự kiện"
-          aria-label="Tìm sự kiện"
+          placeholder={scope?.placeholder ?? 'Tìm sự kiện'}
+          aria-label={scope?.placeholder ?? 'Tìm sự kiện'}
           ref={inputRef}
           className={cn(
             'appearance-none bg-transparent type-body-m text-foreground outline-none placeholder:text-ink-tertiary [&::-webkit-search-cancel-button]:hidden',
@@ -202,7 +218,7 @@ export function AppNav() {
               </div>
               <div className="md:hidden">
                 <IconButton
-                  label="Tìm sự kiện"
+                  label={SEARCH_SCOPES.find((x) => x.path === pathname)?.placeholder ?? 'Tìm sự kiện'}
                   icon={icons.search}
                   pressed={searchOpen}
                   onClick={() => setOpenAt(searchOpen ? undefined : pathname)}
