@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { useAuth } from '@/auth/auth-context'
-import { tokenStore } from '@/auth/token-store'
+import { loginDestination } from '@/auth/redirect'
 import { isApiError } from '@/api/problem'
 import { Logo } from '@/design/Logo'
 import { mascot } from '@/design/brand'
@@ -19,17 +19,17 @@ export default function AdminLoginPage() {
     setPending(true)
     setError('')
     try {
-      await login({
+      const user = await login({
         identifier: String(form.get('identifier')),
         password: String(form.get('password')),
         device: 'Vingo Admin Web',
       })
-      if (tokenStore.get()?.user?.role !== 'ADMIN') {
+      if (user.role !== 'ADMIN') {
         setError('Tài khoản này không có quyền ADMIN.')
         return
       }
       const next = params.get('next')
-      navigate(next && (next === '/admin' || next.startsWith('/admin/')) && !next.includes('\\') ? next : '/admin', {
+      navigate(loginDestination(user.role, next), {
         replace: true,
       })
     } catch (e) {

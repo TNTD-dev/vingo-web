@@ -5,7 +5,7 @@ import type { LoginBody, User } from '@/api/generated/model'
 export type AuthState = {
   ready: boolean
   user: User | null
-  login: (body: LoginBody) => Promise<void>
+  login: (body: LoginBody) => Promise<User>
   logout: () => Promise<void>
 }
 

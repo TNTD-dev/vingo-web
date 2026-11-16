@@ -38,6 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (body: LoginBody) => {
     const pair = await loginApi(body)
     tokenStore.set({ accessToken: pair.access_token, refreshToken: pair.refresh_token, user: pair.user })
+    return pair.user
   }
 
   const logout = async () => {
