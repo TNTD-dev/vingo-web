@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { listAdminEvents } from '@/api/generated/endpoints/admin-catalog/admin-catalog'
 import type { AdminEventSummary } from '@/api/generated/model'
 import { useState } from 'react'
@@ -65,4 +65,29 @@ export function useEventDirectory() {
       return result
     },
   })
+}
+
+/**
+ * Danh sách cursor dồn trang: "Tải thêm" nối trang tiếp vào cuối thay vì thay cả danh sách.
+ * `key` phải gồm mọi bộ lọc để đổi bộ lọc thì bắt đầu lại từ trang đầu.
+ */
+export function useLoadMore<T>(
+  key: readonly unknown[],
+  fetchPage: (cursor?: string) => Promise<{ data?: T[]; next_cursor?: string | null }>,
+  enabled = true,
+) {
+  const query = useInfiniteQuery({
+    queryKey: ['admin-load-more', ...key],
+    queryFn: ({ pageParam }) => fetchPage(pageParam),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.next_cursor ?? undefined,
+    enabled,
+  })
+  return {
+    query,
+    items: query.data?.pages.flatMap((p) => p.data ?? []) ?? [],
+    hasMore: !!query.hasNextPage,
+    loadMore: () => void query.fetchNextPage(),
+    loadingMore: query.isFetchingNextPage,
+  }
 }

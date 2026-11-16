@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet } from 'react-router'
-import { Menu } from 'lucide-react'
+import { Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { Tooltip } from 'radix-ui'
 
 import { useAuth } from '@/auth/auth-context'
 import { Logo } from '@/design/Logo'
+import { logoMark } from '@/design/brand'
 import { MascotLive } from '@/design/MascotLive'
 import { StatusBadge } from '@/design/StatusBadge'
 import { Button } from '@/design/ui/button'
@@ -65,13 +67,50 @@ function CopilotLauncher() {
   )
 }
 
+const COLLAPSED_KEY = 'vingo.admin.sidebar-collapsed'
+function readCollapsed() {
+  try {
+    return localStorage.getItem(COLLAPSED_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+/** Khi sidebar thu gọn chỉ còn icon: hiện tên mục bằng tooltip bên phải. */
+function NavTip({ label, show, children }: { label: string; show: boolean; children: React.ReactElement }) {
+  if (!show) return children
+  return (
+    <Tooltip.Root delayDuration={150}>
+      <Tooltip.Trigger asChild>{children}</Tooltip.Trigger>
+      <Tooltip.Portal>
+        <Tooltip.Content side="right" sideOffset={12} className="admin-nav-tip">
+          {label}
+        </Tooltip.Content>
+      </Tooltip.Portal>
+    </Tooltip.Root>
+  )
+}
+
 export function AdminLayout() {
   const { user, logout } = useAuth()
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(false),
+    [collapsed, setCollapsed] = useState(readCollapsed)
+  const toggle = () => setCollapsed((c) => !c)
+  useEffect(() => {
+    try {
+      localStorage.setItem(COLLAPSED_KEY, collapsed ? '1' : '0')
+    } catch {
+      // Không lưu được thì chỉ mất ghi nhớ giữa các lần mở trang.
+    }
+  }, [collapsed])
   useCopilotShortcut('/admin/copilot')
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey)) return
+      if (event.key.toLowerCase() === 'b') {
+        event.preventDefault()
+        toggle()
+      }
       if (event.key.toLowerCase() === 'k') {
         const input = document.getElementById('admin-search')
         if (input) {
@@ -83,78 +122,100 @@ export function AdminLayout() {
     window.addEventListener('keydown', key)
     return () => window.removeEventListener('keydown', key)
   }, [])
-  const navigation = (
+  const navigation = (mini: boolean) => (
     <nav aria-label="Điều hướng quản trị">
       {groups.map((group) => (
         <div key={group.label}>
           <p className="admin-nav-label">{group.label}</p>
           {group.links.map((link) => (
-            <NavLink
-              className="admin-nav-link"
-              to={link.to}
-              key={link.to}
-              end={link.to === '/admin'}
-              onClick={() => setOpen(false)}
-            >
-              <img src={link.icon} alt="" width="18" height="18" />
-              {link.label}
-            </NavLink>
+            <NavTip key={link.to} label={link.label} show={mini}>
+              <NavLink
+                className="admin-nav-link"
+                to={link.to}
+                end={link.to === '/admin'}
+                aria-label={mini ? link.label : undefined}
+                onClick={() => setOpen(false)}
+              >
+                <img src={link.icon} alt="" width="18" height="18" />
+                <span className="admin-nav-text">{link.label}</span>
+              </NavLink>
+            </NavTip>
           ))}
         </div>
       ))}
     </nav>
   )
   return (
-    <div className="admin">
-      <a className="sr-only focus:not-sr-only" href="#admin-content">
-        Đến nội dung
-      </a>
-      <aside className="admin-sidebar">
-        <Link to="/admin" className="flex items-center justify-between px-2 pb-2">
-          <Logo theme="dark" />
-          <StatusBadge tone="dark">Admin</StatusBadge>
-        </Link>
-        {navigation}
-        <div className="mt-auto flex items-center gap-3 rounded-md bg-ink-raised p-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-pill bg-agent text-xs text-ink">
-            {initials(user?.full_name ?? user?.email ?? 'Admin')}
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm">{user?.full_name ?? 'Quản trị viên'}</p>
-            <Link to="/events" className="text-xs text-on-ink-secondary hover:underline">
-              {import.meta.env.VITE_USE_MOCK === 'true' ? 'Dữ liệu demo · Về trang mua vé' : user?.email}
+    <Tooltip.Provider>
+      <div className="admin" data-sidebar={collapsed ? 'collapsed' : 'expanded'}>
+        <a className="sr-only focus:not-sr-only" href="#admin-content">
+          Đến nội dung
+        </a>
+        <aside className="admin-sidebar" data-collapsed={collapsed || undefined}>
+          <div className="admin-sidebar-top">
+            <Link to="/admin" className="admin-sidebar-brand" aria-label="Vingo Admin · Tổng quan">
+              {collapsed ? <img src={logoMark.dark} alt="" className="h-[30px] w-auto" /> : <Logo theme="dark" />}
+              {!collapsed && <StatusBadge tone="dark">Admin</StatusBadge>}
             </Link>
+            <NavTip label="Mở rộng (⌘B)" show={collapsed}>
+              <button
+                type="button"
+                className="admin-sidebar-toggle"
+                aria-label={collapsed ? 'Mở rộng thanh bên' : 'Thu gọn thanh bên'}
+                aria-expanded={!collapsed}
+                title={collapsed ? undefined : 'Thu gọn (⌘B)'}
+                onClick={toggle}
+              >
+                {collapsed ? <PanelLeftOpen size={18} aria-hidden /> : <PanelLeftClose size={18} aria-hidden />}
+              </button>
+            </NavTip>
           </div>
-          <button type="button" aria-label="Đăng xuất" onClick={() => void logout()}>
-            <img src={logoutIcon} alt="" width="18" height="18" />
-          </button>
+          {navigation(collapsed)}
+          <div className="admin-sidebar-user">
+            <NavTip label={user?.full_name ?? 'Quản trị viên'} show={collapsed}>
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-pill bg-agent text-xs text-ink">
+                {initials(user?.full_name ?? user?.email ?? 'Admin')}
+              </span>
+            </NavTip>
+            <div className="admin-sidebar-user-text min-w-0 flex-1">
+              <p className="truncate text-sm">{user?.full_name ?? 'Quản trị viên'}</p>
+              <Link to="/events" className="text-xs text-on-ink-secondary hover:underline">
+                {import.meta.env.VITE_USE_MOCK === 'true' ? 'Dữ liệu demo · Về trang mua vé' : user?.email}
+              </Link>
+            </div>
+            <NavTip label="Đăng xuất" show={collapsed}>
+              <button type="button" aria-label="Đăng xuất" onClick={() => void logout()}>
+                <img src={logoutIcon} alt="" width="18" height="18" />
+              </button>
+            </NavTip>
+          </div>
+        </aside>
+        <div className="admin-main">
+          <div className="admin-mobile-bar">
+            <Link to="/admin">
+              <Logo theme="dark" />
+            </Link>
+            <Sheet open={open} onOpenChange={setOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" aria-label="Mở menu quản trị">
+                  <Menu />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="admin-mobile-nav w-72 flex-col bg-ink text-on-ink">
+                <SheetTitle className="px-3 pt-5 text-on-ink">Vingo Admin</SheetTitle>
+                {navigation(false)}
+                <Button className="mt-auto" onClick={() => void logout()}>
+                  Đăng xuất
+                </Button>
+              </SheetContent>
+            </Sheet>
+          </div>
+          <main id="admin-content">
+            <Outlet />
+          </main>
         </div>
-      </aside>
-      <div className="admin-main">
-        <div className="admin-mobile-bar">
-          <Link to="/admin">
-            <Logo theme="dark" />
-          </Link>
-          <Sheet open={open} onOpenChange={setOpen}>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label="Mở menu quản trị">
-                <Menu />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="admin-mobile-nav w-72 flex-col bg-ink text-on-ink">
-              <SheetTitle className="px-3 pt-5 text-on-ink">Vingo Admin</SheetTitle>
-              {navigation}
-              <Button className="mt-auto" onClick={() => void logout()}>
-                Đăng xuất
-              </Button>
-            </SheetContent>
-          </Sheet>
-        </div>
-        <main id="admin-content">
-          <Outlet />
-        </main>
+        <CopilotLauncher />
       </div>
-      <CopilotLauncher />
-    </div>
+    </Tooltip.Provider>
   )
 }

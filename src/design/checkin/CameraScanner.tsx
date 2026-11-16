@@ -12,7 +12,9 @@ export default function CameraScanner({ onScan }: { onScan: (token: string) => v
   useEffect(() => {
     let active = true,
       stream: MediaStream | undefined,
-      timer: ReturnType<typeof setTimeout> | undefined
+      timer: ReturnType<typeof setTimeout> | undefined,
+      last = '',
+      lastAt = 0
     const Detector = (window as Window & { BarcodeDetector?: DetectorConstructor }).BarcodeDetector
     async function start() {
       if (!Detector) {
@@ -34,8 +36,13 @@ export default function CameraScanner({ onScan }: { onScan: (token: string) => v
           try {
             const codes = await detector.detect(video.current)
             if (!active) return
-            if (codes[0]?.rawValue) {
-              callback.current(codes[0].rawValue)
+            const value = codes[0]?.rawValue
+            // Quét liên tục: bỏ qua cùng một mã trong 3 giây để vé đang giơ trước camera không bị quét lặp.
+            if (value && (value !== last || Date.now() - lastAt > 3000)) {
+              last = value
+              lastAt = Date.now()
+              callback.current(value)
+              if (active) timer = setTimeout(() => void scan(), 1200)
               return
             }
           } catch {
@@ -60,9 +67,10 @@ export default function CameraScanner({ onScan }: { onScan: (token: string) => v
       {error}
     </p>
   ) : (
-    <div className="overflow-hidden rounded-xl bg-ink">
-      <video ref={video} muted playsInline className="aspect-video w-full object-cover" aria-label="Camera quét QR" />
-      <p className="p-3 text-center text-sm text-on-ink">Đưa mã QR vào giữa khung hình</p>
+    <div className="admin-camera-live">
+      <video ref={video} muted playsInline aria-label="Camera quét QR" />
+      <span className="admin-camera-target" aria-hidden />
+      <p>Đưa mã QR vào giữa khung — camera quét liên tục</p>
     </div>
   )
 }
