@@ -1,6 +1,6 @@
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { ChevronRight, ShieldCheck } from 'lucide-react'
-import { Link } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 
 import { getListMyOrdersQueryKey, listMyOrders } from '@/api/generated/endpoints/booking/booking'
 import type { Order } from '@/api/generated/model'
@@ -8,9 +8,11 @@ import { Mascot } from '@/design/Mascot'
 import { StatusBadge } from '@/design/StatusBadge'
 import { Skeleton } from '@/design/ui/skeleton'
 import { formatVnd } from '@/lib/money'
+import { matchesQuery } from '@/lib/textMatch'
 import { formatDayMonthHm } from '@/lib/time'
 
 import { ORDER_STATUS, ticketCount } from './orderView'
+import { SearchChip } from './SearchChip'
 
 const COLS = 'md:grid md:grid-cols-[110px_minmax(0,1fr)_130px_130px_170px_120px] md:items-center md:gap-4'
 
@@ -23,13 +25,18 @@ export default function OrdersPage() {
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.next_cursor ?? undefined,
   })
-  const orders = query.data?.pages.flatMap((p) => p.data ?? []) ?? []
+  // Ô tìm kiếm ở thanh nav lọc ngay trong trang này (?q=).
+  const q = useSearchParams()[0].get('q') ?? ''
+  const orders = (query.data?.pages.flatMap((p) => p.data ?? []) ?? []).filter((o) =>
+    matchesQuery(q, o.code, o.event?.title),
+  )
 
   return (
     <section className="flex flex-col gap-8 pt-1">
       <header className="flex flex-col gap-3 pt-6">
         <p className="type-mono-label text-ink-secondary uppercase">{'// Lịch sử đơn hàng'}</p>
         <h1 className="type-display-l text-foreground">Đơn hàng</h1>
+        <SearchChip />
       </header>
 
       <div className="rounded-[20px] bg-surface p-4 sm:p-8">
@@ -51,6 +58,8 @@ export default function OrdersPage() {
               Thử lại
             </button>
           </div>
+        ) : orders.length === 0 && q ? (
+          <p className="py-10 text-center type-body-m text-ink-secondary">Không có đơn nào khớp “{q}”.</p>
         ) : orders.length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-10 text-center">
             <Mascot state="asking" className="size-20" />
@@ -109,18 +118,18 @@ function OrderRow({ order }: { order: Order }) {
   const count = ticketCount(order)
   return (
     <tr className={COLS + ' border-b border-line py-4 last:border-b-0 max-md:block md:min-h-[46px] md:py-[11px]'}>
-      <td className="type-mono-small font-normal text-foreground">#{order.code}</td>
-      <td className="type-body-m text-foreground max-md:mt-1">
+      <td className="type-mono-small font-normal text-foreground max-md:block">#{order.code}</td>
+      <td className="type-body-m text-foreground max-md:mt-1 max-md:block">
         {order.event?.title}
         {count > 0 && ` · ${count} vé`}
       </td>
       <td className="type-body-m text-ink-secondary max-md:hidden">
         {order.created_at ? formatDayMonthHm(order.created_at) : '—'}
       </td>
-      <td className="type-body-m text-foreground max-md:mt-1">
+      <td className="type-body-m text-foreground max-md:mt-1 max-md:block">
         {order.total_amount != null ? formatVnd(order.total_amount) : '—'}
       </td>
-      <td className="max-md:mt-2">
+      <td className="max-md:mt-2 max-md:block">
         <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
       </td>
       <td className="flex justify-end max-md:mt-3">

@@ -318,6 +318,14 @@ function Checkout({ order }: { order: Order }) {
                 : `Thanh toán${total !== undefined ? ` ${formatVnd(total)}` : ''}`}
             </span>
           </button>
+          <button
+            type="button"
+            disabled={cancel.isPending || pay.isPending || expired}
+            onClick={() => cancel.mutate()}
+            className="self-center rounded-sm px-2 py-1 type-body-m text-ink-secondary underline outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+          >
+            {cancel.isPending ? 'Đang huỷ…' : 'Huỷ đơn và nhả ghế'}
+          </button>
           <p className="type-caption text-ink-tertiary">
             Vé chỉ được phát hành sau khi VNPay xác nhận. Vingo không hỗ trợ hoàn tiền hay đổi ghế sau khi thanh toán.
           </p>
