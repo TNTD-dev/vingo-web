@@ -126,7 +126,7 @@ describe('effectiveSort / sortOptions', () => {
 describe('toSearchParams sort', () => {
   it('bỏ sort=relevance khi không có từ khoá (backend từ chối)', () => {
     expect(toSearchParams(readFilters(new URLSearchParams('')), new Date()).sort).toBeUndefined()
-    expect(toSearchParams(readFilters(new URLSearchParams('q=hagl')), new Date()).sort).toBe('relevance')
+    expect(toSearchParams(readFilters(new URLSearchParams('q=hagl')), new Date()).sort).toBeUndefined() // mặc định của backend là relevance
     expect(toSearchParams(readFilters(new URLSearchParams('sort=price')), new Date()).sort).toBe('price')
   })
 })

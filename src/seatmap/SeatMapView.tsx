@@ -452,7 +452,7 @@ export function SeatMapView({
       </div>
 
       {minimap && focus && view && (
-        <div className="pointer-events-none absolute bottom-3 left-3 z-10 w-[190px] rounded-md bg-surface p-1 shadow-float">
+        <div className="pointer-events-none absolute bottom-2 left-2 z-10 w-[88px] sm:bottom-3 sm:left-3 sm:w-[190px] rounded-md bg-surface p-1 shadow-float">
           <div className="relative overflow-hidden" style={{ aspectRatio: `${MINIMAP.w} / ${MINIMAP.h}` }}>
             <div ref={miniRef} className="seatmap size-full" aria-hidden />
             <div
