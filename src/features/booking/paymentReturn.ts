@@ -78,3 +78,10 @@ export function returnView(
   if (!order && !payment && urlCode) return returnKind(urlCode)
   return 'confirming'
 }
+
+/** Quá mốc này mà đơn vẫn chưa chốt thì báo "lâu hơn bình thường" (job đối soát chạy mỗi phút sẽ chốt sau). */
+export const SLOW_CONFIRM_MS = 30_000
+
+export function isConfirmSlow(startedAt: number, now: number): boolean {
+  return now - startedAt >= SLOW_CONFIRM_MS
+}
