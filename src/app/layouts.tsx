@@ -20,7 +20,11 @@ export function BuyerLayout() {
   const dark = useMatch('/tickets/:ticketId') !== null
   // Khám phá: cả trang là một vùng cuộn (ScrollPane) với thanh cuộn mảnh nằm trong trang,
   // thay cho thanh cuộn của cửa sổ.
-  const ownScroll = useMatch('/events') !== null
+  // Gọi đủ cả ba hook mỗi lần render (không dùng || để tránh bỏ qua hook).
+  const onEvents = useMatch('/events')
+  const onTickets = useMatch('/tickets')
+  const onOrders = useMatch('/orders')
+  const ownScroll = onEvents !== null || onTickets !== null || onOrders !== null
   const page = (
     <div className={cn('flex min-h-dvh flex-col px-4 pt-4 pb-16 sm:px-8', dark ? 'bg-ink' : 'bg-canvas')}>
       <BuyerNav />
@@ -103,9 +107,12 @@ export function AuthLayout() {
 }
 
 export function PlainLayout() {
-  return (
+  // Landing page: cuộn trong ScrollPane giống trang Khám phá.
+  const landing = useMatch('/') !== null
+  const main = (
     <main className="flex min-h-dvh flex-col">
       <Outlet />
     </main>
   )
+  return landing ? <ScrollPane className="h-dvh">{main}</ScrollPane> : main
 }
