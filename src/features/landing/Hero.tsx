@@ -32,7 +32,7 @@ function Logo() {
 function Navbar() {
   const { user } = useAuth()
   return (
-    <nav aria-label="Điều hướng chính" className="relative flex items-center justify-between gap-3">
+    <nav aria-label="Điều hướng chính" className="relative z-20 flex items-center justify-between gap-3">
       <div className="flex items-center gap-9 rounded-pill bg-surface py-2 pr-8 pl-4 max-lg:pr-4">
         <Logo />
         {NAV.map((n) => (
