@@ -1,13 +1,14 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
-import { Link } from 'react-router'
 import { AdminSearch, type SearchScope } from './AdminSearch'
 import './wizard.css'
 import warningWhite from './icons/warning-white.svg'
-import { icons } from '@/design/icons'
 
 import { isApiError } from '@/api/problem'
 import { mascot } from '@/design/brand'
-import { StatusBadge, type BadgeTone } from '@/design/StatusBadge'
+import { StatusBadge } from '@/design/StatusBadge'
+import { stateLabel, stateTones } from './labels'
+import './admin-redesign.css'
+import { AdminNotifications } from './AdminNotifications'
 import { Button } from '@/design/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/design/ui/dialog'
 import { Skeleton } from '@/design/ui/skeleton'
@@ -21,7 +22,7 @@ export function AdminPage({
   children,
 }: {
   title: string
-  caption?: string
+  caption?: ReactNode
   actions?: ReactNode
   search?: SearchScope
   children: ReactNode
@@ -35,9 +36,7 @@ export function AdminPage({
         </div>
         <div className="admin-toolbar">
           <AdminSearch scope={search} />
-          <Link to="/admin/orders?status=NEEDS_REVIEW" aria-label="Đơn hàng cần xử lý" className="admin-bell">
-            <img src={icons.bell} alt="" width={18} height={18} />
-          </Link>
+          <AdminNotifications />
           {actions}
         </div>
       </header>
@@ -95,36 +94,8 @@ export function Tabs<T extends string>({
   )
 }
 
-const tones: Record<string, BadgeTone> = {
-  PUBLISHED: 'success',
-  PAID: 'success',
-  ISSUED: 'success',
-  ON_SALE: 'success',
-  NEEDS_REVIEW: 'warning',
-  HELD: 'warning',
-  PENDING: 'warning',
-  CANCELLED: 'danger',
-  VOID: 'danger',
-  DRAFT: 'info',
-  SCHEDULED: 'info',
-  REFUNDED: 'info',
-  PAID_AFTER_EXPIRY: 'warning',
-  PAID_AFTER_CANCEL: 'warning',
-  AMOUNT_MISMATCH: 'danger',
-  OK: 'success',
-  ALREADY_USED: 'warning',
-  TICKET_VOID: 'danger',
-  WRONG_SHOWTIME: 'info',
-}
 export function StateBadge({ value }: { value?: string | null }) {
-  return (
-    <StatusBadge
-      tone={tones[value ?? ''] ?? 'neutral'}
-      className={value === 'ISSUED' ? 'border-transparent bg-agent [&>span:first-child]:bg-ink' : undefined}
-    >
-      {value?.replaceAll('_', ' ') ?? '—'}
-    </StatusBadge>
-  )
+  return <StatusBadge tone={stateTones[value ?? ''] ?? 'neutral'}>{stateLabel(value)}</StatusBadge>
 }
 
 const messages: Record<string, string> = {

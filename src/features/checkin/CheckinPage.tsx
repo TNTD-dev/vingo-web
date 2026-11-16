@@ -11,17 +11,13 @@ export default function CheckinPage() {
     <div className="admin">
       <div className="min-w-0 flex-1">
         <CheckinConsole
-          header={({ title, caption, busy, openSettings }) => (
+          header={({ title, caption, actions }) => (
             <header className="admin-header">
               <div>
                 <p className="admin-caption mb-2">{caption}</p>
                 <h1>{title}</h1>
               </div>
-              <div className="admin-toolbar">
-                <button className="admin-filter-select" disabled={busy} onClick={openSettings}>
-                  Suất & cổng ⌄
-                </button>
-              </div>
+              {actions && <div className="admin-toolbar">{actions}</div>}
             </header>
           )}
         />

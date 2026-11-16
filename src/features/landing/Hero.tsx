@@ -52,6 +52,16 @@ function Navbar() {
           <span className="max-w-[140px] truncate">{user ? (user.full_name ?? 'Tài khoản') : 'Đăng nhập'}</span>
         </Link>
       </div>
+      {/* Dưới lg không đủ chỗ trên thanh chính: đưa 3 tab xuống hàng riêng */}
+      <ul className="absolute top-full left-0 mt-3 flex items-center gap-1 rounded-pill bg-surface p-1 lg:hidden">
+        {NAV.map((n) => (
+          <li key={n.label}>
+            <Link to={n.to} className="block rounded-pill px-3.5 py-1.5 type-caption text-ink hover:bg-canvas">
+              {n.label}
+            </Link>
+          </li>
+        ))}
+      </ul>
     </nav>
   )
 }
