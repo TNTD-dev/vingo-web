@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router'
 
 import { useAuth } from '@/auth/auth-context'
 import { icons } from '@/design/icons'
@@ -68,13 +68,35 @@ function Tabs() {
   )
 }
 
-function SearchBox() {
+const SEARCH_SCOPES = [
+  { path: '/tickets', placeholder: 'Tìm trong vé của tôi' },
+  { path: '/orders', placeholder: 'Tìm trong đơn hàng' },
+]
+
+function SearchBox({ wide, focusOnMount, onDone }: { wide?: boolean; focusOnMount?: boolean; onDone?: () => void }) {
   const navigate = useNavigate()
-  const [q, setQ] = useState('')
+  const { pathname } = useLocation()
+  const [params] = useSearchParams()
+  // Ở Vé của tôi / Đơn hàng thì tìm ngay trong trang đó; còn lại tìm sự kiện ở Khám phá.
+  const scope = SEARCH_SCOPES.find((s) => pathname === s.path)
+  const [q, setQ] = useState(scope ? (params.get('q') ?? '') : '')
+  const inputRef = useRef<HTMLInputElement>(null)
+  // Người dùng vừa bấm biểu tượng tìm kiếm nên đưa con trỏ vào ô.
+  useEffect(() => {
+    if (focusOnMount) inputRef.current?.focus()
+  }, [focusOnMount])
   function submit(e: FormEvent) {
     e.preventDefault()
     const query = q.trim()
-    navigate(query ? `/events?q=${encodeURIComponent(query)}` : '/events')
+    if (scope) {
+      const next = new URLSearchParams(params)
+      if (query) next.set('q', query)
+      else next.delete('q')
+      navigate({ pathname: scope.path, search: next.toString() }, { replace: true })
+    } else {
+      navigate(query ? `/events?q=${encodeURIComponent(query)}` : '/events')
+    }
+    onDone?.()
   }
   return (
     <search>
@@ -82,7 +104,8 @@ function SearchBox() {
         onSubmit={submit}
         className={cn(
           pill,
-          'flex h-12 shrink-0 items-center gap-2.5 px-[18px] focus-within:ring-2 focus-within:ring-ring',
+          'flex h-12 items-center gap-2.5 px-[18px] focus-within:ring-2 focus-within:ring-ring',
+          wide ? 'w-full' : 'shrink-0',
         )}
       >
         <img src={icons.search} alt="" className="size-[18px]" />
@@ -90,16 +113,32 @@ function SearchBox() {
           type="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Tìm sự kiện"
-          aria-label="Tìm sự kiện"
-          className="w-20 appearance-none bg-transparent type-body-m text-foreground outline-none [transition:width_150ms] placeholder:text-ink-tertiary focus:w-44 [&::-webkit-search-cancel-button]:hidden"
+          placeholder={scope?.placeholder ?? 'Tìm sự kiện'}
+          aria-label={scope?.placeholder ?? 'Tìm sự kiện'}
+          ref={inputRef}
+          className={cn(
+            'appearance-none bg-transparent type-body-m text-foreground outline-none placeholder:text-ink-tertiary [&::-webkit-search-cancel-button]:hidden',
+            wide ? 'min-w-0 flex-1' : 'w-20 [transition:width_150ms] focus:w-44',
+          )}
         />
       </form>
     </search>
   )
 }
 
-function IconButton({ label, icon, to }: { label: string; icon: string; to?: string }) {
+function IconButton({
+  label,
+  icon,
+  to,
+  onClick,
+  pressed,
+}: {
+  label: string
+  icon: string
+  to?: string
+  onClick?: () => void
+  pressed?: boolean
+}) {
   const cls = cn(pill, focusRing, 'flex size-12 shrink-0 items-center justify-center')
   const img = <img src={icon} alt="" className="size-[18px]" />
   return to ? (
@@ -107,13 +146,14 @@ function IconButton({ label, icon, to }: { label: string; icon: string; to?: str
       {img}
     </Link>
   ) : (
-    <button type="button" aria-label={label} className={cls}>
+    <button type="button" aria-label={label} aria-expanded={pressed} onClick={onClick} className={cls}>
       {img}
     </button>
   )
 }
 
-function UserPill() {
+/** Pill tài khoản; landing dùng chung để giống các trang khác. */
+export function UserPill() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
 
@@ -155,6 +195,9 @@ export function AppNav() {
   const { user } = useAuth()
   const { pathname } = useLocation()
   const agent = pathname.startsWith('/vingo')
+  // Nhớ trang đã mở ô tìm kiếm: đổi trang thì tự coi như đóng (không cần effect).
+  const [openAt, setOpenAt] = useState<string>()
+  const searchOpen = openAt === pathname
 
   return (
     <header className="mx-auto w-full max-w-[1376px]">
@@ -175,7 +218,12 @@ export function AppNav() {
                 <SearchBox />
               </div>
               <div className="md:hidden">
-                <IconButton label="Tìm sự kiện" icon={icons.search} to="/events" />
+                <IconButton
+                  label={SEARCH_SCOPES.find((x) => x.path === pathname)?.placeholder ?? 'Tìm sự kiện'}
+                  icon={icons.search}
+                  pressed={searchOpen}
+                  onClick={() => setOpenAt(searchOpen ? undefined : pathname)}
+                />
               </div>
             </>
           )}
@@ -183,6 +231,13 @@ export function AppNav() {
           <UserPill />
         </div>
       </div>
+
+      {/* Mobile: ô tìm kiếm mở ngay tại trang hiện tại, chỉ chuyển sang Khám phá khi gửi. */}
+      {!agent && searchOpen && (
+        <div className="mt-2.5 md:hidden">
+          <SearchBox wide focusOnMount onDone={() => setOpenAt(undefined)} />
+        </div>
+      )}
 
       {/* Màn hẹp: tab ở hàng thứ hai, cuộn ngang. */}
       <div className="mt-2.5 flex [scrollbar-width:none] items-center gap-2.5 overflow-x-auto xl:hidden">

@@ -332,3 +332,24 @@
     animation: none !important;
   }
 }
+
+/* Thanh cuộn mảnh, bo tròn, không mũi tên: dùng cho cuộn của cả trang (html) và ScrollPane. */
+html,
+.vg-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-ink-tertiary) transparent;
+}
+html::-webkit-scrollbar,
+.vg-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+html::-webkit-scrollbar-thumb,
+.vg-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--color-ink-tertiary);
+}
+html::-webkit-scrollbar-track,
+.vg-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}

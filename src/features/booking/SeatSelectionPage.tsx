@@ -367,6 +367,7 @@ function SeatSelection({ event, showtimeId }: { event: EventDetail; showtimeId: 
                     selected={selectedIds}
                     tierFilter={tierFilter}
                     onZoneClick={onZoneClick}
+                    onBackgroundClick={() => setFocus(undefined)}
                     onSeatClick={onSeatClick}
                     tooltip={(code) => {
                       const zone = model.zones[code]

@@ -102,10 +102,11 @@ export function useScrollProgress<T extends HTMLElement>(opts: {
       if (!raf) raf = requestAnimationFrame(update)
     }
     update()
-    window.addEventListener('scroll', onScroll, { passive: true })
+    // capture: bắt cả sự kiện cuộn của ScrollPane (scroll không nổi bọt lên window).
+    window.addEventListener('scroll', onScroll, { passive: true, capture: true })
     window.addEventListener('resize', onScroll)
     return () => {
-      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('scroll', onScroll, { capture: true })
       window.removeEventListener('resize', onScroll)
       if (raf) cancelAnimationFrame(raf)
     }

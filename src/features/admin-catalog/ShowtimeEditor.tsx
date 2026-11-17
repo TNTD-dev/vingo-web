@@ -4,7 +4,9 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createShowtime, updateShowtime } from '@/api/generated/endpoints/admin-catalog/admin-catalog'
 import type { Showtime, ShowtimeInput, Venue } from '@/api/generated/model'
 import { ErrorNotice, Field, QueryState } from '@/design/admin/AdminUi'
-import { Segmented } from '@/design/admin/wizard'
+import { DateField, DateTimeField, TimeField, todayVn } from '@/design/admin/DateTimePicker'
+import { AlertCircle, CheckCircle2, Info } from 'lucide-react'
+import { ChoiceCard, ChoiceGroup, Segmented } from '@/design/admin/wizard'
 import { Button } from '@/design/ui/button'
 import { toast } from 'sonner'
 import { localDateTime, nowLocal, toUtc, useLayoutDirectory, useVenueDirectory } from './catalog'
@@ -17,6 +19,8 @@ const presets: { value: SalePreset; label: string }[] = [
 ]
 const dm = (local: string) => (local ? `${local.slice(8, 10)}/${local.slice(5, 7)}` : '')
 const ms = (local: string) => Date.parse(`${local}:00Z`)
+const durationText = (min: number) =>
+  min % 60 ? `${Math.floor(min / 60) ? `${Math.floor(min / 60)} giờ ` : ''}${min % 60} phút` : `${min / 60} giờ`
 
 /** Form một suất diễn: nơi diễn, giờ diễn, giờ bán. Dùng trong wizard (bước 2) và hộp thoại sửa suất. */
 type Props = {
@@ -116,10 +120,14 @@ function EditorBody({
   const total = span ? span.e - span.a : 0
   const pct = (n: number) => `${Math.max(0, Math.min(100, (n / total) * 100))}%`
   const days = span ? Math.max(0, Math.round((span.c - span.a) / 86400000)) : 0
+  const duration = startsAt && endsAt ? (ms(endsAt) - ms(startsAt)) / 60000 : 0
+  /** Thiếu ngày giờ là “chưa xong” (trung tính); chỉ tô đỏ khi đã nhập đủ mà sai. */
+  const incomplete = !startsAt || !endsAt || !open || !close
+  const statusTone = !issues.length ? 'ok' : incomplete ? 'info' : 'error'
   return (
     <>
       <form
-        className="space-y-6"
+        className="admin-showtime-form"
         onSubmit={(e) => {
           e.preventDefault()
           if (valid)
@@ -132,10 +140,10 @@ function EditorBody({
             })
         }}
       >
-        <fieldset disabled={mutation.isPending} className="space-y-6">
-          <section>
-            <h3 className="mb-3 flex items-center gap-2 font-medium">
-              <span className="wz-step-dot" data-state="active">
+        <fieldset disabled={mutation.isPending} className="admin-showtime-form">
+          <section className="admin-showtime-step">
+            <h3>
+              <span className="wz-step-dot" data-state={hall ? 'done' : 'active'}>
                 1
               </span>
               Nơi diễn
@@ -177,28 +185,28 @@ function EditorBody({
             )}
             {venue && <Link to={`/admin/venues/${venueId}/setup`}>Quản lý layout của sân →</Link>}
           </section>
-          <section>
-            <h3 className="mb-3 flex items-center gap-2 font-medium">
-              <span className="wz-step-dot" data-state="active">
+          <section className="admin-showtime-step">
+            <h3>
+              <span className="wz-step-dot" data-state={startsAt && endsAt ? 'done' : 'active'}>
                 2
               </span>
               Giờ diễn
+              {duration > 0 && <small>Kéo dài {durationText(duration)}</small>}
             </h3>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <Field label="Ngày">
-                <input type="date" required value={date} onChange={(e) => changeDate(e.target.value, start)} />
-              </Field>
-              <Field label="Bắt đầu">
-                <input type="time" required value={start} onChange={(e) => changeDate(date, e.target.value)} />
-              </Field>
-              <Field label="Kết thúc">
-                <input type="time" required value={end} onChange={(e) => setEnd(e.target.value)} />
-              </Field>
+            <div className="admin-showtime-times">
+              <DateField
+                label="Ngày"
+                value={date}
+                min={initial ? undefined : todayVn()}
+                onChange={(d) => changeDate(d, start)}
+              />
+              <TimeField label="Bắt đầu" value={start} onChange={(t) => changeDate(date, t)} />
+              <TimeField label="Kết thúc" value={end} onChange={setEnd} />
             </div>
           </section>
-          <section>
-            <h3 className="mb-3 flex items-center gap-2 font-medium">
-              <span className="wz-step-dot" data-state="active">
+          <section className="admin-showtime-step">
+            <h3>
+              <span className="wz-step-dot" data-state={open && close ? 'done' : 'active'}>
                 3
               </span>
               Giờ bán
@@ -210,29 +218,24 @@ function EditorBody({
               value={preset}
               onChange={(p) => applyPreset(p)}
             />
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <Field label="Mở bán">
-                <input
-                  type="datetime-local"
-                  required
-                  value={open}
-                  onChange={(e) => {
-                    setOpen(e.target.value)
-                    if (preset === 'NOW_TO_START') setPreset('TO_START')
-                  }}
-                />
-              </Field>
-              <Field label="Đóng bán">
-                <input
-                  type="datetime-local"
-                  required
-                  value={close}
-                  onChange={(e) => {
-                    setClose(e.target.value)
-                    setPreset(null)
-                  }}
-                />
-              </Field>
+            <div className="admin-showtime-sale">
+              <DateTimeField
+                label="Mở bán"
+                value={open}
+                onChange={(v) => {
+                  setOpen(v)
+                  if (preset === 'NOW_TO_START') setPreset('TO_START')
+                }}
+              />
+              <DateTimeField
+                label="Đóng bán"
+                value={close}
+                defaultTime={start || '18:00'}
+                onChange={(v) => {
+                  setClose(v)
+                  setPreset(null)
+                }}
+              />
             </div>
             {span && total > 0 && span.c >= span.a && (
               <div className="wz-timeline mt-4" aria-label="Dòng thời gian bán vé">
@@ -253,19 +256,28 @@ function EditorBody({
             )}
           </section>
         </fieldset>
-        <p className="wz-soft" role="status">
-          {issues.length
-            ? issues.map((i) => saleIssueText[i]).join(' ')
-            : '✓ Hợp lệ: đóng bán không sau giờ diễn, kết thúc sau bắt đầu. Giờ theo Việt Nam (UTC+7).'}
+        <p className="admin-showtime-status" role="status" data-tone={statusTone}>
+          {statusTone === 'ok' ? (
+            <CheckCircle2 size={16} aria-hidden />
+          ) : statusTone === 'error' ? (
+            <AlertCircle size={16} aria-hidden />
+          ) : (
+            <Info size={16} aria-hidden />
+          )}
+          <span>
+            {issues.length
+              ? issues.map((i) => saleIssueText[i]).join(' ')
+              : 'Lịch hợp lệ: đóng bán không sau giờ diễn, kết thúc sau bắt đầu. Giờ theo Việt Nam (UTC+7).'}
+          </span>
         </p>
         {!layout && venue && <p className="admin-notice">Chọn layout đã phát hành để gắn vào suất.</p>}
         <ErrorNotice error={mutation.error} />
-        <div className="flex flex-wrap gap-2">
-          <Button disabled={!valid || mutation.isPending} className="admin-small-button">
-            {mutation.isPending ? 'Đang lưu…' : 'Lưu suất diễn'}
-          </Button>
+        <div className="admin-showtime-footer">
           <Button type="button" variant="outline" className="admin-small-button" onClick={onCancel}>
             Hủy
+          </Button>
+          <Button disabled={!valid || mutation.isPending} className="admin-small-button">
+            {mutation.isPending ? 'Đang lưu…' : initial ? 'Lưu thay đổi' : 'Lưu suất diễn'}
           </Button>
         </div>
       </form>

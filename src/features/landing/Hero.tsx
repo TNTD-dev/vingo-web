@@ -1,9 +1,9 @@
-import { ArrowUpRight, Sparkle, User } from 'lucide-react'
+import { ArrowUpRight, Sparkle } from 'lucide-react'
 import { useRef, useState, type PointerEvent } from 'react'
 import { Link, useNavigate } from 'react-router'
 
-import { useAuth } from '@/auth/auth-context'
-import { logoMark } from '@/design/brand'
+import { UserPill } from '@/app/AppNav'
+import { Logo } from '@/design/Logo'
 import { cn } from '@/lib/cn'
 
 import { agentPath } from './agentLink'
@@ -20,38 +20,35 @@ const NAV = [
   { to: '/orders', label: 'Đơn hàng' },
 ]
 
-function Logo() {
-  return (
-    <Link to="/" className="flex items-center gap-2" aria-label="Vingo, trang chủ">
-      <img src={logoMark.light} alt="" className="h-[30px] w-[23px]" />
-      <span className="font-brand text-[26px] leading-[1.2] font-semibold tracking-[-0.02em] text-ink">vingo</span>
-    </Link>
-  )
-}
-
 function Navbar() {
-  const { user } = useAuth()
   return (
-    <nav aria-label="Điều hướng chính" className="relative flex items-center justify-between gap-3">
-      <div className="flex items-center gap-9 rounded-pill bg-surface py-2 pr-8 pl-4 max-lg:pr-4">
-        <Logo />
+    <nav aria-label="Điều hướng chính" className="relative z-20 flex items-center justify-between gap-3">
+      {/* Cùng kích thước và khoảng cách với pill của AppNav (src/app/AppNav.tsx). */}
+      <div className="flex items-center gap-8 rounded-pill bg-surface py-2 pr-4 pl-4 lg:pr-7">
+        <Link
+          to="/"
+          aria-label="Vingo, trang chủ"
+          className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Logo />
+        </Link>
         {NAV.map((n) => (
           <Link key={n.label} to={n.to} className="hidden type-body-m text-ink-secondary hover:text-ink lg:block">
             {n.label}
           </Link>
         ))}
       </div>
-      <div className="flex items-center gap-2.5">
-        <Link
-          to={user ? '/me' : '/login'}
-          className="flex items-center gap-2.5 rounded-pill bg-surface py-1.5 pr-4 pl-1.5 type-body-m-strong text-ink"
-        >
-          <span className="flex size-8 items-center justify-center rounded-[10px] bg-ink text-on-ink">
-            <User className="size-4" />
-          </span>
-          <span className="max-w-[140px] truncate">{user ? (user.full_name ?? 'Tài khoản') : 'Đăng nhập'}</span>
-        </Link>
-      </div>
+      <UserPill />
+      {/* Dưới lg không đủ chỗ trên thanh chính: đưa 3 tab xuống hàng riêng */}
+      <ul className="absolute top-full left-0 mt-3 flex items-center gap-1 rounded-pill bg-surface p-1 lg:hidden">
+        {NAV.map((n) => (
+          <li key={n.label}>
+            <Link to={n.to} className="block rounded-pill px-3.5 py-1.5 type-caption text-ink hover:bg-canvas">
+              {n.label}
+            </Link>
+          </li>
+        ))}
+      </ul>
     </nav>
   )
 }
@@ -106,7 +103,7 @@ export function Hero() {
     <header
       ref={rootRef}
       onPointerMove={onPointerMove}
-      className="relative flex min-h-[760px] flex-col overflow-hidden rounded-xl px-4 pt-4 pb-6 sm:px-8 sm:pt-6 sm:pb-8 lg:min-h-[900px] lg:px-[calc(var(--lp-gutter)+2rem)]"
+      className="relative flex min-h-[760px] flex-col overflow-hidden rounded-xl px-4 pt-4 pb-6 sm:px-8 sm:pb-8 lg:min-h-[900px] lg:px-[calc(var(--lp-gutter)+2rem)]"
     >
       <div aria-hidden className="pointer-events-none absolute inset-0">
         <img src={heroImage} alt="" className="size-full object-cover" fetchPriority="high" />
