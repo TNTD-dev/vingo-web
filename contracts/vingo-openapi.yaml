@@ -1909,107 +1909,6 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
-  /admin/venues/{venue_id}/rules-document:
-    parameters: [ { $ref: '#/components/parameters/VenueId' } ]
-    get:
-      operationId: getVenueRulesDocument
-      tags: [Admin Catalog]
-      x-required-role: ADMIN
-      summary: Đọc metadata và trạng thái trích xuất PDF nội quy
-      description: Trả metadata, extraction_status và text trích xuất ADMIN-only; chưa có tài liệu trả 404 NOT_FOUND.
-      responses:
-        '200':
-          description: Metadata, trạng thái xử lý và text trích xuất để ADMIN kiểm duyệt.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/VenueRulesDocument' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-    put:
-      operationId: uploadVenueRulesDocument
-      tags: [Admin Catalog]
-      x-required-role: ADMIN
-      summary: Tải lên hoặc thay file PDF nội quy
-      description: Multipart PDF, kiểm MIME và PDF signature, tối đa 20 MiB và 100 trang. Object lưu trong private bucket; extraction native text trước, nếu dưới 100 ký tự không whitespace thì OCR Vietnamese + English. Trích xuất bất đồng bộ; PDF có mật khẩu bị từ chối, scan OCR failure báo trạng thái lỗi, không coi text rỗng là thành công. Thay file chỉ cleanup object cũ sau khi file mới được lưu bền vững.
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              required: [file]
-              properties:
-                file: { type: string, format: binary, description: application/pdf, tối đa 20 MiB }
-      responses:
-        '202':
-          description: Đã lưu file gốc và xếp hàng xử lý.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/VenueRulesDocument' }
-        '400': { $ref: '#/components/responses/ValidationError' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '413': { $ref: '#/components/responses/ContentTooLarge' }
-        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
-        '422': { $ref: '#/components/responses/PdfNotProcessable' }
-        '503': { $ref: '#/components/responses/ServiceUnavailable' }
-    delete:
-      operationId: deleteVenueRulesDocument
-      tags: [Admin Catalog]
-      x-required-role: ADMIN
-      summary: Xóa file PDF nội quy
-      description: Gỡ file private và metadata; không xóa info.rules cũ hoặc văn bản đã công khai. File bị thay/xóa được cleanup sau khi tham chiếu DB commit.
-      responses:
-        '204': { description: Đã xóa file và metadata }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-  /admin/venues/{venue_id}/rules-document/file:
-    get:
-      operationId: downloadVenueRulesDocument
-      tags: [Admin Catalog]
-      x-required-role: ADMIN
-      summary: Tải file PDF nội quy qua endpoint có kiểm quyền
-      description: Server stream file private sau khi kiểm tra bearer và role ADMIN; không trả URL storage công khai hoặc signed URL không kiểm soát.
-      parameters: [ { $ref: '#/components/parameters/VenueId' } ]
-      responses:
-        '200':
-          description: File PDF gốc.
-          content:
-            application/pdf:
-              schema: { type: string, format: binary }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-  /admin/venues/{venue_id}/rules-document/approve-text:
-    put:
-      operationId: approveVenueRulesText
-      tags: [Admin Catalog]
-      x-required-role: ADMIN
-      summary: Duyệt văn bản nội quy để công khai
-      description: Lưu text admin đã rà soát vào trường info.rules legacy đang được API public dùng. PDF gốc và text trích xuất thô vẫn ADMIN-only.
-      parameters: [ { $ref: '#/components/parameters/VenueId' } ]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [text]
-              properties:
-                text: { type: string, minLength: 1, maxLength: 50000 }
-      responses:
-        '200':
-          description: Text công khai đã được cập nhật.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Venue' }
-        '400': { $ref: '#/components/responses/ValidationError' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
   /admin/seat-layouts/{layout_id}:
     parameters:
       - { name: layout_id, in: path, required: true, schema: { type: string, format: uuid } }
@@ -3070,88 +2969,6 @@ paths:
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
-  /admin/venue-imports/{import_id}/rules-document:
-    put:
-      operationId: uploadImportRulesDocument
-      tags: [Venue Setup]
-      x-required-role: ADMIN
-      description: Lưu PDF riêng tư cho nháp của admin hiện tại; tối đa 20 MiB, 100 trang. Trích xuất/OCR bất đồng bộ; PDF lỗi trả 422, revision sai trả 409 ACTION_STATE_INVALID.
-      parameters:
-        - { name: import_id, in: path, required: true, schema: { type: string, format: uuid } }
-        - { name: revision, in: query, required: true, schema: { type: integer, format: int64, minimum: 0 } }
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              required: [file]
-              properties:
-                file: { type: string, format: binary }
-      responses:
-        "200":
-          description: Kết quả chỉ dành cho admin sở hữu phiên.
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/VenueRulesDocument" }
-        "400": { $ref: "#/components/responses/ValidationError" }
-        "401": { $ref: "#/components/responses/Unauthorized" }
-        "403": { $ref: "#/components/responses/Forbidden" }
-        "404": { $ref: "#/components/responses/NotFound" }
-        "409":
-          description: Yêu cầu không hợp lệ hoặc dịch vụ không khả dụng.
-          content:
-            application/problem+json:
-              schema: { $ref: "#/components/schemas/Problem" }
-        "413":
-          description: Yêu cầu không hợp lệ hoặc dịch vụ không khả dụng.
-          content:
-            application/problem+json:
-              schema: { $ref: "#/components/schemas/Problem" }
-        "415":
-          description: Yêu cầu không hợp lệ hoặc dịch vụ không khả dụng.
-          content:
-            application/problem+json:
-              schema: { $ref: "#/components/schemas/Problem" }
-        "503":
-          description: Yêu cầu không hợp lệ hoặc dịch vụ không khả dụng.
-          content:
-            application/problem+json:
-              schema: { $ref: "#/components/schemas/Problem" }
-    get:
-      operationId: getImportRulesDocument
-      tags: [Venue Setup]
-      x-required-role: ADMIN
-      description: Đọc trạng thái và chữ trích xuất của PDF thuộc phiên admin hiện tại; chưa upload trả 404 NOT_FOUND.
-      parameters:
-        - { name: import_id, in: path, required: true, schema: { type: string, format: uuid } }
-      responses:
-        '200':
-          description: Trạng thái PDF và chữ trích xuất.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/VenueRulesDocument' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-  /admin/venue-imports/{import_id}/rules-document/file:
-    get:
-      operationId: downloadImportRulesDocument
-      tags: [Venue Setup]
-      x-required-role: ADMIN
-      description: Tải PDF private sau khi kiểm admin sở hữu phiên; file không tồn tại trả 404 NOT_FOUND.
-      parameters:
-        - { name: import_id, in: path, required: true, schema: { type: string, format: uuid } }
-      responses:
-        '200':
-          description: PDF gốc.
-          content:
-            application/pdf:
-              schema: { type: string, format: binary }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-
 components:
   securitySchemes:
     bearerAuth:
@@ -3247,14 +3064,6 @@ components:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
           example: { title: Loại tệp không hỗ trợ, status: 415, code: UNSUPPORTED_MEDIA_TYPE, detail: Chỉ chấp nhận application/pdf }
-    PdfNotProcessable:
-      description: File PDF có mật khẩu hoặc hỏng được phát hiện trước khi lưu (PDF_NOT_PROCESSABLE). Lỗi OCR xảy ra sau upload trả 202 và được thể hiện qua extraction_status=OCR_FAILED.
-      content:
-        application/problem+json:
-          schema: { $ref: '#/components/schemas/Problem' }
-          examples:
-            passwordProtected:
-              value: { title: PDF được bảo vệ, status: 422, code: PDF_NOT_PROCESSABLE, detail: Tệp PDF có mật khẩu; hãy tải lên bản không khóa }
     ParkingConflict:
       description: Quy tắc bãi gửi xe bị vi phạm (PARKING_PRIMARY_REQUIRED, PARKING_OUT_OF_RANGE, GUIDANCE_REVISION_CONFLICT)
       content:
@@ -3304,7 +3113,7 @@ components:
                  SERVICE_UNAVAILABLE, SEAT_TAKEN, NOT_ENOUGH_STOCK, SHOWTIME_NOT_ON_SALE, ORDER_STATE_INVALID, HOLD_EXPIRED,
                  PROFILE_REQUIRED, MAX_TICKETS_EXCEEDED, IDEMPOTENCY_CONFLICT, TICKET_NOT_VALID, TICKET_USED,
                  VENUE_IN_USE, HALL_NAME_TAKEN, UNSUPPORTED_MEDIA_TYPE, INVALID_SEAT_LAYOUT, SEAT_LAYOUT_LOCKED, EVENT_LOCKED, EVENT_INCOMPLETE,
-                 SHOWTIME_LOCKED, ACTION_STATE_INVALID, RATE_LIMITED, CONTENT_TOO_LARGE, PDF_NOT_PROCESSABLE,
+                 SHOWTIME_LOCKED, ACTION_STATE_INVALID, RATE_LIMITED, CONTENT_TOO_LARGE,
                  PARKING_PRIMARY_REQUIRED, PARKING_OUT_OF_RANGE, GUIDANCE_REVISION_CONFLICT, FOOD_HALL_MISMATCH]
         errors:
           type: array
@@ -3824,23 +3633,6 @@ components:
         opening_hours: { type: [string, 'null'] }
         status: { $ref: '#/components/schemas/FoodStatus' }
         description: { type: [string, 'null'] }
-    RulesExtractionStatus: { type: string, enum: [QUEUED, PROCESSING, EXTRACTED, OCR_COMPLETED, OCR_FAILED, FAILED] }
-    VenueRulesDocument:
-      type: object
-      required: [id, filename, size_bytes, page_count, extraction_status, uploaded_at]
-      properties:
-        id: { type: string, format: uuid }
-        filename: { type: string, maxLength: 255 }
-        size_bytes: { type: integer, minimum: 1, maximum: 20971520 }
-        page_count: { type: integer, minimum: 1, maximum: 100 }
-        sha256: { type: string, pattern: '^[a-f0-9]{64}$' }
-        extraction_status: { $ref: '#/components/schemas/RulesExtractionStatus' }
-        extracted_text: { type: [string, 'null'], maxLength: 250000, description: Chỉ trả cho ADMIN; null đến khi hoàn tất, thất bại trả trạng thái lỗi cụ thể; tối đa 250000 ký tự }
-        extracted_text_truncated: { type: boolean, description: true nếu văn bản trích xuất dài hơn giới hạn 250000 ký tự }
-        uploaded_at: { type: string, format: date-time }
-        uploaded_by: { type: string, format: uuid }
-        extracted_at: { type: [string, 'null'], format: date-time }
-        error_code: { type: [string, 'null'], enum: [PDF_PASSWORD_PROTECTED, OCR_FAILED, PDF_PARSE_FAILED, null] }
     Hall:
       type: object
       properties:

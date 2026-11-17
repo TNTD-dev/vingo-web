@@ -2,14 +2,8 @@ import { findNearbyParking } from '@/api/generated/endpoints/venue-setup/venue-s
 import { OpeningHoursFields } from './OpeningHoursFields'
 import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import type { ParkingSetupDraft, VenueImportDraft, VenueImportSession, VenueRulesDocument } from '@/api/generated/model'
-import {
-  generateImportParkingGuidance,
-  getImportRulesDocument,
-  uploadImportRulesDocument,
-  downloadImportRulesDocument,
-} from '@/api/generated/endpoints/venue-setup/venue-setup'
-import { ApiError } from '@/api/problem'
+import type { ParkingSetupDraft, VenueImportDraft, VenueImportSession } from '@/api/generated/model'
+import { generateImportParkingGuidance } from '@/api/generated/endpoints/venue-setup/venue-setup'
 import { Field, ErrorNotice } from '@/design/admin/AdminUi'
 import { Button } from '@/design/ui/button'
 import { VenueLocationPicker } from './VenueLocationPicker'
@@ -26,8 +20,6 @@ type Props = {
 
 export function VenueSetupFields({ draft, sessionId, onChange, save, accept, run, pending }: Props) {
   const [error, setError] = useState<unknown>()
-  const [document, setDocument] = useState<VenueRulesDocument>()
-  const [pdfUrl, setPdfUrl] = useState('')
   const [parkingIndex, setParkingIndex] = useState<number | null>(null)
   const generated = useRef(new Set<string>())
   const parking = draft.parking_locations ?? []
@@ -41,22 +33,6 @@ export function VenueSetupFields({ draft, sessionId, onChange, save, accept, run
     retry: false,
     refetchOnWindowFocus: false,
   })
-  const pdf = useQuery({
-    queryKey: ['venue-rules-document', sessionId],
-    queryFn: () => getImportRulesDocument(sessionId),
-    retry: false,
-    refetchInterval: (query) =>
-      ['QUEUED', 'PROCESSING'].includes(query.state.data?.extraction_status ?? '') ? 2000 : false,
-  })
-  useEffect(() => {
-    if (pdf.data) setDocument(pdf.data)
-  }, [pdf.data])
-  useEffect(
-    () => () => {
-      if (pdfUrl) URL.revokeObjectURL(pdfUrl)
-    },
-    [pdfUrl],
-  )
   function changeParking(index: number, patch: Partial<ParkingSetupDraft>, inputsChanged = true) {
     onChange({
       ...draft,
@@ -117,26 +93,6 @@ export function VenueSetupFields({ draft, sessionId, onChange, save, accept, run
     return () => clearTimeout(timer)
   }, [fingerprint, pending, parking.map((p) => p.guidance_text ?? '').join('|')])
 
-  async function uploadPdf(files: File[]) {
-    if (pending || !files.length) return
-    const file = files[0]
-    if (files.length !== 1 || !file.name.toLowerCase().endsWith('.pdf') || file.size > 20 * 1024 * 1024) {
-      setError(new Error('Chọn một file PDF, tối đa 20 MiB và 100 trang.'))
-      return
-    }
-    run(async () => {
-      setError(undefined)
-      const saved = await save()
-      const data = await uploadImportRulesDocument(
-        sessionId,
-        { file: new File([file], file.name, { type: 'application/pdf' }) },
-        { revision: saved.revision! },
-      )
-      setDocument(data)
-      if (pdfUrl) setPdfUrl('')
-      await pdf.refetch()
-    })
-  }
   return (
     <div className="venue-setup-sections">
       <VenueLocationPicker
@@ -418,72 +374,7 @@ export function VenueSetupFields({ draft, sessionId, onChange, save, accept, run
       </section>
       <section className="venue-setup-section">
         <h3>Nội quy sân</h3>
-        <div
-          className="venue-import-dropzone"
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => {
-            e.preventDefault()
-            void uploadPdf(Array.from(e.dataTransfer.files))
-          }}
-        >
-          <Field label="File PDF nội quy">
-            <input
-              type="file"
-              accept=".pdf,application/pdf"
-              onChange={(e) => {
-                void uploadPdf(Array.from(e.target.files ?? []))
-                e.target.value = ''
-              }}
-            />
-          </Field>
-          <p>Kéo thả một PDF vào đây, tối đa 20 MiB / 100 trang. PDF scan được OCR tiếng Việt và tiếng Anh.</p>
-        </div>
-        {document && (
-          <>
-            <p>
-              {document.filename} · {document.page_count} trang · {document.extraction_status}
-            </p>
-            {document.error_code && (
-              <p role="alert">Không trích xuất được nội quy: {document.error_code}. Hãy tải lại PDF rõ hơn.</p>
-            )}
-            <Button
-              variant="outline"
-              onClick={() =>
-                run(async () => {
-                  const blob = await downloadImportRulesDocument(sessionId)
-                  setPdfUrl(URL.createObjectURL(blob))
-                })
-              }
-            >
-              Xem PDF gốc
-            </Button>
-            {pdfUrl && <iframe src={pdfUrl} title="PDF nội quy gốc" className="venue-rules-preview" />}
-            {document.extracted_text && (
-              <>
-                <details>
-                  <summary>Xem nội dung trích xuất để rà soát</summary>
-                  <pre className="venue-rules-extracted">{document.extracted_text}</pre>
-                </details>
-                {document.extracted_text_truncated && <p>Nội dung trích xuất đã giới hạn 250.000 ký tự.</p>}
-                <Button
-                  variant="outline"
-                  onClick={() =>
-                    onChange({
-                      ...draft,
-                      venue: {
-                        ...draft.venue,
-                        info: { ...draft.venue?.info, rules: document.extracted_text!.slice(0, 50000) },
-                      },
-                    })
-                  }
-                >
-                  Dùng nội dung đã rà soát làm nội quy công khai
-                </Button>
-              </>
-            )}
-          </>
-        )}
-        <Field label="Nội quy đã duyệt để công khai">
+        <Field label="Nội quy công khai">
           <textarea
             rows={6}
             maxLength={50000}
@@ -493,10 +384,7 @@ export function VenueSetupFields({ draft, sessionId, onChange, save, accept, run
             }
           />
         </Field>
-        <p>Chỉ nội dung bạn duyệt ở ô trên được công khai khi lưu sân. PDF gốc chỉ dành cho admin.</p>
-        <ErrorNotice
-          error={error ?? (pdf.error instanceof ApiError && pdf.error.status === 404 ? undefined : pdf.error)}
-        />
+        <ErrorNotice error={error} />
       </section>
     </div>
   )

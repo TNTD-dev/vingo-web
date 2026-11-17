@@ -805,19 +805,6 @@
   font-size: 14px;
   font-weight: 600;
 }
-.venue-pdf-picker {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 46px;
-  border: 1px dashed var(--vg-border-subtle);
-  border-radius: 10px;
-  padding: 10px 12px;
-  text-align: left;
-}
-.venue-pdf-picker {
-  cursor: pointer;
-}
 .venue-ai-lookup-status {
   display: flex;
   align-items: center;
@@ -854,12 +841,6 @@
   font-size: 13px;
   font-weight: 600;
   overflow-wrap: anywhere;
-}
-.venue-pdf-picker input {
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  opacity: 0;
 }
 .venue-mock-subpanel textarea {
   width: 100%;
@@ -1214,17 +1195,6 @@
   padding: 1rem;
   border: 1px solid var(--vg-border-subtle);
   border-radius: 0.75rem;
-}
-.venue-rules-preview {
-  width: 100%;
-  height: 500px;
-  border: 1px solid var(--vg-border-subtle);
-}
-.venue-rules-extracted {
-  max-height: 300px;
-  overflow: auto;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
 }
 @media (max-width: 600px) {
   .venue-geographic-map {
