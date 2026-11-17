@@ -1,688 +1,707 @@
-import { useState } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, Check, FileText } from 'lucide-react'
+import { OpeningHoursFields } from './OpeningHoursFields'
+import { useEffect, useRef, useState } from 'react'
+import { FileCode2, Upload } from 'lucide-react'
+import { Link, useBlocker, useParams, useSearchParams } from 'react-router'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  createHall,
-  createVenue,
-  importSeatLayoutSvg,
-  publishSeatLayout,
-  updateVenue,
-  useGetSeatLayout,
-} from '@/api/generated/endpoints/admin-catalog/admin-catalog'
-import type { Hall, SeatLayout, Venue, VenueCreateInput } from '@/api/generated/model'
-import { AdminAction, AdminLinkAction } from '@/design/admin/AdminAction'
-import { ConfirmDialog, ErrorNotice, Field, Panel, QueryState } from '@/design/admin/AdminUi'
-import { ChecklistRow, ChoiceCard, ChoiceGroup, LightButton, LightLink, Segmented } from '@/design/admin/wizard'
+  createVenueImport,
+  getVenueImport,
+  listVenueImports,
+  updateVenueImport,
+  uploadVenueImportFiles,
+  deleteVenueImportFile,
+  previewVenueImport,
+  completeVenueImport,
+  cancelVenueImport,
+} from '@/api/generated/endpoints/venue-imports/venue-imports'
+import type {
+  VenueImportDraft,
+  VenueImportSession,
+  VenueImportPreview,
+  VenueImportResult,
+  VenueImportSessionStep,
+  VenueInput,
+} from '@/api/generated/model'
+import { AdminPage, ErrorNotice, Field, Panel, QueryState } from '@/design/admin/AdminUi'
 import { Button } from '@/design/ui/button'
-import { SeatMapView } from '@/seatmap/SeatMapView'
-import { indexSvg, sanitizeSvg } from '@/seatmap/svg'
-import { toast } from 'sonner'
-import { cities, useLayoutDirectory, useLayoutSvg, useVenueDirectory, venueTypes } from './catalog'
-import { parseMapsLink } from './mapsLink'
-import { stepItems, WizardShell } from './WizardShell'
+import { ApiError } from '@/api/problem'
+import { venueTypes } from './catalog'
+import { VenueSetupFields } from './VenueSetupFields'
+import { LayoutPreview } from './LayoutPreview'
+import { VenueWorkspace } from './VenueWorkspace'
+import './venue-console.css'
 
-const STEPS = [
-  { label: 'Thông tin sân', hint: 'Tên, loại, vị trí', doneHint: 'Đã lưu' },
-  { label: 'Hall & sơ đồ ghế', hint: 'Nhập SVG, phát hành' },
-]
-const typeHints: Record<keyof typeof venueTypes, string> = {
-  STADIUM: 'Khán đài nhiều khu, có thể có khu đứng',
-  THEATER: 'Ghế ngồi theo hàng, tầng, ban công',
-  OUTDOOR: 'Chủ yếu khu đứng, sức chứa linh hoạt',
+const steps = ['OVERVIEW', 'LAYOUT', 'PREVIEW', 'DETAILS', 'REVIEW'] as const
+const labels = ['SVG tổng quát', 'Layout & chi tiết', 'Mapping & preview', 'Thông tin sân', 'Kiểm tra & lưu']
+const blank: VenueImportDraft = {
+  overview_name: 'Nền sân',
+  layout_name: '',
+  layout_type: 'FOOTBALL',
+  zone_areas: {},
+  venue: { name: '', type: 'STADIUM', address: '', city: 'HN' },
 }
-const cityOptions = (Object.keys(cities) as (keyof typeof cities)[]).map((value) => ({
-  value,
-  label: value === 'HCM' ? 'TP.HCM' : cities[value],
-}))
+
+const layoutNames = { FOOTBALL: 'Bóng đá', CONCERT: 'Concert' } as const
+
+function inferLayoutType(filename = ''): keyof typeof layoutNames | undefined {
+  const name = filename.replace(/\.svg$/i, '').toLowerCase()
+  const football = /football|bong[ _-]?da|bóng[ _-]?đá/.test(name)
+  const concert = /concert/.test(name)
+  if (football === concert) return undefined
+  return football ? 'FOOTBALL' : 'CONCERT'
+}
 
 export default function VenueWizardPage() {
-  const { venueId } = useParams(),
-    [params] = useSearchParams(),
-    directory = useVenueDirectory()
-  const venue = directory.data?.find((v) => v.id === venueId)
-  const step = !venueId || params.get('step') === '1' ? 1 : 2
-  if (venueId && !venue)
-    return (
-      <QueryState query={directory} empty emptyText="Không tìm thấy sân này.">
-        {null}
-      </QueryState>
-    )
-  return step === 1 ? <VenueInfoStep key={venue?.id ?? 'new'} venue={venue} /> : <VenueLayoutStep venue={venue!} />
-}
-
-function VenueInfoStep({ venue }: { venue?: Venue }) {
-  const navigate = useNavigate(),
-    client = useQueryClient()
-  const [data, setData] = useState<VenueCreateInput>({
-    name: venue?.name ?? '',
-    type: venue?.type ?? 'STADIUM',
-    address: venue?.address ?? '',
-    city: venue?.city ?? 'HCM',
-    district: venue?.district ?? '',
-    info: venue?.info ?? {},
-    lat: venue?.lat,
-    lng: venue?.lng,
-  })
-  const [mapsLink, setMapsLink] = useState(''),
-    [mapsNote, setMapsNote] = useState(''),
-    [convention, setConvention] = useState(false)
-  const valid = !!data.name?.trim() && !!data.address?.trim()
-  const buyerInfo = (['opening_hours', 'parking', 'rules'] as const).filter((k) => String(data.info?.[k] ?? '').trim())
-  const save = useMutation({
-    mutationFn: async (then: 'next' | 'list') => {
-      const body: VenueCreateInput = {
-        ...data,
-        name: data.name.trim(),
-        address: data.address.trim(),
-        district: data.district?.trim() || undefined,
-      }
-      const saved = venue?.id ? await updateVenue(venue.id, body) : await createVenue(body)
-      return { saved, then }
-    },
-    onSuccess: async ({ saved, then }) => {
-      await client.invalidateQueries()
-      toast.success(venue ? 'Đã lưu thông tin sân' : 'Đã tạo sân')
-      navigate(then === 'list' ? '/admin/venues' : `/admin/venues/${saved.id}/setup`)
-    },
-  })
-  const type = data.type as keyof typeof venueTypes
-  return (
-    <WizardShell
-      title={venue ? venue.name! : 'Tạo sân mới'}
-      caption={`// CATALOG · ${venue ? 'SỬA SÂN' : 'SÂN MỚI'} · BƯỚC 1/2`}
-      steps={stepItems(STEPS, 0)}
-      actions={
-        <>
-          <LightButton disabled={!valid || save.isPending} onClick={() => save.mutate('list')}>
-            Lưu nháp
-          </LightButton>
-          <AdminAction disabled={!valid || save.isPending} onClick={() => save.mutate('next')}>
-            {save.isPending ? 'Đang lưu…' : 'Tiếp: Hall & sơ đồ'}
-          </AdminAction>
-        </>
-      }
-    >
-      <div className="wz-grid">
-        <Panel className="wz-panel">
-          <fieldset disabled={save.isPending} className="min-w-0">
-            <section className="wz-section">
-              <h2>Loại địa điểm</h2>
-              <p className="wz-panel-hint">Ảnh hưởng tới gợi ý quy ước sơ đồ ghế (khán đài, khu đứng…)</p>
-              <ChoiceGroup label="Loại địa điểm">
-                {(Object.keys(venueTypes) as (keyof typeof venueTypes)[]).map((t) => (
-                  <ChoiceCard
-                    key={t}
-                    title={venueTypes[t]}
-                    hint={typeHints[t]}
-                    selected={data.type === t}
-                    onSelect={() => setData({ ...data, type: t })}
-                  />
-                ))}
-              </ChoiceGroup>
-            </section>
-            <section className="wz-section">
-              <h2>Tên & vị trí</h2>
-              <div className="wz-fields">
-                <div className="wz-span">
-                  <Field label="Tên sân *">
-                    <input
-                      required
-                      maxLength={200}
-                      value={data.name}
-                      placeholder="VD: Sân vận động Thiên Trường"
-                      onChange={(e) => setData({ ...data, name: e.target.value })}
-                    />
-                  </Field>
-                </div>
-                <div>
-                  <p className="admin-caption mb-2">Thành phố *</p>
-                  <Segmented
-                    label="Thành phố"
-                    options={cityOptions}
-                    value={data.city}
-                    onChange={(city) => setData({ ...data, city })}
-                  />
-                </div>
-                <Field label="Quận / huyện">
-                  <input value={data.district} onChange={(e) => setData({ ...data, district: e.target.value })} />
-                </Field>
-                <div className="wz-span">
-                  <Field label="Địa chỉ *">
-                    <input
-                      required
-                      value={data.address}
-                      placeholder="Số nhà, đường, phường"
-                      onChange={(e) => setData({ ...data, address: e.target.value })}
-                    />
-                  </Field>
-                </div>
-              </div>
-            </section>
-            <section className="wz-section">
-              <details>
-                <summary className="flex cursor-pointer items-center justify-between gap-3">
-                  <span>
-                    <strong className="font-medium">Thông tin cho người mua · tùy chọn</strong>
-                    <small className="wz-panel-hint block">
-                      Giờ mở cửa, hướng dẫn gửi xe, nội quy — hiển thị trên trang sự kiện
-                    </small>
-                  </span>
-                  <span className="wz-chip">{buyerInfo.length}/3</span>
-                </summary>
-                <div className="wz-fields">
-                  <Field label="Giờ mở cửa">
-                    <input
-                      value={String(data.info?.opening_hours ?? '')}
-                      onChange={(e) => setData({ ...data, info: { ...data.info, opening_hours: e.target.value } })}
-                    />
-                  </Field>
-                  <Field label="Hướng dẫn gửi xe">
-                    <input
-                      value={String(data.info?.parking ?? '')}
-                      onChange={(e) => setData({ ...data, info: { ...data.info, parking: e.target.value } })}
-                    />
-                  </Field>
-                  <div className="wz-span">
-                    <Field label="Nội quy">
-                      <textarea
-                        value={String(data.info?.rules ?? '')}
-                        onChange={(e) => setData({ ...data, info: { ...data.info, rules: e.target.value } })}
-                      />
-                    </Field>
-                  </div>
-                </div>
-              </details>
-            </section>
-            <section className="wz-section">
-              <details>
-                <summary className="flex cursor-pointer items-center justify-between gap-3">
-                  <span>
-                    <strong className="font-medium">Tọa độ bản đồ · tùy chọn</strong>
-                    <small className="wz-panel-hint block">Dán link Google Maps để tự điền vĩ độ / kinh độ</small>
-                  </span>
-                  <span className="wz-chip">{data.lat !== undefined && data.lng !== undefined ? '1/1' : '0/1'}</span>
-                </summary>
-                <div className="wz-fields">
-                  <div className="wz-span">
-                    <Field label="Link Google Maps">
-                      <input
-                        value={mapsLink}
-                        placeholder="https://www.google.com/maps/@21.02,105.85,17z"
-                        onChange={(e) => {
-                          const value = e.target.value
-                          setMapsLink(value)
-                          const point = parseMapsLink(value)
-                          if (point) {
-                            setData((d) => ({ ...d, ...point }))
-                            setMapsNote(`Đã điền toạ độ ${point.lat}, ${point.lng}.`)
-                          } else
-                            setMapsNote(
-                              value.trim()
-                                ? 'Không đọc được toạ độ từ link. Link rút gọn (maps.app.goo.gl) không dùng được, hãy mở link rồi sao chép địa chỉ đầy đủ hoặc nhập tay.'
-                                : '',
-                            )
-                        }}
-                      />
-                    </Field>
-                    {mapsNote && <p className="wz-panel-hint">{mapsNote}</p>}
-                  </div>
-                  {(['lat', 'lng'] as const).map((k) => (
-                    <Field key={k} label={k === 'lat' ? 'Vĩ độ' : 'Kinh độ'}>
-                      <input
-                        type="number"
-                        step="any"
-                        min={k === 'lat' ? -90 : -180}
-                        max={k === 'lat' ? 90 : 180}
-                        value={data[k] ?? ''}
-                        onChange={(e) => setData({ ...data, [k]: e.target.value ? Number(e.target.value) : undefined })}
-                      />
-                    </Field>
-                  ))}
-                </div>
-              </details>
-            </section>
-          </fieldset>
-          <ErrorNotice error={save.error} />
-        </Panel>
-        <div className="wz-stack wz-sticky">
-          <Panel className="wz-panel">
-            <p className="admin-caption mb-3">Xem trước thẻ sân</p>
-            <div className="wz-preview">
-              <div className="wz-preview-cover">
-                <span className="wz-chip" data-tone="dark" style={{ position: 'absolute', top: 12, left: 12 }}>
-                  {data.type}
-                </span>
-                Ảnh sân lấy từ poster sự kiện đầu tiên
-              </div>
-              <h2>{data.name?.trim() || 'Tên sân'}</h2>
-              <p className="wz-venue-meta">
-                {cities[data.city]}
-                {data.district ? ` · ${data.district}` : ''}
-              </p>
-              <p className="admin-caption">
-                {venue?.halls?.length ?? 0} hall · {type ? venueTypes[type] : ''}
-              </p>
-            </div>
-          </Panel>
-          <Panel className="wz-panel">
-            <h2>Để sân dùng được cho suất diễn</h2>
-            <p className="wz-panel-hint mb-4">3 việc, khoảng 5 phút</p>
-            <ChecklistRow
-              status={valid ? 'ok' : 'todo'}
-              title="Thông tin sân"
-              hint="Tên, loại, thành phố, địa chỉ đã hợp lệ"
-            />
-            <ChecklistRow
-              status={venue?.halls?.length ? 'ok' : 'todo'}
-              title="Ít nhất 1 hall"
-              hint="Ví dụ: Sân chính, Khán đài B"
-            />
-            <ChecklistRow
-              status="todo"
-              title="Sơ đồ ghế đã phát hành"
-              hint="SVG theo quy ước ZONE__<mã>__<loại>"
-              action={
-                <button type="button" onClick={() => setConvention((v) => !v)}>
-                  Xem quy ước
-                </button>
-              }
-            />
-            {convention && <Convention />}
-          </Panel>
-        </div>
-      </div>
-    </WizardShell>
-  )
-}
-
-function Convention() {
-  return (
-    <p className="admin-notice mt-3">
-      Giữ nguyên toạ độ và hình học bản vẽ. Dùng ID <code>ZONE__MÃ__SEATED</code> cho khu ngồi,{' '}
-      <code>ZONE__MÃ__STANDING__SỨC_CHỨA</code> cho khu đứng và <code>SEAT__MÃ__HÀNG__SỐ</code> cho ghế. Mỗi lần nhập
-      tạo một phiên bản nháp mới.
-    </p>
-  )
-}
-
-/** Chọn bản sơ đồ đang làm việc: bản nháp mới nhất, nếu không có thì bản phát hành mới nhất. */
-function currentLayout(layouts: SeatLayout[] | undefined): SeatLayout | undefined {
-  if (!layouts?.length) return undefined
-  const byVersion = [...layouts].sort((a, b) => (b.version ?? 0) - (a.version ?? 0))
-  return byVersion.find((l) => l.status === 'DRAFT') ?? byVersion[0]
-}
-
-function VenueLayoutStep({ venue }: { venue: Venue }) {
-  const navigate = useNavigate(),
-    client = useQueryClient(),
-    [params, setParams] = useSearchParams()
-  const [hallId, setHallId] = useState(venue.halls?.[0]?.id ?? ''),
-    [hallName, setHallName] = useState(''),
-    [file, setFile] = useState<File | null>(null),
-    [preview, setPreview] = useState(''),
-    [fileError, setFileError] = useState(''),
-    [confirm, setConfirm] = useState(false)
-  const layouts = useLayoutDirectory(hallId)
-  const layout = currentLayout(layouts.data)
-  const id = layout?.id ?? ''
-  const detail = useGetSeatLayout(id, { query: { enabled: !!id } }),
-    svg = useLayoutSvg(id)
-  const hall = venue.halls?.find((h) => h.id === hallId)
-  const done = params.get('done') === '1'
-  const zones = detail.data?.zones ?? []
-  const emptyZones = zones.filter((z) => z.capacity === 0)
-
-  const addHall = useMutation({
-    mutationFn: () => createHall(venue.id!, { name: hallName.trim() }),
-    onSuccess: async (h) => {
-      setHallName('')
-      await client.invalidateQueries()
-      if (h.id) setHallId(h.id)
-      toast.success('Đã thêm hall')
-    },
-  })
-  const importLayout = useMutation({
-    mutationFn: () => importSeatLayoutSvg(hallId, { file: file!, name: file!.name.replace(/\.svg$/i, '') }),
-    onSuccess: async () => {
-      setFile(null)
-      setPreview('')
-      await client.invalidateQueries()
-      toast.success('Đã nhập sơ đồ nháp')
-    },
-  })
-  const publish = useMutation({
-    mutationFn: () => publishSeatLayout(id),
-    onSuccess: async () => {
-      setConfirm(false)
-      await client.invalidateQueries()
-      toast.success('Đã phát hành sơ đồ')
-      setParams({ step: '2', done: '1' })
-    },
-  })
-
-  async function chooseFile(candidate?: File) {
-    setFile(null)
-    setPreview('')
-    setFileError('')
-    importLayout.reset()
-    if (!candidate) return
-    if (candidate.size > 10 * 1024 * 1024) return setFileError('File SVG tối đa 10 MiB.')
-    const clean = sanitizeSvg(await candidate.text())
-    if (!clean || !indexSvg(clean).zones.length)
-      return setFileError('SVG phải có các khu ZONE__ theo quy ước sơ đồ Vingo.')
-    setFile(candidate)
-    setPreview(clean)
-  }
-
-  if (done)
-    return (
-      <VenueDone
-        venue={venue}
-        layout={layout}
-        zoneCount={zones.length}
-        seatCount={detail.data?.seat_count}
-        emptyZones={emptyZones.map((z) => z.code)}
-        onImport={() => setParams({ step: '2' })}
-      />
-    )
-
-  const published = layout?.status === 'PUBLISHED'
-  const primary = !hall ? (
-    <AdminAction disabled>Thêm hall trước</AdminAction>
-  ) : file ? (
-    <AdminAction disabled={importLayout.isPending} onClick={() => importLayout.mutate()}>
-      {importLayout.isPending ? 'Đang nhập…' : 'Nhập sơ đồ'}
-    </AdminAction>
-  ) : layout && !published ? (
-    <AdminAction
-      onClick={() => {
-        publish.reset()
-        setConfirm(true)
-      }}
-    >
-      Phát hành sơ đồ v{layout.version}
-    </AdminAction>
-  ) : published ? (
-    <AdminAction onClick={() => setParams({ step: '2', done: '1' })}>Hoàn tất</AdminAction>
+  const { venueId } = useParams()
+  const [params] = useSearchParams()
+  return venueId && !params.has('import') && !params.has('session') ? (
+    <VenueWorkspace venueId={venueId} />
   ) : (
-    <AdminAction disabled>Chọn tệp SVG</AdminAction>
+    <ImportWizard key={params.get('session') ?? 'new'} venueId={venueId} />
   )
-  return (
-    <WizardShell
-      title="Hall & sơ đồ ghế"
-      caption={`// ${venue.name?.toUpperCase()} · BƯỚC 2/2`}
-      steps={stepItems(STEPS, 1)}
-      onSelectStep={(i) => i === 0 && setParams({ step: '1' })}
-      actions={
-        <>
-          <LightButton back onClick={() => navigate(`/admin/venues/${venue.id}/setup?step=1`)}>
-            Quay lại
-          </LightButton>
-          <LightButton onClick={() => navigate('/admin/venues')}>Lưu nháp</LightButton>
-          {primary}
-        </>
+}
+
+function ImportWizard({ venueId }: { venueId?: string }) {
+  const [params, setParams] = useSearchParams()
+  const client = useQueryClient()
+  const [session, setSession] = useState<VenueImportSession>()
+  const [draft, setDraft] = useState<VenueImportDraft>(blank)
+  const [step, setStep] = useState<VenueImportSessionStep>('DETAILS')
+  const [preview, setPreview] = useState<VenueImportPreview>()
+  const [result, setResult] = useState<VenueImportResult>()
+  const [baseline, setBaseline] = useState(JSON.stringify(blank))
+  const [uploading, setUploading] = useState<{ overview: boolean; names: string[] }>()
+  const [fileError, setFileError] = useState('')
+  const lock = useRef(false)
+  const dirty = JSON.stringify(draft) !== baseline
+  const blocker = useBlocker(dirty)
+  const sessionId = params.get('session')
+  const load = useQuery({
+    queryKey: ['venue-import', sessionId],
+    queryFn: () => getVenueImport(sessionId!),
+    enabled: !!sessionId,
+    retry: false,
+    refetchOnWindowFocus: false,
+  })
+  const drafts = useQuery({ queryKey: ['venue-import-drafts'], queryFn: () => listVenueImports({ limit: 100 }) })
+  function accept(s: VenueImportSession) {
+    setSession(s)
+    setDraft(s.draft_data ?? blank)
+    setBaseline(JSON.stringify(s.draft_data ?? blank))
+    setStep(s.step ?? 'OVERVIEW')
+    setPreview(undefined)
+    setResult(s.result)
+  }
+  useEffect(() => {
+    if (load.data) accept(load.data)
+  }, [load.data])
+  useEffect(() => {
+    if (!dirty) return
+    const stop = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', stop)
+    return () => window.removeEventListener('beforeunload', stop)
+  }, [dirty])
+  const action = useMutation({
+    mutationFn: async (work: () => Promise<void>) => {
+      try {
+        await work()
+      } finally {
+        lock.current = false
       }
+    },
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['venue-import-drafts'] })
+    },
+  })
+  const run = (work: () => Promise<void>) => {
+    if (lock.current) return
+    lock.current = true
+    action.mutate(work)
+  }
+  async function save(next = step, nextDraft = draft) {
+    if (!session?.id || session.revision === undefined) throw new Error('Hãy tạo hoặc mở phiên nháp trước.')
+    const s = await updateVenueImport(session.id, {
+      revision: session.revision,
+      step: next,
+      draft_data: withFileTypes(nextDraft),
+    })
+    accept(s)
+    return s
+  }
+  function change(next: VenueImportDraft) {
+    setDraft(next)
+    setPreview(undefined)
+  }
+  function venueField<K extends keyof VenueInput>(key: K, value: VenueInput[K]) {
+    change({ ...draft, venue: { ...draft.venue, [key]: value } })
+  }
+  const files = session?.files ?? []
+  const overview = files.find((f) => f.role === 'OVERVIEW')?.sanitized_svg
+  const index = step === 'DETAILS' ? 0 : 1
+  const venueReady = !!venueId || !!(draft.venue?.name?.trim() && draft.venue?.location?.display_address?.trim())
+  const overviewReady = !!overview || !!session?.draft_data?.overview_id
+  const detailFiles = files.filter((file) => file.role === 'SEAT_LAYOUT')
+  const typeFor = (fileId?: string) =>
+    draft.file_layout_types?.[fileId ?? ''] ??
+    inferLayoutType(detailFiles.find((file) => file.id === fileId)?.original_filename)
+  const layoutTypes = Object.keys(layoutNames).filter((type) =>
+    detailFiles.some((file) => typeFor(file.id) === type),
+  ) as (keyof typeof layoutNames)[]
+  const activeLayout = layoutTypes.find((type) => type === draft.layout_type) ?? layoutTypes[0]
+  const readyToCheck =
+    !!overviewReady &&
+    detailFiles.length > 0 &&
+    files.every((file) => file.validation_status === 'VALIDATED') &&
+    detailFiles.every((file) => !!typeFor(file.id))
+
+  function withFileTypes(nextDraft: VenueImportDraft): VenueImportDraft {
+    const fileTypes: NonNullable<VenueImportDraft['file_layout_types']> = {}
+    for (const file of detailFiles) {
+      const type = typeFor(file.id)
+      if (file.id && type) fileTypes[file.id] = type
+    }
+    return {
+      ...nextDraft,
+      file_layout_types: fileTypes,
+      layout_type: layoutTypes.find((type) => type === nextDraft.layout_type) ?? activeLayout ?? nextDraft.layout_type,
+    }
+  }
+  const canNext = readyToCheck && preview?.valid !== false
+  function assignType(fileId: string, type: NonNullable<VenueImportDraft['layout_type']>) {
+    change({
+      ...draft,
+      layout_type: type,
+      zone_areas: {},
+      file_layout_types: { ...draft.file_layout_types, [fileId]: type },
+    })
+  }
+  function uploadFiles(chosen: File[], isOverview: boolean) {
+    if (lock.current || !chosen.length) return
+    setFileError('')
+    if (isOverview ? overviewReady : !overviewReady) return
+    if (
+      (isOverview && chosen.length !== 1) ||
+      chosen.length > 32 ||
+      chosen.some((f) => !f.name.toLowerCase().endsWith('.svg') || f.size > 10 * 1024 * 1024) ||
+      chosen.reduce((n, f) => n + f.size, 0) > 10 * 1024 * 1024
+    ) {
+      setFileError(isOverview ? 'Chọn một tệp SVG nền, tối đa 10 MiB.' : 'Chọn tối đa 32 tệp SVG, tổng tối đa 10 MiB.')
+      return
+    }
+    setUploading({ overview: isOverview, names: chosen.map((file) => file.name) })
+    run(async () => {
+      try {
+        const nextDraft = isOverview ? { ...draft, overview_name: chosen[0].name.slice(0, 200) } : draft
+        const s = await updateVenueImport(session!.id!, {
+          revision: session!.revision!,
+          step,
+          draft_data: withFileTypes(nextDraft),
+        })
+        accept(s)
+        accept(
+          await uploadVenueImportFiles(s.id!, {
+            revision: s.revision!,
+            files: chosen.map((f) => new File([f], f.name, { type: 'image/svg+xml' })),
+          }),
+        )
+      } finally {
+        setUploading(undefined)
+      }
+    })
+  }
+  async function validate(type: keyof typeof layoutNames) {
+    const nextDraft = draft.layout_type === type ? draft : { ...draft, layout_type: type, zone_areas: {} }
+    const s = await save(step, nextDraft)
+    setPreview(await previewVenueImport(s.id!, { revision: s.revision! }))
+  }
+  async function finish() {
+    const current = await getVenueImport(session!.id!)
+    if (current.result) {
+      accept(current)
+      return
+    }
+    const s = await save()
+    const p = await previewVenueImport(s.id!, { revision: s.revision! })
+    setPreview(p)
+    if (!p.valid) {
+      setStep('PREVIEW')
+      return
+    }
+    try {
+      setResult(await completeVenueImport(s.id!, { revision: s.revision! }))
+    } catch (error) {
+      const recovered = await getVenueImport(s.id!).catch(() => undefined)
+      if (recovered?.result) accept(recovered)
+      else throw error
+    }
+    await client.invalidateQueries({ queryKey: ['admin-venue-directory'] })
+    await client.invalidateQueries({ queryKey: ['admin-layout-directory'] })
+  }
+  return (
+    <AdminPage
+      title={venueId ? 'Thêm layout cho sân' : 'Tạo sân từ SVG'}
+      caption="THÔNG TIN SÂN → SƠ ĐỒ, LAYOUT & LƯU"
+      actions={<Link to={venueId ? `/admin/venues/${venueId}/setup` : '/admin/venues'}>Quay về danh sách</Link>}
     >
-      <div className="wz-grid wz-grid-side-left">
-        <Panel className="wz-panel">
-          <p className="admin-caption mb-3">Hall / khu vực</p>
-          {venue.halls?.map((h) => (
-            <HallItem key={h.id} hall={h} current={h.id === hallId} onSelect={() => setHallId(h.id!)} />
-          ))}
-          <form
-            className="mt-3 flex gap-2"
-            onSubmit={(e) => {
-              e.preventDefault()
-              if (hallName.trim()) addHall.mutate()
-            }}
-          >
-            <input
-              aria-label="Tên hall mới"
-              className="admin-input flex-1"
-              maxLength={200}
-              placeholder="Tên hall mới…"
-              value={hallName}
-              onChange={(e) => setHallName(e.target.value)}
-            />
-            <Button disabled={!hallName.trim() || addHall.isPending} className="admin-small-button">
-              Thêm
+      <div className="venue-import-shell">
+        {!sessionId && !session && (
+          <Panel className="venue-card space-y-4">
+            <h2>Bắt đầu từ thông tin sân</h2>
+            <p>Nháp lưu trên server trong 30 ngày. Tệp nền và chi tiết dùng cùng viewBox; mỗi lần tải tối đa 10 MiB.</p>
+            <Button
+              disabled={action.isPending}
+              onClick={() =>
+                run(async () => {
+                  const s = await createVenueImport(venueId ? { target_venue_id: venueId } : {})
+                  const initial = await updateVenueImport(s.id!, { revision: s.revision!, step: 'DETAILS' })
+                  accept(initial)
+                  client.setQueryData(['venue-import', initial.id], initial)
+                  setParams({ session: s.id! }, { replace: true })
+                })
+              }
+            >
+              Tạo phiên nháp
             </Button>
-          </form>
-          <ErrorNotice error={addHall.error} />
-          <p className="wz-soft mt-3">
-            Mỗi hall có các phiên bản sơ đồ riêng. Suất diễn chọn hall + một sơ đồ đã phát hành.
-          </p>
-        </Panel>
-        <Panel className="wz-panel">
-          {!hall ? (
-            <p className="admin-notice">Thêm hall để nhập phiên bản sơ đồ đầu tiên.</p>
-          ) : (
-            <QueryState query={layouts}>
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <h2>{layout ? `Sơ đồ v${layout.version} · ${hall.name}` : `Sơ đồ · ${hall.name}`}</h2>
-                {layout && (
-                  <span className="wz-chip" data-tone={published ? 'success' : 'warning'}>
-                    {published ? 'Đã phát hành' : 'Bản nháp'}
-                  </span>
-                )}
-              </div>
-              <div className="wz-drop" data-active={!!file}>
-                <FileText aria-hidden />
-                <div className="min-w-0 flex-1">
-                  <strong className="block truncate font-medium">
-                    {file?.name ?? (layout ? layout.name : 'Chưa có tệp SVG')}
-                  </strong>
-                  <small className="wz-panel-hint">
-                    {file
-                      ? `${(file.size / 1024 / 1024).toFixed(1)} MB · chưa nhập`
-                      : 'Chọn tệp SVG để nhập thành phiên bản nháp mới · tối đa 10 MiB'}
-                  </small>
-                </div>
-                {preview && <span className="wz-chip">{indexSvg(preview).zones.length} khu</span>}
-                {!preview && layout && <span className="wz-chip">{zones.length} khu</span>}
-                {!preview && layout && (
-                  <span className="wz-chip" data-tone="success">
-                    {(detail.data?.seat_count ?? 0).toLocaleString('vi-VN')} ghế
-                  </span>
-                )}
-                {!!emptyZones.length && !preview && (
-                  <span className="wz-chip" data-tone="warning">
-                    {emptyZones.length} cảnh báo
-                  </span>
-                )}
-                <label className="admin-small-button inline-flex cursor-pointer items-center bg-surface">
-                  {layout || file ? 'Chọn tệp khác' : 'Chọn tệp'}
-                  <input
-                    type="file"
-                    accept=".svg,image/svg+xml"
-                    className="sr-only"
-                    aria-label="Tệp SVG sơ đồ"
-                    disabled={importLayout.isPending}
-                    onChange={(e) => void chooseFile(e.target.files?.[0])}
-                  />
-                </label>
-              </div>
-              {fileError && (
-                <p role="alert" className="admin-error mt-3">
-                  {fileError}
-                </p>
-              )}
-              <div className="mt-4 h-[360px] overflow-hidden rounded-xl bg-canvas">
-                {preview ? (
-                  <SeatMapView
-                    svg={preview}
-                    zones={Object.fromEntries(
-                      indexSvg(preview).zones.map((z) => [z.code, { tier: 1, soldOut: false }]),
-                    )}
-                    selected={new Set()}
-                    onZoneClick={() => {}}
-                    onSeatClick={() => {}}
-                    className="h-full"
-                  />
-                ) : layout && svg.data ? (
-                  <SeatMapView
-                    svg={svg.data}
-                    zones={Object.fromEntries(
-                      zones.map((z) => [z.code, z.capacity === 0 ? { soldOut: true } : { tier: 1, soldOut: false }]),
-                    )}
-                    selected={new Set()}
-                    onZoneClick={() => {}}
-                    onSeatClick={() => {}}
-                    className="h-full"
-                  />
-                ) : (
-                  <p className="grid h-full place-items-center px-6 text-center text-ink-tertiary">
-                    {layout ? 'Đang tải sơ đồ…' : 'Chưa có sơ đồ. Chọn tệp SVG theo quy ước để xem trước tại đây.'}
-                  </p>
-                )}
-              </div>
-              <div className="mt-4 grid gap-3">
-                {preview && (
-                  <div className="wz-callout">
-                    <Check className="text-success" aria-hidden />
-                    <div>
-                      <strong>{indexSvg(preview).zones.length} khu đọc được từ tệp</strong>
-                      <small>Bấm “Nhập sơ đồ” để tạo phiên bản nháp trên hệ thống.</small>
-                    </div>
-                  </div>
-                )}
-                {!preview && !!emptyZones.length && (
-                  <div className="wz-callout" data-tone="warning">
-                    <AlertTriangle className="wz-warn-text" aria-hidden />
-                    <div>
-                      <strong>
-                        {emptyZones.length} khu chưa có sức chứa: {emptyZones.map((z) => z.code).join(', ')}
-                      </strong>
-                      <small>Khu không có ghế sẽ không bán được. Kiểm tra mã ghế trong SVG.</small>
-                    </div>
-                  </div>
-                )}
-                {!preview && !!zones.length && (
-                  <div className="wz-callout">
-                    <Check className="text-success" aria-hidden />
-                    <div>
-                      <strong>
-                        {zones.length - emptyZones.length} khu, {(detail.data?.seat_count ?? 0).toLocaleString('vi-VN')}{' '}
-                        ghế đọc được
-                      </strong>
-                      <small>Có thể phát hành; khu lỗi sẽ không được bán.</small>
-                    </div>
-                  </div>
-                )}
-                <p className="wz-note">
-                  Sau khi phát hành, sơ đồ v{layout?.version ?? 1} bị khóa. Muốn chỉnh sửa → nhập SVG mới thành bản kế
-                  tiếp; suất đã gắn bản cũ không bị ảnh hưởng.
-                </p>
-              </div>
-              <ErrorNotice error={importLayout.error ?? layouts.error ?? detail.error} />
+            <QueryState query={drafts} empty={!drafts.data?.data?.length} emptyText="Chưa có phiên nháp.">
+              <ul>
+                {drafts.data?.data
+                  ?.filter((s) => (s.target_venue_id ?? undefined) === venueId)
+                  .map((s) => (
+                    <li key={s.id}>
+                      <Link to={`?session=${s.id}`}>
+                        Mở lại: {s.draft_data?.layout_name || s.draft_data?.venue?.name || 'Nháp chưa đặt tên'} ·{' '}
+                        {labels[steps.indexOf(s.step ?? 'OVERVIEW')]}
+                      </Link>
+                    </li>
+                  ))}
+              </ul>
             </QueryState>
-          )}
-        </Panel>
-      </div>
-      {confirm && layout && (
-        <ConfirmDialog
-          open
-          title={`Phát hành sơ đồ v${layout.version}?`}
-          description="Sau khi phát hành, hình học sơ đồ được cố định và dùng được cho suất diễn. Muốn thay đổi ghế, hãy nhập một phiên bản mới."
-          requireReason={false}
-          label="Phát hành"
-          pending={publish.isPending}
-          error={publish.error}
-          onClose={() => setConfirm(false)}
-          onConfirm={() => publish.mutate()}
-        />
-      )}
-    </WizardShell>
-  )
-}
-
-function HallItem({ hall, current, onSelect }: { hall: Hall; current: boolean; onSelect: () => void }) {
-  const layouts = useLayoutDirectory(hall.id!)
-  const layout = currentLayout(layouts.data)
-  return (
-    <button type="button" className="wz-hall" aria-current={current} onClick={onSelect}>
-      <span className="flex items-center justify-between gap-2">
-        <strong className="font-medium">{hall.name}</strong>
-        {!layouts.isPending && !layout && (
-          <span className="wz-chip" data-tone="warning">
-            Trống
-          </span>
+          </Panel>
         )}
-      </span>
-      <small>
-        {layouts.isPending
-          ? 'Đang tải…'
-          : !layout
-            ? 'Chưa có sơ đồ'
-            : layout.status === 'PUBLISHED'
-              ? `Sơ đồ v${layout.version} đã phát hành`
-              : `Đang nhập sơ đồ v${layout.version}`}
-      </small>
-    </button>
-  )
-}
-
-function VenueDone({
-  venue,
-  layout,
-  zoneCount,
-  seatCount,
-  emptyZones,
-  onImport,
-}: {
-  venue: Venue
-  layout?: SeatLayout
-  zoneCount: number
-  seatCount?: number
-  emptyZones: string[]
-  onImport: () => void
-}) {
-  return (
-    <WizardShell
-      title={venue.name ?? 'Sân'}
-      caption="// CATALOG · SÂN MỚI · HOÀN TẤT"
-      steps={stepItems(STEPS, 2, true)}
-      actions={<LightButton onClick={onImport}>Nhập sơ đồ SVG</LightButton>}
-    >
-      <section className="wz-done">
-        <span className="wz-done-mark">
-          <Check size={32} strokeWidth={3} aria-hidden />
-        </span>
-        <h2>Sân đã sẵn sàng</h2>
-        <p className="text-ink-secondary">{venue.name} có thể được chọn khi tạo suất diễn.</p>
-        <div className="wz-done-stats">
-          {[
-            [venue.halls?.length ?? 0, 'Hall'],
-            [layout ? `v${layout.version}` : '—', 'Sơ đồ'],
-            [zoneCount - emptyZones.length, 'Khu bán được'],
-            [(seatCount ?? 0).toLocaleString('vi-VN'), 'Ghế'],
-          ].map(([value, label]) => (
-            <div key={label} className="wz-stat">
-              <strong>{value}</strong>
-              <small>{label}</small>
-            </div>
-          ))}
-        </div>
-        {!!emptyZones.length && (
-          <div className="wz-callout w-full text-left" data-tone="warning">
-            <AlertTriangle className="wz-warn-text" aria-hidden />
-            <div>
-              <strong>
-                {emptyZones.length} khu không bán được: {emptyZones.join(', ')}
-              </strong>
-              <small>Khu chưa có sức chứa. Nhập sơ đồ v{(layout?.version ?? 1) + 1} để mở bán các khu này.</small>
-            </div>
+        {sessionId && !session && <QueryState query={load}>{null}</QueryState>}
+        {session && (
+          <>
+            <p role="status">
+              {action.isPending ? 'Đang xử lý…' : dirty ? 'Có thay đổi chưa lưu' : 'Đã lưu nháp trên server'} · revision{' '}
+              {session.revision}
+            </p>
+            {result ? (
+              <Panel className="venue-card space-y-4">
+                <h2>Đã lưu sân và layout nháp</h2>
+                <p>Dữ liệu đã lưu đầy đủ. Kiểm tra và phát hành trong màn quản lý sân.</p>
+                <Link to={`/admin/venues/${result.venue_id}/setup?layout=${result.layout_id}`}>
+                  Mở layout vừa tạo →
+                </Link>
+              </Panel>
+            ) : session.status !== 'DRAFT' ? (
+              <p>Phiên đã hủy. Hãy tạo phiên mới.</p>
+            ) : (
+              <>
+                <nav className="venue-import-steps" aria-label="Các bước nhập sân">
+                  {['Thông tin sân', 'Sơ đồ, layout & lưu'].map((label, i) => (
+                    <Button
+                      key={label}
+                      variant={i === index ? 'default' : 'outline'}
+                      aria-current={i === index ? 'step' : undefined}
+                      disabled={action.isPending || (i === 1 && !venueReady)}
+                      onClick={() =>
+                        run(async () => {
+                          await save(i === 0 ? 'DETAILS' : 'OVERVIEW')
+                        })
+                      }
+                    >
+                      {i + 1}. {label}
+                    </Button>
+                  ))}
+                </nav>
+                <fieldset disabled={action.isPending} className="venue-import-fieldset">
+                  <Panel className="venue-card space-y-4">
+                    <h2>
+                      {index + 1}. {index === 0 ? 'Thông tin sân' : 'Sơ đồ, layout & lưu'}
+                    </h2>
+                    {index === 1 && (
+                      <>
+                        <div className="venue-svg-stack">
+                          {[true, false].map((isOverview) => {
+                            const sectionFiles = files.filter((file) => (file.role === 'OVERVIEW') === isOverview)
+                            const canUpload = isOverview ? !overviewReady : !!overviewReady
+                            return (
+                              <section
+                                key={String(isOverview)}
+                                className={`venue-svg-section ${isOverview ? '' : 'venue-svg-section-detail'}`}
+                                onDragOver={(e) => {
+                                  e.preventDefault()
+                                  e.dataTransfer.dropEffect = canUpload ? 'copy' : 'none'
+                                }}
+                                onDrop={(e) => {
+                                  e.preventDefault()
+                                  if (canUpload) uploadFiles(Array.from(e.dataTransfer.files), isOverview)
+                                }}
+                              >
+                                <header className="venue-svg-heading">
+                                  <div>
+                                    <h3>{isOverview ? 'SVG tổng quan' : 'Layout zone/ghế'}</h3>
+                                    <p>
+                                      {isOverview
+                                        ? 'Nền dùng chung cho các layout bên dưới.'
+                                        : 'Mỗi loại layout dùng một hoặc nhiều tệp SVG.'}
+                                    </p>
+                                  </div>
+                                  {!isOverview && detailFiles.length > 0 && (
+                                    <span className="venue-svg-tag">
+                                      {detailFiles.length} tệp · {layoutTypes.length} loại
+                                    </span>
+                                  )}
+                                </header>
+                                {canUpload && (
+                                  <label className="venue-svg-chooser">
+                                    <Upload size={17} aria-hidden="true" />
+                                    <span>
+                                      {sectionFiles.length
+                                        ? 'Thêm SVG zone/ghế'
+                                        : isOverview
+                                          ? 'Chọn SVG tổng quan'
+                                          : 'Chọn SVG zone/ghế'}
+                                    </span>
+                                    <small>hoặc kéo thả vào đây</small>
+                                    <input
+                                      className="sr-only"
+                                      type="file"
+                                      accept=".svg,image/svg+xml"
+                                      multiple={!isOverview}
+                                      aria-label={isOverview ? 'Tệp SVG nền' : 'Tệp SVG zone/ghế'}
+                                      onChange={(e) => {
+                                        uploadFiles(Array.from(e.target.files ?? []), isOverview)
+                                        e.target.value = ''
+                                      }}
+                                    />
+                                  </label>
+                                )}
+                                {!isOverview && !canUpload && (
+                                  <p className="venue-svg-hint">Tải SVG tổng quan để mở phần này.</p>
+                                )}
+                                {(sectionFiles.length > 0 || uploading?.overview === isOverview) && (
+                                  <ul
+                                    className="venue-svg-files"
+                                    aria-label={isOverview ? 'Tệp nền đã chọn' : 'Tệp zone/ghế đã chọn'}
+                                  >
+                                    {uploading?.overview === isOverview &&
+                                      uploading.names.map((name, fileIndex) => (
+                                        <li key={fileIndex} className="venue-svg-row" role="status">
+                                          {name} · Đang tải…
+                                        </li>
+                                      ))}
+                                    {sectionFiles.map((file) => (
+                                      <li key={file.id} className="venue-svg-file">
+                                        <div className="venue-svg-row">
+                                          <FileCode2 size={18} aria-hidden="true" />
+                                          <div className="venue-svg-filename">
+                                            <strong>{file.original_filename}</strong>
+                                            <small>
+                                              {file.validation_status === 'VALIDATED' ? 'Hợp lệ' : 'Cần kiểm tra tệp'}
+                                            </small>
+                                          </div>
+                                          {!isOverview && file.role === 'SEAT_LAYOUT' && (
+                                            <select
+                                              aria-label={`Loại layout — ${file.original_filename}`}
+                                              value={typeFor(file.id) ?? ''}
+                                              onChange={(e) => {
+                                                const type = e.target.value
+                                                if (type === 'FOOTBALL' || type === 'CONCERT')
+                                                  assignType(file.id!, type)
+                                              }}
+                                            >
+                                              <option value="" disabled>
+                                                Chọn loại
+                                              </option>
+                                              <option value="FOOTBALL">Bóng đá</option>
+                                              <option value="CONCERT">Concert</option>
+                                            </select>
+                                          )}
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            aria-label={`Bỏ tệp ${file.original_filename}`}
+                                            onClick={() =>
+                                              run(async () => {
+                                                const saved = await save()
+                                                accept(
+                                                  await deleteVenueImportFile(saved.id!, file.id!, {
+                                                    revision: saved.revision!,
+                                                  }),
+                                                )
+                                              })
+                                            }
+                                          >
+                                            Bỏ tệp
+                                          </Button>
+                                        </div>
+                                        {file.issues?.map((issue, i) => (
+                                          <p className="venue-svg-file-error" role="alert" key={i}>
+                                            {issue.message || issue.reason}
+                                          </p>
+                                        ))}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </section>
+                            )
+                          })}
+                        </div>
+                        {fileError && <p role="alert">{fileError}</p>}
+                      </>
+                    )}
+                    {index === 1 && (
+                      <>
+                        {overview && layoutTypes.length === 0 && (
+                          <section className="venue-svg-section">
+                            <h3 className="font-semibold">Xem trước SVG tổng quan</h3>
+                            <LayoutPreview overview={overview} details={[]} label="Tổng quan" />
+                            <OverviewSummary svg={overview} />
+                          </section>
+                        )}
+                        {overview &&
+                          layoutTypes.map((type) => {
+                            const sources = detailFiles.filter((file) => typeFor(file.id) === type)
+                            const checked = activeLayout === type ? preview : undefined
+                            return (
+                              <section className="venue-svg-section" key={type}>
+                                <header className="venue-svg-heading">
+                                  <div>
+                                    <h3>{layoutNames[type]}</h3>
+                                    <p>{sources.length} tệp zone/ghế · Cùng SVG tổng quan</p>
+                                  </div>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={!readyToCheck}
+                                    onClick={() => run(() => validate(type))}
+                                  >
+                                    Kiểm tra sơ đồ
+                                  </Button>
+                                </header>
+                                <LayoutPreview
+                                  overview={checked?.overview_svg ?? overview}
+                                  details={
+                                    checked?.detail_svg
+                                      ? [checked.detail_svg]
+                                      : sources.flatMap((file) => (file.sanitized_svg ? [file.sanitized_svg] : []))
+                                  }
+                                  label={layoutNames[type]}
+                                />
+                                {checked && (
+                                  <div className="venue-svg-check space-y-2">
+                                    <p>
+                                      {checked.gates?.length ?? 0} cổng · {checked.areas?.length ?? 0} vùng nền ·{' '}
+                                      {checked.zones?.length ?? 0} zone ·{' '}
+                                      {checked.zones?.reduce((total, zone) => total + zone.seat_count, 0) ?? 0} ghế ·{' '}
+                                      {checked.zones?.reduce(
+                                        (total, zone) => total + (zone.kind === 'STANDING' ? zone.capacity : 0),
+                                        0,
+                                      ) ?? 0}{' '}
+                                      chỗ đứng
+                                    </p>
+                                    {(checked.zones?.length ?? 0) > 0 && (
+                                      <details className="venue-svg-details">
+                                        <summary>Chỉnh vùng nền theo zone</summary>
+                                        <div className="venue-setup-fields">
+                                          {checked.zones?.map((z) => (
+                                            <Field
+                                              key={z.code}
+                                              label={`${z.code} · ${z.kind === 'SEATED' ? `${z.seat_count} ghế` : `${z.capacity} chỗ đứng`}`}
+                                            >
+                                              <select
+                                                value={draft.zone_areas?.[z.code] ?? checked.zone_areas?.[z.code] ?? ''}
+                                                onChange={(e) => {
+                                                  const mapping = { ...checked.zone_areas, ...draft.zone_areas }
+                                                  if (e.target.value) mapping[z.code] = e.target.value
+                                                  else delete mapping[z.code]
+                                                  setDraft({ ...draft, zone_areas: mapping })
+                                                  setPreview({ ...checked, valid: false })
+                                                }}
+                                              >
+                                                <option value="">Tự nhận diện vùng chứa</option>
+                                                {checked.areas?.map((a) => (
+                                                  <option value={a.code} key={a.code}>
+                                                    {a.name || a.code}
+                                                  </option>
+                                                ))}
+                                              </select>
+                                            </Field>
+                                          ))}
+                                        </div>
+                                      </details>
+                                    )}
+                                    {checked.issues?.map((issue, i) => (
+                                      <p role="alert" key={i}>
+                                        {issue.reason}: {issue.message} {issue.zone_id} {issue.gate_id}
+                                      </p>
+                                    ))}
+                                    <p role="status">
+                                      {checked.valid
+                                        ? 'Hình học và mapping hợp lệ'
+                                        : 'Cần sửa tệp hoặc mapping và kiểm tra lại'}
+                                    </p>
+                                  </div>
+                                )}
+                              </section>
+                            )
+                          })}
+                      </>
+                    )}
+                    {index === 0 &&
+                      (venueId ? (
+                        <p>Layout thuộc sân hiện tại. Chỉnh thông tin sân tại màn quản lý sân.</p>
+                      ) : (
+                        <div className="venue-setup-fields">
+                          <Field label="Tên sân *">
+                            <input
+                              required
+                              maxLength={200}
+                              value={draft.venue?.name ?? ''}
+                              onChange={(e) => venueField('name', e.target.value)}
+                            />
+                          </Field>
+                          <Field label="Loại địa điểm">
+                            <select
+                              value={draft.venue?.type}
+                              onChange={(e) => venueField('type', e.target.value as VenueInput['type'])}
+                            >
+                              {Object.entries(venueTypes).map(([k, v]) => (
+                                <option value={k} key={k}>
+                                  {v}
+                                </option>
+                              ))}
+                            </select>
+                          </Field>
+                          <OpeningHoursFields
+                            label="Giờ hoạt động sân"
+                            value={draft.venue?.info?.opening_hours}
+                            onChange={(hours) => venueField('info', { ...draft.venue?.info, opening_hours: hours })}
+                          />
+                          <div className="venue-setup-full-width">
+                            <VenueSetupFields
+                              draft={draft}
+                              sessionId={session.id!}
+                              onChange={change}
+                              save={save}
+                              accept={accept}
+                              run={run}
+                              pending={action.isPending}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    {index === 1 && (
+                      <p className="venue-svg-hint">
+                        Layout được lưu dưới dạng nháp. Bạn có thể phát hành tại màn quản lý sân.
+                      </p>
+                    )}
+                  </Panel>
+                  <div className="venue-inline-actions">
+                    {index > 0 && (
+                      <Button
+                        variant="outline"
+                        onClick={() =>
+                          run(async () => {
+                            await save('DETAILS')
+                          })
+                        }
+                      >
+                        Quay lại
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        run(async () => {
+                          await save()
+                        })
+                      }
+                    >
+                      Lưu nháp
+                    </Button>
+                    {index === 0 ? (
+                      <Button
+                        disabled={!venueReady}
+                        onClick={() =>
+                          run(async () => {
+                            await save('OVERVIEW')
+                          })
+                        }
+                      >
+                        Tiếp tục
+                      </Button>
+                    ) : (
+                      <Button disabled={!canNext} onClick={() => run(finish)}>
+                        Lưu sân & layout
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        run(async () => {
+                          accept(await cancelVenueImport(session.id!, { revision: session.revision! }))
+                        })
+                      }
+                    >
+                      Hủy phiên nháp
+                    </Button>
+                  </div>
+                </fieldset>
+              </>
+            )}
+          </>
+        )}
+        <ErrorNotice error={action.error} />
+        {action.error instanceof ApiError && action.error.status === 409 && session?.id && (
+          <Button
+            variant="outline"
+            disabled={action.isPending}
+            onClick={() =>
+              run(async () => {
+                accept(await getVenueImport(session.id!))
+              })
+            }
+          >
+            Tải bản mới nhất từ server (bỏ thay đổi cục bộ)
+          </Button>
+        )}
+        {blocker.state === 'blocked' && (
+          <div className="venue-leave-backdrop">
+            <dialog open className="venue-leave-dialog" aria-labelledby="leave-import-title">
+              <h2 id="leave-import-title">Có thay đổi chưa lưu</h2>
+              <p>File đã tải vẫn được giữ trong nháp. Lưu thông tin trước khi rời trang để mở lại đầy đủ.</p>
+              <Button onClick={() => blocker.reset?.()}>Tiếp tục chỉnh sửa</Button>
+              <Button variant="outline" onClick={() => blocker.proceed?.()}>
+                Rời trang
+              </Button>
+            </dialog>
           </div>
         )}
-        <div className="wz-done-actions">
-          <AdminLinkAction to={`/admin/events/new?venueId=${venue.id}`}>Tạo sự kiện ở sân này</AdminLinkAction>
-          <LightLink to="/admin/venues">Về danh sách sân</LightLink>
-        </div>
-        <p className="wz-panel-hint">
-          “Tạo sự kiện ở sân này” mở wizard sự kiện, bước Suất diễn chọn sẵn sân và sơ đồ v{layout?.version ?? 1}.
-        </p>
-      </section>
-    </WizardShell>
+      </div>
+    </AdminPage>
+  )
+}
+
+function OverviewSummary({ svg }: { svg: string }) {
+  const doc = new DOMParser().parseFromString(svg, 'image/svg+xml')
+  const areas = Array.from(doc.querySelectorAll('[id^="AREA__"]'))
+  const gates = Array.from(doc.querySelectorAll('[id^="GATE__"]'))
+  return (
+    <details className="venue-svg-details">
+      <summary>
+        {areas.length} vùng nền · {gates.length} cổng
+      </summary>
+      <ul className="venue-svg-inventory" aria-label="Vùng và cổng đã nhận diện">
+        {[...areas, ...gates].map((element) => (
+          <li key={element.id}>{element.id}</li>
+        ))}
+      </ul>
+    </details>
   )
 }

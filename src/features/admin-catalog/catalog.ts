@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { listVenues, listSeatLayouts, getSeatLayoutSvg } from '@/api/generated/endpoints/admin-catalog/admin-catalog'
-import type { Venue, SeatLayout } from '@/api/generated/model'
+import type { Venue, SeatLayout, LayoutType } from '@/api/generated/model'
 import { sanitizeSvg } from '@/seatmap/svg'
 
 export const categories = { FOOTBALL: 'Bóng đá', CONCERT: 'Âm nhạc', THEATER: 'Sân khấu', OTHER: 'Khác' } as const
@@ -26,16 +26,22 @@ export function useVenueDirectory() {
     },
   })
 }
-export function useLayoutDirectory(hallId: string) {
+export function useLayoutDirectory(venueId: string, publishedType?: LayoutType) {
   return useQuery({
-    queryKey: ['admin-layout-directory', hallId],
-    enabled: !!hallId,
-    queryFn: async () => {
+    queryKey: ['admin-layout-directory', venueId, publishedType],
+    enabled: !!venueId,
+    queryFn: async ({ signal }) => {
       const result: SeatLayout[] = [],
         seen = new Set<string>()
       let cursor: string | undefined
       do {
-        const page = await listSeatLayouts(hallId, { limit: 100, cursor })
+        const page = await listSeatLayouts(
+          venueId,
+          publishedType
+            ? { limit: 100, cursor, layout_type: publishedType, status: 'PUBLISHED' }
+            : { limit: 100, cursor, include_legacy: true },
+          { signal },
+        )
         result.push(...(page.data ?? []))
         cursor = page.next_cursor ?? undefined
         if (cursor && seen.has(cursor)) throw new Error('CURSOR_LOOP')
@@ -49,9 +55,9 @@ export function useLayoutSvg(layoutId: string) {
   return useQuery({
     queryKey: ['admin-layout-svg', layoutId],
     enabled: !!layoutId,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       // Mutator hiện trả văn bản cho SVG; tương thích cả khi mutator chuyển sang Blob đúng theo contract.
-      const raw: unknown = await getSeatLayoutSvg(layoutId)
+      const raw: unknown = await getSeatLayoutSvg(layoutId, { signal })
       const text = raw instanceof Blob ? await raw.text() : typeof raw === 'string' ? raw : ''
       const svg = sanitizeSvg(text)
       if (!svg) throw new Error('INVALID_LAYOUT_SVG')

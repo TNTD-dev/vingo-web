@@ -19,7 +19,6 @@ function renderAt(path: string, user: User | null) {
       { path: '/admin', element: <RequireAuth allow="ADMIN">trang admin</RequireAuth> },
       { path: '/orders', element: <RequireAuth>đơn của tôi</RequireAuth> },
       { path: '/login', element: <>trang login</> },
-      { path: '/admin/login', element: <>đăng nhập quản trị</> },
       { path: '/403', element: <>không có quyền</> },
     ],
     { initialEntries: [path] },
@@ -33,9 +32,10 @@ function renderAt(path: string, user: User | null) {
 }
 
 describe('RequireAuth', () => {
-  it('chưa đăng nhập vào admin thì dùng trang đăng nhập quản trị và giữ địa chỉ quay lại', () => {
+  it('chưa đăng nhập vào admin thì dùng trang đăng nhập chung và giữ địa chỉ quay lại', () => {
     const router = renderAt('/admin?tab=events', null)
-    expect(screen.getByText('đăng nhập quản trị')).toBeInTheDocument()
+    expect(screen.getByText('trang login')).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/login')
     expect(router.state.location.search).toBe('?next=%2Fadmin%3Ftab%3Devents')
   })
 

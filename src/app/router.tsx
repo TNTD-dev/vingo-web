@@ -1,5 +1,5 @@
 import { lazy, Suspense, type ComponentType, type LazyExoticComponent } from 'react'
-import { createBrowserRouter, type RouteObject } from 'react-router'
+import { createBrowserRouter, Navigate, type RouteObject } from 'react-router'
 
 import { EntryRedirect } from '@/auth/EntryRedirect'
 import { RequireAuth } from '@/auth/guards'
@@ -54,13 +54,10 @@ const L = {
   Venues: lazy(() => import('@/features/admin-catalog/VenuesPage')),
   VenueWizard: lazy(() => import('@/features/admin-catalog/VenueWizardPage')),
   EventWizard: lazy(() => import('@/features/admin-catalog/EventWizardPage')),
-  VenueDetail: lazy(() => import('@/features/admin-catalog/VenueDetailPage')),
-  HallLayouts: lazy(() => import('@/features/admin-catalog/HallLayoutsPage')),
   AdminEvents: lazy(() => import('@/features/admin-catalog/AdminEventsPage')),
   AdminEventDetail: lazy(() => import('@/features/admin-catalog/AdminEventDetailPage')),
   ShowtimeSeats: lazy(() => import('@/features/admin-catalog/ShowtimeSeatsPage')),
   // admin-ops
-  AdminLogin: lazy(() => import('@/features/admin-ops/AdminLoginPage')),
   AdminCheckin: lazy(() => import('@/features/admin-ops/AdminCheckinPage')),
   AdminOrders: lazy(() => import('@/features/admin-ops/AdminOrdersPage')),
   AdminOrderDetail: lazy(() => import('@/features/admin-ops/AdminOrderDetailPage')),
@@ -71,7 +68,7 @@ const L = {
 const buyer = (el: LazyExoticComponent<ComponentType>) => <RequireAuth>{page(el)}</RequireAuth>
 
 export const routes: RouteObject[] = [
-  { path: '/admin/login', element: <EntryRedirect>{page(L.AdminLogin)}</EntryRedirect> },
+  { path: '/admin/login', element: <Navigate to={`/login${window.location.search}`} replace /> },
   {
     element: <AuthLayout />,
     children: [
@@ -128,8 +125,7 @@ export const routes: RouteObject[] = [
       { path: 'venues', element: page(L.Venues) },
       { path: 'venues/new', element: page(L.VenueWizard) },
       { path: 'venues/:venueId/setup', element: page(L.VenueWizard) },
-      { path: 'venues/:venueId', element: page(L.VenueDetail) },
-      { path: 'halls/:hallId/layouts', element: page(L.HallLayouts) },
+      { path: 'venues/:venueId', element: page(L.VenueWizard) },
       { path: 'events', element: page(L.AdminEvents) },
       { path: 'events/new', element: page(L.EventWizard) },
       { path: 'events/:eventId/setup', element: page(L.EventWizard) },

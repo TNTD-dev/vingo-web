@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, NavLink, Outlet } from 'react-router'
+import { Link, NavLink, Outlet, useMatch } from 'react-router'
 import { Menu } from 'lucide-react'
 
 import { useAuth } from '@/auth/auth-context'
@@ -49,7 +49,17 @@ const groups = [
 ]
 
 /** Nút mở Copilot ở góc màn quản trị (Figma `copilot-launcher`): mascot + "Mở Copilot ⌘J". */
-function CopilotLauncher() {
+function CopilotLauncher({ compact = false }: { compact?: boolean }) {
+  if (compact)
+    return (
+      <Link
+        to="/admin/copilot"
+        className="fixed right-4 bottom-3 z-40 rounded-md border border-line bg-surface px-3 py-2 text-xs shadow-float"
+        aria-label="Mở Copilot (⌘J)"
+      >
+        Mở Copilot ⌘J
+      </Link>
+    )
   return (
     <Link
       to="/admin/copilot"
@@ -67,6 +77,8 @@ function CopilotLauncher() {
 
 export function AdminLayout() {
   const { user, logout } = useAuth()
+  const venueDetail = useMatch('/admin/venues/:venueId')
+  const compact = !!venueDetail && venueDetail.params.venueId !== 'new'
   const [open, setOpen] = useState(false)
   useCopilotShortcut('/admin/copilot')
   useEffect(() => {
@@ -105,7 +117,7 @@ export function AdminLayout() {
     </nav>
   )
   return (
-    <div className="admin">
+    <div className={compact ? 'admin admin-venue-console' : 'admin'}>
       <a className="sr-only focus:not-sr-only" href="#admin-content">
         Đến nội dung
       </a>
@@ -154,7 +166,7 @@ export function AdminLayout() {
           <Outlet />
         </main>
       </div>
-      <CopilotLauncher />
+      <CopilotLauncher compact={compact} />
     </div>
   )
 }

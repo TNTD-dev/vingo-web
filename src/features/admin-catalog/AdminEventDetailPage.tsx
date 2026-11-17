@@ -106,7 +106,7 @@ function EventEditor({ event }: { event: EventDetail }) {
       caption={`// SỰ KIỆN · ${event.status ?? ''}`}
       actions={
         <>
-          <AdminAction secondary disabled={terminal} onClick={() => begin({ kind: 'cancel' })}>
+          <AdminAction secondary disabled={priceLocked} onClick={() => begin({ kind: 'cancel' })}>
             Hủy sự kiện
           </AdminAction>
           <AdminAction type="submit" form="admin-event-editor" disabled={terminal || save.isPending}>
@@ -142,6 +142,7 @@ function EventEditor({ event }: { event: EventDetail }) {
                 <Field label="Thể loại">
                   <select
                     value={data.category}
+                    disabled={!!event.seat_layout_id}
                     onChange={(e) => setData({ ...data, category: e.target.value as EventInput['category'] })}
                   >
                     {['FOOTBALL', 'CONCERT', 'THEATER', 'OTHER'].map((c) => (
@@ -186,7 +187,7 @@ function EventEditor({ event }: { event: EventDetail }) {
             {!event.showtimes?.length ? (
               <p className="admin-notice">Thêm suất, cấu hình giá theo khu để công bố sự kiện.</p>
             ) : (
-              <Table label="Suất diễn" headings={['Bắt đầu', 'Sơ đồ / hall', 'Mở bán', 'Trạng thái', '']}>
+              <Table label="Suất diễn" headings={['Bắt đầu', 'Layout / sân', 'Mở bán', 'Trạng thái', '']}>
                 {event.showtimes.map((s) => (
                   <tr key={s.id}>
                     <td className="font-mono text-xs whitespace-nowrap">{dateText(s.starts_at)}</td>
@@ -241,7 +242,7 @@ function EventEditor({ event }: { event: EventDetail }) {
         <Panel>
           <div className="mb-4 flex justify-between gap-2">
             <h2>Giá theo khu</h2>
-            <Link className="wz-link" to={`/admin/events/${id}/setup?step=3`}>
+            <Link className="wz-link" to={`/admin/events/${id}/setup?step=${event.seat_layout_id ? 2 : 3}`}>
               Cấu hình giá →
             </Link>
           </div>
@@ -267,7 +268,7 @@ function EventEditor({ event }: { event: EventDetail }) {
             ))}
           </fieldset>
           {!tiers.length && (
-            <Link className="wz-link" to={`/admin/events/${id}/setup?step=3`}>
+            <Link className="wz-link" to={`/admin/events/${id}/setup?step=${event.seat_layout_id ? 2 : 3}`}>
               Thêm hạng giá →
             </Link>
           )}
@@ -293,7 +294,12 @@ function EventEditor({ event }: { event: EventDetail }) {
         </Panel>
       </div>
       {editor && (
-        <ShowtimeForm eventId={id} initial={editor === 'new' ? undefined : editor} onClose={() => setEditor(null)} />
+        <ShowtimeForm
+          eventId={id}
+          event={event}
+          initial={editor === 'new' ? undefined : editor}
+          onClose={() => setEditor(null)}
+        />
       )}
       {extra && (
         <FormDialog title="Thông tin bổ sung" pending={advanced.isPending} onClose={() => setExtra(null)}>

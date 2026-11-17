@@ -1,22 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createShowtime, updateShowtime } from '@/api/generated/endpoints/admin-catalog/admin-catalog'
 import type { Showtime, ShowtimeInput, Venue } from '@/api/generated/model'
 import { ErrorNotice, Field, QueryState } from '@/design/admin/AdminUi'
-import { ChoiceCard, ChoiceGroup, Segmented } from '@/design/admin/wizard'
+import { Segmented } from '@/design/admin/wizard'
 import { Button } from '@/design/ui/button'
 import { toast } from 'sonner'
 import { localDateTime, nowLocal, toUtc, useLayoutDirectory, useVenueDirectory } from './catalog'
-import {
-  addMinutes,
-  latestPublished,
-  nextOpenSlot,
-  presetSale,
-  saleIssueText,
-  validateSaleWindow,
-  type SalePreset,
-} from './readiness'
+import { addMinutes, nextOpenSlot, presetSale, saleIssueText, validateSaleWindow, type SalePreset } from './readiness'
 
 const presets: { value: SalePreset; label: string }[] = [
   { value: 'NOW_TO_START', label: 'Mở bán ngay khi công bố' },
@@ -33,6 +25,8 @@ type Props = {
   /** Nhân bản: điền sẵn từ suất khác, nhưng lưu thành suất mới. */
   template?: Showtime
   venueHint?: string | null
+  requiredLayout?: string
+  category?: string
   onSaved: () => void
   onCancel: () => void
 }
@@ -41,15 +35,35 @@ export default function ShowtimeEditor(props: Props) {
   return <QueryState query={venues}>{venues.data && <EditorBody {...props} venues={venues.data} />}</QueryState>
 }
 
-function EditorBody({ eventId, initial, template, venueHint, onSaved, onCancel, venues }: Props & { venues: Venue[] }) {
+function EditorBody({
+  eventId,
+  initial,
+  template,
+  venueHint,
+  requiredLayout,
+  category,
+  onSaved,
+  onCancel,
+  venues,
+}: Props & { venues: Venue[] }) {
   const client = useQueryClient(),
     source = initial ?? template
-  const hallOf = source?.hall_id ?? ''
-  const [venueId, setVenueId] = useState(
-    () => venues.find((v) => v.halls?.some((h) => h.id === hallOf))?.id ?? venueHint ?? '',
-  )
-  const [hall, setHall] = useState(hallOf),
-    [layout, setLayout] = useState(source?.seat_layout_id ?? '')
+  const [venueId, setVenueId] = useState(source?.venue?.id ?? venueHint ?? '')
+  const [layout, setLayout] = useState(requiredLayout ?? source?.seat_layout_id ?? '')
+  const layouts = useLayoutDirectory(venueId)
+  const published =
+    layouts.data?.filter(
+      (l) =>
+        l.status === 'PUBLISHED' &&
+        !l.legacy &&
+        (requiredLayout
+          ? l.id === requiredLayout
+          : !category ||
+            !['FOOTBALL', 'CONCERT'].includes(category) ||
+            l.layout_type === category ||
+            initial?.seat_layout_id === l.id),
+    ) ?? []
+  const selectedLayout = layout || (category && published.length === 1 ? published[0].id : '')
   const startLocal = localDateTime(source?.starts_at),
     endLocal = localDateTime(source?.ends_at)
   const shift = template && !initial ? 7 * 1440 : 0
@@ -69,7 +83,7 @@ function EditorBody({ eventId, initial, template, venueHint, onSaved, onCancel, 
   const effectiveClose = close
   const window = { starts_at: startsAt, ends_at: endsAt, sale_opens_at: open, sale_closes_at: effectiveClose }
   const issues = validateSaleWindow(window)
-  const valid = !!hall && !!layout && !issues.length
+  const valid = !!venueId && published.some((l) => l.id === selectedLayout) && !issues.length
 
   function applyPreset(next: SalePreset, startsAtValue = startsAt) {
     setPreset(next)
@@ -110,8 +124,7 @@ function EditorBody({ eventId, initial, template, venueHint, onSaved, onCancel, 
           e.preventDefault()
           if (valid)
             mutation.mutate({
-              hall_id: hall,
-              seat_layout_id: layout,
+              seat_layout_id: selectedLayout!,
               starts_at: toUtc(startsAt),
               ends_at: toUtc(endsAt),
               sale_opens_at: toUtc(open),
@@ -130,9 +143,9 @@ function EditorBody({ eventId, initial, template, venueHint, onSaved, onCancel, 
             <Field label="Sân">
               <select
                 value={venueId}
+                disabled={!!requiredLayout}
                 onChange={(e) => {
                   setVenueId(e.target.value)
-                  setHall('')
                   setLayout('')
                 }}
               >
@@ -145,26 +158,24 @@ function EditorBody({ eventId, initial, template, venueHint, onSaved, onCancel, 
               </select>
             </Field>
             {venue && (
-              <ChoiceGroup label="Hall">
-                {venue.halls?.map((h) => (
-                  <HallCard
-                    key={h.id}
-                    venueId={venue.id!}
-                    hall={h}
-                    selected={hall === h.id}
-                    auto={!hall && venue.halls?.length === 1}
-                    keepLayout={
-                      hall === h.id ? layout : initial?.hall_id === h.id ? initial?.seat_layout_id : undefined
-                    }
-                    onSelect={(layoutId) => {
-                      setHall(h.id!)
-                      setLayout(layoutId)
-                    }}
-                  />
-                ))}
-                {!venue.halls?.length && <p className="admin-notice">Sân này chưa có hall.</p>}
-              </ChoiceGroup>
+              <QueryState query={layouts} empty={!published.length} emptyText="Sân chưa có layout v2 đã phát hành.">
+                <Field label="Layout đã phát hành">
+                  <select
+                    value={selectedLayout}
+                    disabled={!!requiredLayout}
+                    onChange={(e) => setLayout(e.target.value)}
+                  >
+                    <option value="">Chọn layout</option>
+                    {published.map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.name} · {l.layout_type} · v{l.version}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </QueryState>
             )}
+            {venue && <Link to={`/admin/venues/${venueId}/setup`}>Quản lý layout của sân →</Link>}
           </section>
           <section>
             <h3 className="mb-3 flex items-center gap-2 font-medium">
@@ -247,9 +258,7 @@ function EditorBody({ eventId, initial, template, venueHint, onSaved, onCancel, 
             ? issues.map((i) => saleIssueText[i]).join(' ')
             : '✓ Hợp lệ: đóng bán không sau giờ diễn, kết thúc sau bắt đầu. Giờ theo Việt Nam (UTC+7).'}
         </p>
-        {!layout && !!hall === false && venue && (
-          <p className="admin-notice">Chọn hall có sơ đồ đã phát hành để gắn vào suất.</p>
-        )}
+        {!layout && venue && <p className="admin-notice">Chọn layout đã phát hành để gắn vào suất.</p>}
         <ErrorNotice error={mutation.error} />
         <div className="flex flex-wrap gap-2">
           <Button disabled={!valid || mutation.isPending} className="admin-small-button">
@@ -261,53 +270,5 @@ function EditorBody({ eventId, initial, template, venueHint, onSaved, onCancel, 
         </div>
       </form>
     </>
-  )
-}
-
-function HallCard({
-  venueId,
-  hall,
-  selected,
-  keepLayout,
-  auto,
-  onSelect,
-}: {
-  venueId: string
-  hall: { id?: string; name?: string }
-  selected: boolean
-  keepLayout?: string
-  /** Chỉ có một hall: chọn sẵn khi hall đã có sơ đồ phát hành. */
-  auto?: boolean
-  onSelect: (layoutId: string) => void
-}) {
-  const layouts = useLayoutDirectory(hall.id!)
-  const published = layouts.data?.filter((l) => l.status === 'PUBLISHED') ?? []
-  const chosen = published.find((l) => l.id === keepLayout) ?? latestPublished(published)
-  const chosenId = chosen?.id
-  useEffect(() => {
-    if (auto && chosenId) onSelect(chosenId)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auto, chosenId])
-  return (
-    <div className="flex flex-col gap-1">
-      <ChoiceCard
-        title={hall.name ?? 'Hall'}
-        selected={selected}
-        disabled={layouts.isPending || !chosen}
-        onSelect={() => chosen?.id && onSelect(chosen.id)}
-        hint={
-          layouts.isPending
-            ? 'Đang tải…'
-            : chosen
-              ? `Sơ đồ v${chosen.version} · ${chosen.zone_count ?? '—'} khu · ${(chosen.seat_count ?? 0).toLocaleString('vi-VN')} ghế`
-              : 'Chưa có sơ đồ phát hành'
-        }
-      />
-      {!layouts.isPending && !chosen && (
-        <Link className="wz-link text-xs" to={`/admin/venues/${venueId}/setup?step=2`}>
-          Thêm sơ đồ →
-        </Link>
-      )}
-    </div>
   )
 }

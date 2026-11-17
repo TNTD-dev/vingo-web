@@ -173,3 +173,9 @@
     transition: none;
   }
 }
+
+svg [data-zone-picked] {
+  stroke: var(--vg-text-primary) !important;
+  stroke-width: 3px;
+  vector-effect: non-scaling-stroke;
+}

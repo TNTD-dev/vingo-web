@@ -30,6 +30,7 @@ export type SeatState = 'AVAILABLE' | 'HELD' | 'SOLD' | 'BLOCKED'
 export type MapZone = {
   /** Hạng giá 1..4 quyết định màu; không có = coi như hết vé. */
   tier?: number
+  color?: string
   soldOut: boolean
 }
 
@@ -42,10 +43,11 @@ type Props = {
   /** Trạng thái ghế của khu đang xem, theo id ghế trong SVG. */
   seats?: Record<string, SeatState>
   selected: ReadonlySet<string>
+  selectedZones?: ReadonlySet<string>
   /** Chỉ sáng các khu thuộc hạng này (số) hoặc khu đứng; null = tất cả. */
   tierFilter?: number | 'standing' | null
   onZoneClick: (code: string) => void
-  onSeatClick: (svgSeatId: string) => void
+  onSeatClick?: (svgSeatId: string) => void
   /** Admin có thể chọn ghế BLOCKED để mở khóa; buyer mặc định chỉ chọn AVAILABLE. */
   selectableStatuses?: readonly SeatState[]
   /** Nội dung tooltip khi rê chuột vào khu; trả null để không hiện. */
@@ -68,6 +70,7 @@ export function SeatMapView({
   focus,
   seats,
   selected,
+  selectedZones,
   tierFilter = null,
   onZoneClick,
   onSeatClick,
@@ -222,7 +225,11 @@ export function SeatMapView({
       for (const el of els) {
         const isContent = el.id.startsWith('CONTENT__')
         const isZone = el.id.startsWith('ZONE__')
-        ;(el as SVGElement).style.setProperty('--zone-fill', tierColor(zone?.tier, soldOut))
+        ;(el as SVGElement).style.setProperty(
+          '--zone-fill',
+          soldOut ? tierColor(zone?.tier, true) : (zone?.color ?? tierColor(zone?.tier, false)),
+        )
+        toggle(el, 'data-zone-picked', isZone && !!selectedZones?.has(code))
         toggle(el, 'data-soldout', soldOut)
         toggle(el, 'data-dim', dim)
         toggle(el, 'data-active', isZone && code === focus)
@@ -230,7 +237,7 @@ export function SeatMapView({
         toggle(el, 'data-hidden', isContent && Boolean(focus) && code !== focus)
       }
     }
-  }, [ready, zones, focus, tierFilter, index])
+  }, [ready, zones, focus, tierFilter, index, selectedZones])
 
   useLayoutEffect(() => {
     const host = hostRef.current
@@ -275,7 +282,7 @@ export function SeatMapView({
     const seat = (e.target as Element).closest?.('[id^="SEAT__"][data-status]')
     if (seat) {
       const state = seat.getAttribute('data-status')
-      if (state === 'SELECTED' || selectableStatuses.includes(state as SeatState)) onSeatClick(seat.id)
+      if (state === 'SELECTED' || selectableStatuses.includes(state as SeatState)) onSeatClick?.(seat.id)
       return
     }
     const code = zoneOf(e.target)

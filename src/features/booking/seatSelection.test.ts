@@ -63,6 +63,13 @@ describe('buildMapModel', () => {
     expect(m.zones['C1-T1']).toEqual({ tier: undefined, soldOut: true })
   })
 
+  it('khớp mã SVG khi khu có tên riêng theo sự kiện', () => {
+    const named = { ...avail[0], code: 'A1-T1', name: 'Khán đài chính', tier: { ...avail[0].tier!, color: '#86BDF6' } }
+    const map = buildMapModel(zones, [named])
+    expect(map.byCode['A1-T1'].name).toBe('Khán đài chính')
+    expect(map.zones['A1-T1']).toMatchObject({ color: '#86BDF6', soldOut: false })
+  })
+
   it('danh sách hạng: khu ngồi theo giá giảm, khu đứng cuối', () => {
     expect(m.tiers.map((t) => [t.key, t.label, t.price, t.zones])).toEqual([
       [1, 'Hạng 1', 1_200_000, 'A1'],

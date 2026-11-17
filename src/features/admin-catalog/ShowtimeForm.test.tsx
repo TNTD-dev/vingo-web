@@ -11,13 +11,25 @@ vi.mock('@/api/generated/endpoints/admin-catalog/admin-catalog', () => ({
 vi.mock('./catalog', async (original) => ({
   ...(await original<typeof import('./catalog')>()),
   useVenueDirectory: () => ({
-    data: [{ id: 'venue', name: 'Sân', halls: [{ id: 'hall', name: 'Sân chính' }] }],
+    data: [
+      { id: 'venue', name: 'Sân' },
+      { id: 'venue2', name: 'Sân khác' },
+    ],
     isPending: false,
     error: null,
     refetch: vi.fn(),
   }),
-  useLayoutDirectory: () => ({
-    data: [{ id: 'layout', name: 'Sơ đồ chính', version: 1, status: 'PUBLISHED', zone_count: 3, seat_count: 100 }],
+  useLayoutDirectory: (venueId: string) => ({
+    data: [
+      {
+        id: venueId === 'venue2' ? 'layout2' : 'layout',
+        name: 'Sơ đồ chính',
+        version: 1,
+        status: 'PUBLISHED',
+        zone_count: 3,
+        seat_count: 100,
+      },
+    ],
     isPending: false,
     error: null,
   }),
@@ -38,7 +50,7 @@ function setup() {
     </MemoryRouter>,
   )
   fireEvent.change(screen.getByLabelText('Sân'), { target: { value: 'venue' } })
-  fireEvent.click(screen.getByRole('radio', { name: /Sân chính/ }))
+  fireEvent.change(screen.getByLabelText('Layout đã phát hành'), { target: { value: 'layout' } })
   return close
 }
 function dates(end = '22:00') {
@@ -52,13 +64,21 @@ function dates(end = '22:00') {
     fireEvent.change(screen.getByLabelText(label), { target: { value } })
 }
 describe('Lưu suất diễn', () => {
-  it('gửi đủ hall, sơ đồ và thời gian Việt Nam dưới dạng UTC', async () => {
+  it('đổi sân xóa layout cũ và yêu cầu chọn lại', () => {
+    setup()
+    dates()
+    fireEvent.change(screen.getByLabelText('Sân'), { target: { value: 'venue2' } })
+    expect(screen.getByLabelText('Layout đã phát hành')).toHaveValue('')
+    expect(screen.getByRole('button', { name: 'Lưu suất diễn' })).toBeDisabled()
+    expect(createShowtime).not.toHaveBeenCalled()
+  })
+
+  it('gửi layout và thời gian Việt Nam dưới dạng UTC', async () => {
     const close = setup()
     dates()
     fireEvent.click(screen.getByRole('button', { name: 'Lưu suất diễn' }))
     await waitFor(() =>
       expect(createShowtime).toHaveBeenCalledWith('event', {
-        hall_id: 'hall',
         seat_layout_id: 'layout',
         starts_at: '2026-12-20T12:00:00.000Z',
         ends_at: '2026-12-20T15:00:00.000Z',

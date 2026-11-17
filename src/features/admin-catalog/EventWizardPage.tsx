@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Minus, Plus } from 'lucide-react'
 import {
   createEvent,
@@ -8,17 +8,21 @@ import {
   updateEvent,
   useGetAdminEvent,
 } from '@/api/generated/endpoints/admin-catalog/admin-catalog'
-import type { EventCreateInput, EventDetail } from '@/api/generated/model'
+import { getVenueOverview } from '@/api/generated/endpoints/venue-imports/venue-imports'
+import type { EventCreateInput, EventDetail, SeatLayoutOverview } from '@/api/generated/model'
 import { AdminAction } from '@/design/admin/AdminAction'
 import { ConfirmDialog, ErrorNotice, Field, Panel, QueryState } from '@/design/admin/AdminUi'
 import { dateText } from '@/design/admin/data'
 import { ChecklistRow, ChoiceCard, ChoiceGroup, LightButton, Segmented } from '@/design/admin/wizard'
 import { formatVnd } from '@/lib/money'
+import { SeatMapView } from '@/seatmap/SeatMapView'
 import { toast } from 'sonner'
-import { categories, useVenueDirectory, vnParts } from './catalog'
+import { categories, useLayoutSvg, vnParts } from './catalog'
 import { activeShowtimes, stepLabels, useEventLayouts, useZoneAssignments } from './eventSetup'
 import EventPricing from './EventPricing'
+import { EventLayoutStep } from './EventLayoutStep'
 import EventShowtimesStep from './EventShowtimesStep'
+import { mergeLayers } from './LayoutPreview'
 import { eventChecklist, readinessSummary } from './readiness'
 import { stepItems, WizardShell } from './WizardShell'
 
@@ -28,10 +32,25 @@ export default function EventWizardPage() {
     navigate = useNavigate(),
     venueHint = params.get('venueId')
   const query = useGetAdminEvent(eventId ?? '', { query: { enabled: !!eventId } })
-  const step = Math.min(4, Math.max(1, Number(params.get('step')) || 2))
+  const step = Math.min(5, Math.max(1, Number(params.get('step')) || 1))
   const goStep = (n: number, id = eventId) =>
     navigate(`/admin/events/${id}/setup?step=${n}${venueHint ? `&venueId=${venueHint}` : ''}`)
-  if (!eventId) return <EventInfoStep goStep={goStep} />
+  if (!eventId) return <EventLayoutStep venueHint={venueHint} goStep={goStep} />
+  const event = query.data
+  if (
+    event &&
+    (event.seat_layout_id ||
+      (!activeShowtimes(event).length &&
+        event.status === 'DRAFT' &&
+        ['FOOTBALL', 'CONCERT'].includes(event.category ?? '')))
+  ) {
+    if (step === 1 || !event.seat_layout_id)
+      return <EventLayoutStep key={eventId} event={event} venueHint={venueHint} goStep={goStep} />
+    if (step === 2) return <EventPricing event={event} goStep={goStep} />
+    if (step === 3) return <EventInfoStep key={eventId} event={event} goStep={goStep} />
+    if (step === 4) return <EventShowtimesStep event={event} venueHint={venueHint} goStep={goStep} />
+    return <EventReviewStep event={event} goStep={goStep} />
+  }
   return (
     <QueryState query={query}>
       {query.data &&
@@ -98,16 +117,17 @@ function EventInfoStep({ event, goStep }: { event?: EventDetail; goStep: (n: num
       await client.invalidateQueries()
       toast.success(event ? 'Đã lưu thông tin' : 'Đã tạo sự kiện nháp')
       if (then === 'list') navigate('/admin/events')
-      else goStep(2, id)
+      else goStep(event?.seat_layout_id ? 4 : 2, id)
     },
   })
+  const ordered = !!event?.seat_layout_id
   const description = data.description ?? ''
   const qty = data.max_tickets_per_order ?? 6
   return (
     <WizardShell
       title={event ? 'Thông tin' : 'Tạo sự kiện'}
-      caption={`// ${event ? event.title?.toUpperCase() : 'SỰ KIỆN MỚI'} · BƯỚC 1/4`}
-      steps={stepItems(stepLabels(event), 0)}
+      caption={`// ${event ? event.title?.toUpperCase() : 'SỰ KIỆN MỚI'} · BƯỚC ${ordered ? '3/5' : '1/4'}`}
+      steps={stepItems(stepLabels(event), ordered ? 2 : 0)}
       onSelectStep={event ? (i) => goStep(i + 1) : undefined}
       actions={
         <>
@@ -123,18 +143,22 @@ function EventInfoStep({ event, goStep }: { event?: EventDetail; goStep: (n: num
       <div className="wz-grid wz-grid-wide-side">
         <Panel className="wz-panel">
           <fieldset disabled={save.isPending} className="min-w-0">
-            <p className="admin-caption">Thể loại *</p>
-            <ChoiceGroup label="Thể loại" className="!mt-2">
-              {(Object.keys(categories) as (keyof typeof categories)[]).map((c) => (
-                <ChoiceCard
-                  key={c}
-                  title={categories[c]}
-                  hint={categoryHints[c]}
-                  selected={data.category === c}
-                  onSelect={() => setData({ ...data, category: c })}
-                />
-              ))}
-            </ChoiceGroup>
+            {!ordered && (
+              <>
+                <p className="admin-caption">Thể loại *</p>
+                <ChoiceGroup label="Thể loại" className="!mt-2">
+                  {(Object.keys(categories) as (keyof typeof categories)[]).map((c) => (
+                    <ChoiceCard
+                      key={c}
+                      title={categories[c]}
+                      hint={categoryHints[c]}
+                      selected={data.category === c}
+                      onSelect={() => setData({ ...data, category: c })}
+                    />
+                  ))}
+                </ChoiceGroup>
+              </>
+            )}
             <div className="wz-fields">
               <div className="wz-span">
                 <Field label="Tên sự kiện *">
@@ -267,12 +291,12 @@ function EventReviewStep({ event, goStep }: { event: EventDetail; goStep: (n: nu
   const navigate = useNavigate(),
     client = useQueryClient(),
     layouts = useEventLayouts(event),
-    assignments = useZoneAssignments(event),
-    venues = useVenueDirectory()
+    assignments = useZoneAssignments(event)
   const [confirm, setConfirm] = useState(false)
   const shows = activeShowtimes(event)
   const checks = eventChecklist({ event, layouts: layouts.data ?? {}, assignments: assignments.data ?? null })
   const { ok, total, canPublish } = readinessSummary(checks)
+  const ordered = !!event.seat_layout_id
   const draft = event.status === 'DRAFT'
   const publish = useMutation({
     mutationFn: () => publishEvent(event.id!),
@@ -285,21 +309,20 @@ function EventReviewStep({ event, goStep }: { event: EventDetail; goStep: (n: nu
   const zones = [
     ...new Map(Object.values(layouts.data ?? {}).flatMap((l) => l.zones.map((z) => [z.id, z] as const))).values(),
   ]
-  const hallOf = (id?: string) =>
-    venues.data?.flatMap((v) => (v.halls ?? []).map((h) => ({ v, h }))).find((x) => x.h.id === id)
   const first = shows
     .map((s) => s.sale_opens_at)
     .filter((v): v is string => !!v)
     .sort()[0]
   const fb = event.attributes
+  const selectedLayout = event.seat_layout_id ? layouts.data?.[event.seat_layout_id] : undefined
   return (
     <WizardShell
       title="Xem lại & công bố"
-      caption={`// ${event.title?.toUpperCase()} · BƯỚC 4/4`}
-      steps={stepItems(stepLabels(event), 3)}
+      caption={`// ${event.title?.toUpperCase()} · BƯỚC ${ordered ? '5/5' : '4/4'}`}
+      steps={stepItems(stepLabels(event), ordered ? 4 : 3)}
       onSelectStep={(i) => goStep(i + 1)}
       actions={
-        <LightButton back onClick={() => goStep(3)}>
+        <LightButton back onClick={() => goStep(ordered ? 4 : 3)}>
           Quay lại
         </LightButton>
       }
@@ -309,8 +332,8 @@ function EventReviewStep({ event, goStep }: { event: EventDetail; goStep: (n: nu
           <Panel className="wz-panel">
             <div className="flex justify-between gap-3">
               <h2>Thông tin</h2>
-              <button className="wz-link" onClick={() => goStep(1)}>
-                Sửa ở bước 1 →
+              <button className="wz-link" onClick={() => goStep(ordered ? 3 : 1)}>
+                Sửa →
               </button>
             </div>
             <div className="mt-4 flex gap-4">
@@ -337,8 +360,8 @@ function EventReviewStep({ event, goStep }: { event: EventDetail; goStep: (n: nu
           <Panel className="wz-panel">
             <div className="flex justify-between gap-3">
               <h2>{shows.length} suất diễn</h2>
-              <button className="wz-link" onClick={() => goStep(2)}>
-                Sửa ở bước 2 →
+              <button className="wz-link" onClick={() => goStep(ordered ? 4 : 2)}>
+                Sửa →
               </button>
             </div>
             <ul className="mt-3 divide-y">
@@ -346,7 +369,7 @@ function EventReviewStep({ event, goStep }: { event: EventDetail; goStep: (n: nu
                 const p = vnParts(s.starts_at),
                   e = vnParts(s.ends_at),
                   o = vnParts(s.sale_opens_at),
-                  w = hallOf(s.hall_id)
+                  w = s.venue
                 return (
                   <li key={s.id} className="flex flex-wrap items-center gap-x-6 gap-y-1 py-3 text-sm">
                     <span className="wz-mono w-24">
@@ -355,9 +378,7 @@ function EventReviewStep({ event, goStep }: { event: EventDetail; goStep: (n: nu
                     <strong className="font-medium">
                       {p?.time}–{e?.time}
                     </strong>
-                    <span className="min-w-0 flex-1 text-ink-secondary">
-                      {w ? `${w.v.name} · ${w.h.name}` : 'Hall'}
-                    </span>
+                    <span className="min-w-0 flex-1 text-ink-secondary">{w ? `${w.name}` : 'Sân'}</span>
                     <span className="wz-mono text-ink-tertiary">
                       Mở bán {o ? `${o.day}/${o.month} ${o.time}` : '—'}
                     </span>
@@ -369,10 +390,13 @@ function EventReviewStep({ event, goStep }: { event: EventDetail; goStep: (n: nu
           <Panel className="wz-panel">
             <div className="flex justify-between gap-3">
               <h2>Giá theo khu</h2>
-              <button className="wz-link" onClick={() => goStep(3)}>
-                Sửa ở bước 3 →
+              <button className="wz-link" onClick={() => goStep(ordered ? 2 : 3)}>
+                Sửa →
               </button>
             </div>
+            {selectedLayout && (
+              <ReviewSeatMap event={event} layout={selectedLayout} assignments={assignments.data ?? {}} />
+            )}
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
               {event.price_tiers?.map((t) => {
                 const mine = assignments.data ? zones.filter((z) => assignments.data![z.id] === t.id) : []
@@ -407,7 +431,12 @@ function EventReviewStep({ event, goStep }: { event: EventDetail; goStep: (n: nu
               hint={c.hint}
               action={
                 c.status !== 'ok' && c.step ? (
-                  <button type="button" onClick={() => goStep(c.step!)}>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      goStep(ordered ? (({ 1: 3, 2: 4, 3: 2 } as Record<number, number>)[c.step!] ?? 1) : c.step!)
+                    }
+                  >
                     {c.status === 'warn' ? 'Thêm' : 'Sửa'}
                   </button>
                 ) : undefined
@@ -457,5 +486,69 @@ function EventReviewStep({ event, goStep }: { event: EventDetail; goStep: (n: nu
         />
       )}
     </WizardShell>
+  )
+}
+
+function ReviewSeatMap({
+  event,
+  layout,
+  assignments,
+}: {
+  event: EventDetail
+  layout: SeatLayoutOverview
+  assignments: Record<string, string>
+}) {
+  const id = useId().replace(/[^a-zA-Z0-9_-]/g, '')
+  const [selectedZone, setSelectedZone] = useState<string>()
+  const detail = useLayoutSvg(layout.id ?? '')
+  const overview = useQuery({
+    queryKey: ['venue-overview', layout.overview_id],
+    queryFn: ({ signal }) => getVenueOverview(layout.overview_id!, { signal }),
+    enabled: !!layout.overview_id,
+  })
+  const svg = useMemo(() => {
+    if (!detail.data || !overview.data?.svg_content) return detail.data
+    const merged = mergeLayers(overview.data.svg_content, [detail.data], `review-${id}`)
+    return merged.skipped ? detail.data : merged.svg || detail.data
+  }, [detail.data, overview.data?.svg_content, id])
+  const rows = layout.zones.map((zone) => ({
+    ...zone,
+    name: event.zone_prices?.find((row) => row.zone_id === zone.id)?.display_name ?? (zone.label || zone.code),
+    tier: event.price_tiers?.find((tier) => tier.id === assignments[zone.id]),
+  }))
+  return (
+    <div className="mt-3 space-y-3">
+      <p className="text-sm text-ink-secondary">
+        {activeShowtimes(event)[0]?.venue?.name ?? 'Sân đã chọn'} · {layout.name} · v{layout.version}
+      </p>
+      <ErrorNotice error={overview.error || detail.error} />
+      {(detail.isFetching || overview.isFetching) && <p role="status">Đang tải sơ đồ…</p>}
+      {svg && (
+        <div className="h-72">
+          <SeatMapView
+            svg={svg}
+            zones={Object.fromEntries(rows.map((row) => [row.code, { color: row.tier?.color, soldOut: !row.tier }]))}
+            selected={new Set()}
+            selectedZones={new Set(selectedZone ? [selectedZone] : [])}
+            onZoneClick={setSelectedZone}
+            tooltip={(code) => {
+              const row = rows.find((zone) => zone.code === code)
+              return row ? `${row.name} · ${row.tier ? formatVnd(row.tier.price) : 'Chưa có giá'}` : null
+            }}
+          />
+        </div>
+      )}
+      <details>
+        <summary>Giá từng khu ({rows.length})</summary>
+        <ul className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
+          {rows.map((row) => (
+            <li key={row.id} className="flex justify-between gap-2" aria-current={selectedZone === row.code}>
+              <span>{row.name}</span>
+              <span>{row.tier ? formatVnd(row.tier.price) : 'Chưa có giá'}</span>
+            </li>
+          ))}
+        </ul>
+      </details>
+    </div>
   )
 }
