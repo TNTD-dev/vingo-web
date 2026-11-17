@@ -6,7 +6,7 @@ import type { Showtime, ShowtimeInput, Venue } from '@/api/generated/model'
 import { ErrorNotice, Field, QueryState } from '@/design/admin/AdminUi'
 import { DateField, DateTimeField, TimeField, todayVn } from '@/design/admin/DateTimePicker'
 import { AlertCircle, CheckCircle2, Info } from 'lucide-react'
-import { ChoiceCard, ChoiceGroup, Segmented } from '@/design/admin/wizard'
+import { Segmented } from '@/design/admin/wizard'
 import { Button } from '@/design/ui/button'
 import { toast } from 'sonner'
 import { localDateTime, nowLocal, toUtc, useLayoutDirectory, useVenueDirectory } from './catalog'
@@ -143,7 +143,7 @@ function EditorBody({
         <fieldset disabled={mutation.isPending} className="admin-showtime-form">
           <section className="admin-showtime-step">
             <h3>
-              <span className="wz-step-dot" data-state={hall ? 'done' : 'active'}>
+              <span className="wz-step-dot" data-state={venueId && selectedLayout ? 'done' : 'active'}>
                 1
               </span>
               Nơi diễn

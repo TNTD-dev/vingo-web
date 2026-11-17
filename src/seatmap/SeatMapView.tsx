@@ -47,7 +47,7 @@ type Props = {
   /** Chỉ sáng các khu thuộc hạng này (số) hoặc khu đứng; null = tất cả. */
   tierFilter?: number | 'standing' | null
   onZoneClick: (code: string) => void
-  onSeatClick: (svgSeatId: string) => void
+  onSeatClick?: (svgSeatId: string) => void
   /** Bấm vào chỗ trống (không phải khu/ghế): thường dùng để thoát về toàn cảnh. */
   onBackgroundClick?: () => void
   /** Admin có thể chọn ghế BLOCKED để mở khóa; buyer mặc định chỉ chọn AVAILABLE. */

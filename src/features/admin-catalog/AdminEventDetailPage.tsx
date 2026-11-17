@@ -39,7 +39,10 @@ export default function AdminEventDetailPage() {
   return <QueryState query={query}>{query.data && <EventEditor key={eventId} event={query.data} />}</QueryState>
 }
 
-function initialData(event: EventDetail): Required<Omit<EventInput, 'attributes'>> & Pick<EventInput, 'attributes'> {
+// venue_id và seat_layout_id do wizard quản lý, trang sửa không gửi lại.
+function initialData(
+  event: EventDetail,
+): Required<Omit<EventInput, 'attributes' | 'venue_id' | 'seat_layout_id'>> & Pick<EventInput, 'attributes'> {
   return {
     title: event.title ?? '',
     category: event.category ?? 'OTHER',
@@ -125,11 +128,21 @@ function EventEditor({ event }: { event: EventDetail }) {
       }
       actions={
         <>
-          <AdminAction secondary disabled={priceLocked} onClick={() => begin({ kind: 'cancel' })}>
-            Hủy sự kiện
-          </AdminAction>
-          <AdminAction type="submit" form="admin-event-editor" disabled={terminal || save.isPending}>
-            {save.isPending ? 'Đang lưu…' : 'Lưu thay đổi'}
+          {dirty && !save.isPending && (
+            <Button
+              type="button"
+              variant="outline"
+              className="wz-light"
+              onClick={() => {
+                setData(original)
+                setTierEdits({})
+              }}
+            >
+              Bỏ thay đổi
+            </Button>
+          )}
+          <AdminAction type="submit" form="admin-event-editor" disabled={terminal || !dirty || save.isPending}>
+            {save.isPending ? 'Đang lưu…' : dirty ? 'Lưu thay đổi' : 'Đã lưu'}
           </AdminAction>
         </>
       }
@@ -161,7 +174,7 @@ function EventEditor({ event }: { event: EventDetail }) {
                     form="admin-event-editor"
                     value={data.category}
                     disabled={!!event.seat_layout_id}
-                    onChange={(e) => setData({ ...data, category: e.target.value as EventInput['category'] })}
+                    onChange={(e) => set('category', e.target.value as EventInput['category'] & string)}
                   >
                     {Object.entries(categories).map(([value, label]) => (
                       <option key={value} value={value}>
@@ -253,7 +266,7 @@ function EventEditor({ event }: { event: EventDetail }) {
             <div className="admin-panel-head">
               <h2>Bán vé</h2>
               {!priceLocked && (
-                <Link className="wz-link text-sm" to={`/admin/events/${id}/setup?step=3`}>
+                <Link className="wz-link text-sm" to={`/admin/events/${id}/setup?step=${event.seat_layout_id ? 2 : 3}`}>
                   Gán khu →
                 </Link>
               )}
@@ -269,55 +282,29 @@ function EventEditor({ event }: { event: EventDetail }) {
                 ))}
               </ul>
             ) : (
-              <Table label="Suất diễn" headings={['Bắt đầu', 'Layout / sân', 'Mở bán', 'Trạng thái', '']}>
-                {event.showtimes.map((s) => (
-                  <tr key={s.id}>
-                    <td className="font-mono text-xs whitespace-nowrap">{dateText(s.starts_at)}</td>
-                    <td className="text-xs">
-                      {s.venue?.name ?? event.venue?.name ?? 'Phòng / sân'}
-                      <p className="text-ink-tertiary">{s.seat_layout_id ? 'Đã gắn sơ đồ' : 'Chưa có sơ đồ'}</p>
-                    </td>
-                    <td className="font-mono text-xs whitespace-nowrap">{dateText(s.sale_opens_at)}</td>
-                    <td>
-                      <StateBadge value={s.status} />
-                    </td>
-                    <td aria-label={`Thao tác suất ${dateText(s.starts_at)}`}>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button className="admin-more" aria-label={`Thao tác suất ${dateText(s.starts_at)}`}>
-                            <img src={more} alt="" width={18} height={18} />
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            disabled={terminal || s.status === 'CANCELLED' || s.status === 'FINISHED'}
-                            onClick={() => setEditor(s)}
-                          >
-                            Sửa suất diễn
-                          </DropdownMenuItem>
-                          <DropdownMenuItem asChild>
-                            <Link
-                              to={`/admin/showtimes/${s.id}/seats?layoutId=${s.seat_layout_id ?? ''}&eventId=${id}`}
-                            >
-                              Khóa / mở ghế
-                            </Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            disabled={terminal || s.status === 'CANCELLED' || s.status === 'FINISHED'}
-                            variant="destructive"
-                            onClick={() => begin({ kind: 'showtime', show: s })}
-                          >
-                            Hủy suất
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </td>
-                  </tr>
+              <div className="space-y-2">
+                {tiers.map((t, i) => (
+                  <label key={t.id ?? i} className="admin-price-row">
+                    <span>{t.name}</span>
+                    <span className="admin-price-input">
+                      <input
+                        type="number"
+                        form="admin-event-editor"
+                        required
+                        min={0}
+                        step={1000}
+                        aria-label={`Giá ${t.name}`}
+                        value={t.price}
+                        onChange={(e) => setTierEdits({ ...tierEdits, [t.id ?? i]: Number(e.target.value) })}
+                      />
+                      <span>₫</span>
+                    </span>
+                  </label>
                 ))}
               </div>
             )}
             {!tiers.length && (
-              <Link className="wz-link" to={`/admin/events/${id}/setup?step=3`}>
+              <Link className="wz-link" to={`/admin/events/${id}/setup?step=${event.seat_layout_id ? 2 : 3}`}>
                 Thêm hạng giá →
               </Link>
             )}
@@ -357,39 +344,22 @@ function EventEditor({ event }: { event: EventDetail }) {
           {event.status === 'DRAFT' && (
             <AdminAction onClick={() => begin({ kind: 'publish' })}>Công bố sự kiện</AdminAction>
           )}
-        </div>
-        <Panel>
-          <div className="mb-4 flex justify-between gap-2">
-            <h2>Giá theo khu</h2>
-            <Link className="wz-link" to={`/admin/events/${id}/setup?step=${event.seat_layout_id ? 2 : 3}`}>
-              Cấu hình giá →
-            </Link>
-          </div>
-          <p className="mb-5 text-xs text-ink-tertiary">Giá áp cho mọi suất. Đơn vị VND, số nguyên.</p>
-          <fieldset disabled={priceLocked || save.isPending} className="space-y-4">
-            {tiers.map((t, i) => (
-              <label key={t.id ?? i} className="admin-price-row">
-                <span>{t.name}</span>
-                <span className="admin-price-input">
-                  <input
-                    type="number"
-                    form="admin-event-editor"
-                    required
-                    min={0}
-                    step={1}
-                    aria-label={`Giá ${t.name}`}
-                    value={t.price}
-                    onChange={(e) => setTierEdits({ ...tierEdits, [t.id ?? i]: Number(e.target.value) })}
-                  />
-                  <span>₫</span>
-                </span>
-              </label>
-            ))}
-          </fieldset>
-          {!tiers.length && (
-            <Link className="wz-link" to={`/admin/events/${id}/setup?step=${event.seat_layout_id ? 2 : 3}`}>
-              Thêm hạng giá →
-            </Link>
+          {!terminal && (
+            <div className="admin-danger-zone">
+              <div>
+                <strong>Hủy sự kiện</strong>
+                <span>Dừng bán mọi suất. Không hoàn tác được.</span>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="wz-light admin-danger-light"
+                disabled={priceLocked}
+                onClick={() => begin({ kind: 'cancel' })}
+              >
+                Hủy sự kiện
+              </Button>
+            </div>
           )}
         </aside>
       </fieldset>
