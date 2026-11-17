@@ -13,6 +13,7 @@ import { ApiError } from '@/api/problem'
 import { Field, ErrorNotice } from '@/design/admin/AdminUi'
 import { Button } from '@/design/ui/button'
 import { VenueLocationPicker } from './VenueLocationPicker'
+import { venueInfoText } from './catalog'
 
 type Props = {
   draft: VenueImportDraft
@@ -487,7 +488,7 @@ export function VenueSetupFields({ draft, sessionId, onChange, save, accept, run
           <textarea
             rows={6}
             maxLength={50000}
-            value={draft.venue?.info?.rules ?? ''}
+            value={venueInfoText(draft.venue?.info, 'rules') ?? ''}
             onChange={(e) =>
               onChange({ ...draft, venue: { ...draft.venue, info: { ...draft.venue?.info, rules: e.target.value } } })
             }

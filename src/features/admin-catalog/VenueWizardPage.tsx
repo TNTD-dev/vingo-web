@@ -25,7 +25,7 @@ import type {
 import { AdminPage, ErrorNotice, Field, Panel, QueryState } from '@/design/admin/AdminUi'
 import { Button } from '@/design/ui/button'
 import { ApiError } from '@/api/problem'
-import { venueTypes } from './catalog'
+import { venueInfoText, venueTypes } from './catalog'
 import { VenueSetupFields } from './VenueSetupFields'
 import { LayoutPreview } from './LayoutPreview'
 import { VenueWorkspace } from './VenueWorkspace'
@@ -580,7 +580,7 @@ function ImportWizard({ venueId }: { venueId?: string }) {
                           </Field>
                           <OpeningHoursFields
                             label="Giờ hoạt động sân"
-                            value={draft.venue?.info?.opening_hours}
+                            value={venueInfoText(draft.venue?.info, 'opening_hours')}
                             onChange={(hours) => venueField('info', { ...draft.venue?.info, opening_hours: hours })}
                           />
                           <div className="venue-setup-full-width">

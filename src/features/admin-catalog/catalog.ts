@@ -1,12 +1,18 @@
 import { useQuery } from '@tanstack/react-query'
 import { listVenues, listSeatLayouts, getSeatLayoutSvg } from '@/api/generated/endpoints/admin-catalog/admin-catalog'
-import type { Venue, SeatLayout, LayoutType } from '@/api/generated/model'
+import type { Venue, SeatLayout, LayoutType, VenueInfo, VenueInputInfo } from '@/api/generated/model'
 import { sanitizeSvg } from '@/seatmap/svg'
 
 export const categories = { FOOTBALL: 'Bóng đá', CONCERT: 'Âm nhạc', THEATER: 'Sân khấu', OTHER: 'Khác' } as const
 export const venueTypes = { STADIUM: 'Sân vận động', THEATER: 'Nhà hát', OUTDOOR: 'Ngoài trời' } as const
 export const cities = { HCM: 'TP. Hồ Chí Minh', HN: 'Hà Nội', DN: 'Đà Nẵng' } as const
 export { useEventDirectory } from '@/design/admin/data'
+
+// VenueInput.info trong contract là object tự do; đọc các khóa văn bản đã biết (VenueInfo) một cách an toàn
+export function venueInfoText(info: VenueInputInfo | undefined, key: keyof VenueInfo): string | undefined {
+  const value = info?.[key]
+  return typeof value === 'string' ? value : undefined
+}
 
 export function useVenueDirectory() {
   return useQuery({
