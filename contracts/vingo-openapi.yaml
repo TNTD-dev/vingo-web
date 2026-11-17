@@ -28,7 +28,6 @@ tags:
   - name: Check-in
   - name: Chat
   - name: Admin Catalog
-    description: Mọi operation trong tag này yêu cầu bearer token có role ADMIN.
   - name: Admin Operations
   - name: Admin Reports
 security:
@@ -335,6 +334,12 @@ paths:
       summary: Xoá tài khoản (soft-delete) và thu hồi mọi phiên
       responses:
         '204': { description: Đã xoá }
+        '409':
+          description: Không thể xóa ADMIN hoạt động cuối cùng (ACTION_STATE_INVALID).
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+              example: { title: Trạng thái không hợp lệ, status: 409, code: ACTION_STATE_INVALID, detail: Không thể xóa ADMIN hoạt động cuối cùng. }
   /me/profile:
     get:
       operationId: getBuyerProfile
@@ -441,8 +446,12 @@ paths:
       parameters:
         - name: q
           in: query
-          description: "Tên sự kiện, nghệ sĩ hoặc đội. Không đưa loại sự kiện (dùng `category`), thành phố (dùng `city`) hay thời gian (dùng `from`/`to`) vào đây. Ví dụ: người dùng nói 'concert Sơn Tùng ở Sài Gòn' → `q=Sơn Tùng`, `category=CONCERT`, `city=HCM`."
+          description: "Từ khoá tìm trên tên sự kiện, nghệ sĩ hoặc đội, mô tả, tên sân và tên thành phố của các suất còn bán (suất đã huỷ, đã qua và sân ngừng dùng không tính). Có dấu hay không dấu đều khớp ('Mỹ Đình' = 'my dinh', 'Hà Nội' = 'ha noi'), gõ dở một đoạn đầu từ vẫn ra, gõ sai nhẹ tên sự kiện vẫn ra. Thứ tự xếp: khớp tên sự kiện trên khớp sân/thành phố, khớp sân/thành phố trên khớp mô tả. Từ khoá chỉ 1 đến 2 ký tự chỉ khớp đầu từ (ví dụ 'sk' ra 'Sky'), không dò gần đúng nên 'x' không ra sự kiện nào chỉ vì giống chữ. Muốn lọc chính xác theo loại sự kiện, thành phố hay thời gian thì dùng `category`, `city`, `from`/`to` thay vì đưa vào `q`. Ví dụ: người dùng nói 'concert Sơn Tùng ở Sài Gòn' → `q=Sơn Tùng`, `category=CONCERT`, `city=HCM`; người dùng nói 'sự kiện ở sân Mỹ Đình' → `q=Mỹ Đình`."
           schema: { type: string }
+          examples:
+            artist: { summary: "Tên nghệ sĩ (không dấu vẫn được)", value: son tung }
+            venue: { summary: Tên sân, value: Mỹ Đình }
+            city: { summary: Thành phố, value: Hà Nội }
         - { name: category, in: query, schema: { $ref: '#/components/schemas/EventCategory' } }
         - { name: city, in: query, schema: { $ref: '#/components/schemas/CityCode' } }
         - { name: from, in: query, schema: { type: string, format: date-time } }
@@ -565,8 +574,8 @@ paths:
       tags: [Search]
       summary: Ảnh SVG sơ đồ sân của suất
       description: |
-        Gọi khi giao diện cần vẽ sơ đồ sân cho trang chọn ghế. Trả SVG đã chuẩn hóa của sơ đồ sân gắn với suất, dùng cùng dữ liệu ghế và trạng thái của `getSeatmap` (ghép theo `svg_id` của khu).
-        Chỉ trả khi suất không phải DRAFT, sự kiện đang PUBLISHED và sơ đồ đã PUBLISHED. SVG không đổi sau khi publish nên có thể cache dài: phản hồi có `Cache-Control: public, max-age=3600`.
+        Gọi khi giao diện cần vẽ sơ đồ sân cho trang chọn ghế. Trả SVG đã chuẩn hóa của sơ đồ sân gắn với suất, dùng cùng dữ liệu ghế và trạng thái của `getSeatmap`/`getAvailability`: nhóm khu trong SVG mang mã khu, ghép với `zones[].name`; ghế trong khu ghép theo `row` và `number`.
+        Chỉ trả khi suất không phải DRAFT, sự kiện đang PUBLISHED và sơ đồ đã PUBLISHED. Admin có thể đổi sơ đồ của suất trước giờ mở bán, nên phản hồi có `Cache-Control: no-cache` kèm `ETag`: trình duyệt dùng lại bản đã tải sau khi hỏi lại bằng `If-None-Match` (server trả 304 nếu SVG không đổi).
 
         Ví dụ lỗi 404 (suất không tồn tại, suất DRAFT, sự kiện chưa PUBLISHED, hoặc sơ đồ không có SVG):
         ```json
@@ -1094,6 +1103,80 @@ paths:
         '204': { description: Đã từ chối }
 
   # ------------------------------------------------------------------ Admin Catalog
+  /admin/users:
+    get:
+      operationId: adminListUsers
+      tags: [Admin Accounts]
+      summary: Tìm và lọc tài khoản
+      description: 'Chỉ ADMIN. Phân trang theo ID giảm dần; không trả mật khẩu, token hoặc Google subject. Lỗi: 400 VALIDATION_ERROR khi cursor sai; 401 UNAUTHORIZED; 403 FORBIDDEN.'
+      parameters:
+        - { name: q, in: query, schema: { type: string, maxLength: 200 } }
+        - { name: role, in: query, schema: { type: string, enum: [BUYER, ADMIN] } }
+        - { name: status, in: query, schema: { type: string, enum: [UNVERIFIED, ACTIVE, LOCKED, DELETED] } }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Trang tài khoản
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminAccountPage' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /admin/users/{user_id}:
+    get:
+      operationId: adminGetUser
+      tags: [Admin Accounts]
+      summary: Xem tài khoản
+      description: 'Chỉ ADMIN. Trả thông tin tài khoản không có bí mật xác thực. Lỗi: 404 NOT_FOUND khi ID không tồn tại; 401 UNAUTHORIZED; 403 FORBIDDEN.'
+      parameters:
+        - { name: user_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Tài khoản
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminAccount' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      operationId: adminUpdateUser
+      tags: [Admin Accounts]
+      summary: Đổi quyền hoặc khóa/mở khóa tài khoản
+      description: |
+        Chỉ ADMIN. Gửi role và/hoặc locked, kèm reason bắt buộc. locked=true là khóa quản trị không tự hết hạn;
+        locked=false chỉ mở tài khoản đã ACTIVE trước khi bị khóa, không xác minh tài khoản UNVERIFIED.
+        Đổi quyền chỉ áp dụng tài khoản ACTIVE hoặc LOCKED. Không tự hạ quyền/tự khóa và không làm mất ADMIN ACTIVE cuối cùng.
+        Tài khoản DELETED không được sửa. Cấp ADMIN yêu cầu tài khoản đã có mật khẩu vì Google login chỉ hỗ trợ BUYER.
+        Khi có thay đổi, vô hiệu JWT cũ, thu hồi refresh sessions và ghi audit trong cùng transaction; người dùng đăng nhập lại.
+        Gọi lại cùng trạng thái không tạo thêm thay đổi/audit. Không hỗ trợ xóa user hay sửa thông tin cá nhân qua API này.
+        Lỗi: 400 VALIDATION_ERROR khi body/ràng buộc trạng thái không hợp lệ; 403 FORBIDDEN khi tự hạ quyền/tự khóa;
+        404 NOT_FOUND; 409 ACTION_STATE_INVALID khi ảnh hưởng ADMIN cuối cùng; 401 UNAUTHORIZED.
+      parameters:
+        - { name: user_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdminAccountUpdate' }
+      responses:
+        '200':
+          description: Tài khoản sau cập nhật
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminAccount' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: ACTION_STATE_INVALID - cần giữ một ADMIN hoạt động
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+              example: { status: 409, code: ACTION_STATE_INVALID, detail: Cần giữ ít nhất một ADMIN hoạt động }
   /admin/venue-imports:
     get:
       operationId: listVenueImports
@@ -1351,6 +1434,85 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/VenueOverview' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /admin/venues:
+    get:
+      operationId: listVenues
+      tags: [Admin Catalog]
+      summary: Tìm / lọc sân
+      parameters:
+        - { name: q, in: query, schema: { type: string } }
+        - { name: city, in: query, schema: { type: string } }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Page'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Venue' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+    post:
+      operationId: createVenue
+      tags: [Admin Catalog]
+      summary: Tạo sân
+      description: Admin tạo hồ sơ sân với tên, loại, địa chỉ và mã tỉnh hoặc thành phố.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VenueCreateInput' }
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Venue' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+  /admin/venues/{venue_id}:
+    parameters: [ { $ref: '#/components/parameters/VenueId' } ]
+    patch:
+      operationId: updateVenue
+      tags: [Admin Catalog]
+      summary: Sửa sân
+      description: Cập nhật các trường được gửi của sân đang hoạt động. Trả 400 VALIDATION_ERROR khi dữ liệu không hợp lệ, 404 NOT_FOUND khi sân không tồn tại hoặc đã ngừng sử dụng.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VenueInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Venue' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: deleteVenue
+      tags: [Admin Catalog]
+      summary: Ngừng sử dụng sân (soft-delete)
+      description: Ngừng sử dụng sân bằng xóa mềm. Trả 404 NOT_FOUND nếu sân không tồn tại hoặc đã bị xóa; trả 409 VENUE_IN_USE nếu còn suất DRAFT hoặc SCHEDULED chưa kết thúc.
+      responses:
+        '204': { description: Đã ẩn }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Sân còn suất chưa kết thúc (VENUE_IN_USE)
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+              example:
+                title: Sân đang được sử dụng
+                status: 409
+                code: VENUE_IN_USE
+                detail: Sân còn suất diễn DRAFT hoặc SCHEDULED chưa kết thúc.
   /admin/venues/{venue_id}/seat-layouts:
     get:
       operationId: listSeatLayouts
@@ -1393,522 +1555,6 @@ paths:
                 status: 404
                 code: NOT_FOUND
                 detail: Không tìm thấy sân đang hoạt động. Hãy chọn lại sân.
-  /admin/venues:
-    get:
-      operationId: listVenues
-      tags: [Admin Catalog]
-      summary: Tìm / lọc sân
-      parameters:
-        - { name: q, in: query, schema: { type: string } }
-        - { name: city, in: query, schema: { type: string } }
-        - $ref: '#/components/parameters/Cursor'
-        - $ref: '#/components/parameters/Limit'
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/Page'
-                  - type: object
-                    properties:
-                      data:
-                        type: array
-                        items: { $ref: '#/components/schemas/Venue' }
-        '400': { $ref: '#/components/responses/ValidationError' }
-    post:
-      operationId: createVenue
-      tags: [Admin Catalog]
-      summary: Tạo sân
-      description: Client mới gửi location; client cũ tiếp tục dùng address + city. CityCode chỉ set khi geocoder map chắc chắn HCM/HN/DN, các địa phương khác lưu city=null và giữ city_name/administrative_area.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/VenueCreateInput' }
-      responses:
-        '201':
-          description: OK
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Venue' }
-        '400': { $ref: '#/components/responses/ValidationError' }
-  /admin/venues/{venue_id}:
-    parameters: [ { $ref: '#/components/parameters/VenueId' } ]
-    patch:
-      operationId: updateVenue
-      tags: [Admin Catalog]
-      summary: Sửa sân
-      description: Cập nhật các trường được gửi của sân đang hoạt động. Client mới dùng location; alias address/city/district/lat/lng tiếp tục được chấp nhận để tương thích. Trả 400 VALIDATION_ERROR khi dữ liệu không hợp lệ, 404 NOT_FOUND khi sân không tồn tại hoặc đã ngừng sử dụng.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/VenueInput' }
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Venue' }
-        '400': { $ref: '#/components/responses/ValidationError' }
-        '404': { $ref: '#/components/responses/NotFound' }
-    delete:
-      operationId: deleteVenue
-      tags: [Admin Catalog]
-      summary: Ngừng sử dụng sân (soft-delete)
-      description: Ngừng sử dụng sân bằng xóa mềm; Hall, F&B, parking và metadata liên quan được giữ lại, không cascade xóa. Trả 404 NOT_FOUND nếu sân không tồn tại hoặc đã bị xóa; trả 409 VENUE_IN_USE nếu còn suất DRAFT hoặc SCHEDULED chưa kết thúc.
-      responses:
-        '204': { description: Đã ẩn }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '409':
-          description: Sân còn suất chưa kết thúc (VENUE_IN_USE)
-          content:
-            application/problem+json:
-              schema: { $ref: '#/components/schemas/Problem' }
-              example:
-                title: Sân đang được sử dụng
-                status: 409
-                code: VENUE_IN_USE
-                detail: Sân còn suất diễn DRAFT hoặc SCHEDULED chưa kết thúc.
-  /admin/nearby-parking:
-    get:
-      operationId: findNearbyParking
-      tags: [Venue Setup]
-      x-required-role: ADMIN
-      summary: Tìm bãi gửi xe quanh sân
-      description: Tìm bằng Geoapify Places trong 3 km đường chim bay, tối đa 10 gợi ý xếp theo khoảng cách.
-      parameters:
-        - { name: lat, in: query, required: true, schema: { type: number, minimum: -90, maximum: 90 } }
-        - { name: lng, in: query, required: true, schema: { type: number, minimum: -180, maximum: 180 } }
-        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 10, default: 5 } }
-      responses:
-        '200':
-          description: Gợi ý chuẩn hóa, không làm thay đổi vị trí đã lưu.
-          content:
-            application/json:
-              schema:
-                type: object
-                title: FindNearbyParkingResponse
-                required: [data]
-                properties:
-                  data: { type: array, items: { $ref: '#/components/schemas/LocationSuggestion' }, maxItems: 10 }
-        '400': { $ref: '#/components/responses/ValidationError' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '429': { $ref: '#/components/responses/RateLimited' }
-        '503': { $ref: '#/components/responses/ServiceUnavailable' }
-  /admin/location-suggestions:
-    get:
-      operationId: suggestVenueLocations
-      tags: [Venue Setup]
-      x-required-role: ADMIN
-      summary: Gợi ý địa điểm bằng Geoapify Address Autocomplete
-      description: Proxy server tới Geoapify; chỉ nhận q từ 3 ký tự, debounce 300–500 ms ở client, giới hạn 10 kết quả. API key không gửi về client. Dữ liệu OSM được trả theo điều khoản attribution của Geoapify.
-      parameters:
-        - { name: q, in: query, required: true, schema: { type: string, minLength: 3, maxLength: 200 } }
-        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 10, default: 5 } }
-      responses:
-        '200':
-          description: Gợi ý chuẩn hóa, không làm thay đổi vị trí đã lưu.
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [data]
-                properties:
-                  data: { type: array, items: { $ref: '#/components/schemas/LocationSuggestion' }, maxItems: 10 }
-        '400': { $ref: '#/components/responses/ValidationError' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '429': { $ref: '#/components/responses/RateLimited' }
-        '503': { $ref: '#/components/responses/ServiceUnavailable' }
-  /admin/location-reverse-geocode:
-    get:
-      operationId: reverseGeocodeVenueLocation
-      tags: [Venue Setup]
-      x-required-role: ADMIN
-      summary: Chuẩn hóa địa chỉ từ vị trí đã chọn
-      description: Proxy reverse geocode Geoapify sau khi admin chọn điểm hoặc thả marker; không gọi liên tục trong lúc kéo marker.
-      parameters:
-        - { name: lat, in: query, required: true, schema: { type: number, minimum: -90, maximum: 90 } }
-        - { name: lng, in: query, required: true, schema: { type: number, minimum: -180, maximum: 180 } }
-      responses:
-        '200':
-          description: Địa chỉ chuẩn hóa; administrative_area có thể rỗng hoặc thiếu cấp.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/LocationSuggestion' }
-        '400': { $ref: '#/components/responses/ValidationError' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '429': { $ref: '#/components/responses/RateLimited' }
-        '503': { $ref: '#/components/responses/ServiceUnavailable' }
-  /admin/venues/{venue_id}/parking-locations:
-    parameters: [ { $ref: '#/components/parameters/VenueId' } ]
-    get:
-      operationId: listVenueParkingLocations
-      tags: [Admin Catalog]
-      x-required-role: ADMIN
-      summary: Liệt kê bãi gửi xe quanh sân
-      description: Danh sách chỉ gồm bãi hoạt động trong 3 km; filters được xử lý server-side, cursor gắn với filters và thứ tự created_at DESC, id DESC. Lỗi đầu vào trả 400 VALIDATION_ERROR; venue không tồn tại trả 404 NOT_FOUND.
-      parameters:
-        - { name: q, in: query, schema: { type: string, maxLength: 200 } }
-        - { name: primary, in: query, schema: { type: boolean } }
-        - { name: price_status, in: query, schema: { $ref: '#/components/schemas/ParkingPriceStatus' } }
-        - $ref: '#/components/parameters/Cursor'
-        - $ref: '#/components/parameters/Limit'
-      responses:
-        '200':
-          description: Bãi đang hoạt động, nằm trong bán kính 3 km đường chim bay từ sân; q tìm theo tên/địa chỉ không phân biệt hoa thường; cursor sort created_at DESC, id DESC và gắn với filters.
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/Page'
-                  - type: object
-                    required: [data]
-                    properties:
-                      data: { type: array, items: { $ref: '#/components/schemas/ParkingLocationAdmin' } }
-        '400': { $ref: '#/components/responses/ValidationError' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-    post:
-      operationId: createVenueParkingLocation
-      tags: [Admin Catalog]
-      x-required-role: ADMIN
-      summary: Thêm bãi gửi xe
-      description: Sân phải có tọa độ. Chỉ nhận bãi trong bán kính 3 km đường chim bay. Bãi đầu tiên tự là bãi chính; các bãi sau mặc định không chính. Tối đa một bãi chính đang hoạt động.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/ParkingLocationInput' }
-      responses:
-        '201':
-          description: Đã tạo bãi.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ParkingLocationAdmin' }
-        '400': { $ref: '#/components/responses/ValidationError' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/ParkingConflict' }
-        '503': { $ref: '#/components/responses/ServiceUnavailable' }
-  /admin/venues/{venue_id}/parking-locations/{parking_id}:
-    parameters:
-      - { $ref: '#/components/parameters/VenueId' }
-      - { $ref: '#/components/parameters/ParkingId' }
-    patch:
-      operationId: updateVenueParkingLocation
-      tags: [Admin Catalog]
-      x-required-role: ADMIN
-      summary: Sửa bãi gửi xe
-      description: Gửi các trường cần đổi. Tọa độ mới phải trong bán kính 3 km đường chim bay. Khi đặt is_primary=true, bãi chính cũ tự chuyển thành false trong cùng transaction. Đổi price_status sang UNVERIFIED sẽ xóa price_vnd và price_unit.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/ParkingLocationPatch' }
-      responses:
-        '200':
-          description: Đã cập nhật.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ParkingLocationAdmin' }
-        '400': { $ref: '#/components/responses/ValidationError' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/ParkingConflict' }
-    delete:
-      operationId: deleteVenueParkingLocation
-      tags: [Admin Catalog]
-      x-required-role: ADMIN
-      summary: Xóa mềm bãi gửi xe
-      description: Đánh dấu deleted_at và giữ audit. Nếu đây là bãi chính và còn bãi hoạt động khác, trước hết phải chọn bãi chính khác; nếu là bãi cuối có thể xóa.
-      responses:
-        '204': { description: Đã xóa mềm }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/ParkingConflict' }
-  /admin/venues/{venue_id}/parking-locations/{parking_id}/route:
-    post:
-      operationId: estimateParkingRoute
-      tags: [Admin Catalog]
-      x-required-role: ADMIN
-      summary: Tính khoảng cách và lộ trình đi bộ
-      description: Tính riêng khoảng cách đường chim bay và lộ trình đi bộ Geoapify từ bãi tới tọa độ sân. Lưu kết quả mới nhất và nguồn/thời điểm; route không có thì route_distance_meters là null.
-      parameters:
-        - { $ref: '#/components/parameters/VenueId' }
-        - { $ref: '#/components/parameters/ParkingId' }
-      responses:
-        '200':
-          description: Ước tính khoảng cách.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ParkingDistance' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/ParkingConflict' }
-        '429': { $ref: '#/components/responses/RateLimited' }
-        '503': { $ref: '#/components/responses/ServiceUnavailable' }
-  /admin/venues/{venue_id}/parking-locations/{parking_id}/guidance-draft:
-    parameters:
-      - { $ref: '#/components/parameters/VenueId' }
-      - { $ref: '#/components/parameters/ParkingId' }
-    post:
-      operationId: generateParkingGuidanceDraft
-      tags: [Admin Catalog]
-      x-required-role: ADMIN
-      summary: Sinh và lưu nháp hướng dẫn gửi xe bằng LLM
-      description: Gọi LLM bằng HTTP từ backend qua cấu hình môi trường server (LLM_BASE_URL, LLM_API_KEY, LLM_MODEL); không có cấu hình LLM trong DB/UI và API key không có trong request/response. Timeout 30 giây, tối đa 700 output tokens, tối đa 5 yêu cầu/ADMIN/phút; trả 429 kèm Retry-After. Prompt version hiện tại là parking-guidance-v1. Chỉ dùng dữ kiện đã lưu và route estimate, giá chưa xác minh phải được nêu là chưa xác minh hoặc bỏ qua. Lưu nháp với input revision, provider/model/prompt version, thời điểm và người tạo; không tự duyệt/công khai.
-      responses:
-        '200':
-          description: Nháp đã lưu; thao tác đảm bảo có route estimate cho input revision hiện tại trước khi gọi LLM.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ParkingGuidance' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/ParkingConflict' }
-        '429': { $ref: '#/components/responses/RateLimited' }
-        '503': { $ref: '#/components/responses/ServiceUnavailable' }
-    put:
-      operationId: saveParkingGuidance
-      tags: [Admin Catalog]
-      x-required-role: ADMIN
-      summary: Chỉnh sửa hoặc duyệt hướng dẫn gửi xe
-      description: Lưu nội dung do admin biên tập. Nếu chưa có LLM draft, provider/model/prompt provenance được ghi là MANUAL/NONE/MANUAL. Chỉ APPROVED mới được trả ở API public; nếu input_revision không khớp dữ liệu hiện tại thì trả 409 và yêu cầu sinh/kiểm tra lại.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/ParkingGuidanceInput' }
-      responses:
-        '200':
-          description: Đã lưu.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ParkingGuidance' }
-        '400': { $ref: '#/components/responses/ValidationError' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/ParkingConflict' }
-  /venues/{venue_id}/parking-locations:
-    get:
-      operationId: listPublicVenueParkingLocations
-      tags: [Search]
-      security: []
-      summary: Xem bãi gửi xe đã được admin duyệt
-      description: Public read cho buyer/guest; trả bãi hoạt động trong 3 km, không có dữ liệu thì data rỗng. Hướng dẫn chỉ hiện nếu đã duyệt. Venue không tồn tại trả 404 NOT_FOUND.
-      parameters:
-        - { $ref: '#/components/parameters/VenueId' }
-        - $ref: '#/components/parameters/Cursor'
-        - $ref: '#/components/parameters/Limit'
-      responses:
-        '200':
-          description: Trả bãi đang hoạt động trong 3 km; guidance_text chỉ có nội dung khi đã APPROVED, nếu không thì null.
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/Page'
-                  - type: object
-                    required: [data]
-                    properties:
-                      data: { type: array, items: { $ref: '#/components/schemas/ParkingLocationPublic' } }
-        '400': { $ref: '#/components/responses/ValidationError' }
-        '404': { $ref: '#/components/responses/NotFound' }
-  /venues/{venue_id}/food-and-beverage:
-    get:
-      operationId: listPublicVenueFoodAndBeverage
-      tags: [Search]
-      security: []
-      summary: Xem cơ sở F&B đang hoạt động trong sân
-      description: Public read chỉ trả cơ sở chưa xóa mềm, có thể lọc theo hall/category; không trả contact vận hành. Venue không tồn tại trả 404 NOT_FOUND.
-      parameters:
-        - { $ref: '#/components/parameters/VenueId' }
-        - { name: category, in: query, schema: { $ref: '#/components/schemas/FoodCategory' } }
-        - { name: hall_id, in: query, schema: { type: string, format: uuid } }
-        - { $ref: '#/components/parameters/Cursor' }
-        - { $ref: '#/components/parameters/Limit' }
-      responses:
-        '200':
-          description: Chỉ cơ sở chưa xóa mềm; trả cả ACTIVE và TEMPORARILY_CLOSED để người mua biết trạng thái khai thác; cursor sort created_at DESC, id DESC.
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/Page'
-                  - type: object
-                    required: [data]
-                    properties:
-                      data: { type: array, items: { $ref: '#/components/schemas/FoodFacilityPublic' } }
-        '400': { $ref: '#/components/responses/ValidationError' }
-        '404': { $ref: '#/components/responses/NotFound' }
-  /admin/venues/{venue_id}/facilities:
-    put:
-      operationId: updateVenueFacilities
-      tags: [Admin Catalog]
-      x-required-role: ADMIN
-      summary: Cập nhật khả năng tiếp cận và tiện ích
-      description: PUT thay toàn bộ tiện ích; mọi giá trị phải được gửi, dùng UNKNOWN nếu chưa cập nhật. Venue không tồn tại trả 404 NOT_FOUND.
-      parameters: [ { $ref: '#/components/parameters/VenueId' } ]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/VenueFacilities' }
-      responses:
-        '200':
-          description: Đã cập nhật.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/VenueFacilities' }
-        '400': { $ref: '#/components/responses/ValidationError' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-  /admin/venues/{venue_id}/operations-contact:
-    get:
-      operationId: getVenueOperationsContact
-      tags: [Admin Catalog]
-      x-required-role: ADMIN
-      summary: Đọc liên hệ vận hành nội bộ của sân
-      description: ADMIN-only. Nếu chưa có liên hệ trả 200 với các trường null; không tồn tại venue trả 404 NOT_FOUND.
-      parameters: [ { $ref: '#/components/parameters/VenueId' } ]
-      responses:
-        '200':
-          description: Chỉ ADMIN; loại dữ liệu này không xuất hiện ở schema/API public.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/VenueOperationsContact' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-    put:
-      operationId: updateVenueOperationsContact
-      tags: [Admin Catalog]
-      x-required-role: ADMIN
-      summary: Cập nhật liên hệ vận hành nội bộ của sân
-      description: PUT thay toàn bộ liên hệ; gửi null để xóa giá trị trường. Dữ liệu không hợp lệ trả 400 VALIDATION_ERROR; venue không tồn tại trả 404 NOT_FOUND.
-      parameters: [ { $ref: '#/components/parameters/VenueId' } ]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/VenueOperationsContact' }
-      responses:
-        '200':
-          description: Đã cập nhật.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/VenueOperationsContact' }
-        '400': { $ref: '#/components/responses/ValidationError' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-  /admin/venues/{venue_id}/food-and-beverage:
-    get:
-      operationId: listVenueFoodAndBeverage
-      tags: [Admin Catalog]
-      x-required-role: ADMIN
-      summary: Lọc và phân trang cơ sở F&B
-      description: Lọc server-side theo q, Hall, category, operating mode và status; cursor gắn với filters, sort created_at DESC, id DESC. Dữ liệu không hợp lệ trả 400 VALIDATION_ERROR; venue không tồn tại trả 404 NOT_FOUND.
-      parameters:
-        - { $ref: '#/components/parameters/VenueId' }
-        - { name: q, in: query, schema: { type: string, maxLength: 200 } }
-        - { name: hall_id, in: query, schema: { type: string, format: uuid } }
-        - { name: category, in: query, schema: { $ref: '#/components/schemas/FoodCategory' } }
-        - { name: operating_mode, in: query, schema: { $ref: '#/components/schemas/OperatingMode' } }
-        - { name: status, in: query, schema: { $ref: '#/components/schemas/FoodStatus' } }
-        - $ref: '#/components/parameters/Cursor'
-        - $ref: '#/components/parameters/Limit'
-      responses:
-        '200':
-          description: Chỉ bản ghi chưa xóa mềm; q tìm theo name/location_description không phân biệt hoa thường; lọc phía server; cursor sort created_at DESC, id DESC và gắn với filters.
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/Page'
-                  - type: object
-                    required: [data]
-                    properties:
-                      data: { type: array, items: { $ref: '#/components/schemas/FoodFacility' } }
-        '400': { $ref: '#/components/responses/ValidationError' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-    post:
-      operationId: createVenueFoodAndBeverage
-      tags: [Admin Catalog]
-      x-required-role: ADMIN
-      summary: Thêm cơ sở F&B
-      description: Hall tùy chọn phải thuộc đúng venue; Hall sai trả 409 FOOD_HALL_MISMATCH, input không hợp lệ trả 400 VALIDATION_ERROR.
-      parameters: [ { $ref: '#/components/parameters/VenueId' } ]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/FoodFacilityInput' }
-      responses:
-        '201':
-          description: Đã tạo.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/FoodFacility' }
-        '400': { $ref: '#/components/responses/ValidationError' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/FoodHallConflict' }
-  /admin/venues/{venue_id}/food-and-beverage/{facility_id}:
-    parameters:
-      - { $ref: '#/components/parameters/VenueId' }
-      - { name: facility_id, in: path, required: true, schema: { type: string, format: uuid } }
-    patch:
-      operationId: updateVenueFoodAndBeverage
-      tags: [Admin Catalog]
-      x-required-role: ADMIN
-      summary: Sửa cơ sở F&B
-      description: PATCH chỉ đổi trường được gửi; Hall mới phải thuộc đúng venue. Hall sai trả 409 FOOD_HALL_MISMATCH; facility/venue không tồn tại trả 404 NOT_FOUND.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/FoodFacilityPatch' }
-      responses:
-        '200':
-          description: Đã cập nhật.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/FoodFacility' }
-        '400': { $ref: '#/components/responses/ValidationError' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/FoodHallConflict' }
-    delete:
-      operationId: deleteVenueFoodAndBeverage
-      tags: [Admin Catalog]
-      x-required-role: ADMIN
-      summary: Xóa mềm cơ sở F&B
-      description: Xóa mềm, giữ audit và loại khỏi mọi danh sách public/admin mặc định. Facility hoặc venue không tồn tại trả 404 NOT_FOUND.
-      responses:
-        '204': { description: 'Đã xóa mềm; bản ghi được giữ để audit và không còn xuất hiện trong danh sách mặc định' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
   /admin/seat-layouts/{layout_id}:
     parameters:
       - { name: layout_id, in: path, required: true, schema: { type: string, format: uuid } }
@@ -1958,7 +1604,7 @@ paths:
                 title: Không tìm thấy dữ liệu
                 status: 404
                 code: NOT_FOUND
-                detail: Không tìm thấy phiên bản sơ đồ sân. Hãy tải lại danh sách sơ đồ của hall.
+                detail: Không tìm thấy phiên bản sơ đồ sân. Hãy tải lại danh sách sơ đồ của sân.
 
   /admin/seat-layouts/{layout_id}/svg:
     parameters:
@@ -2163,6 +1809,12 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '422':
+          description: Sơ đồ sân không hợp lệ (INVALID_SEAT_LAYOUT).
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+              example: { title: Sơ đồ sân không hợp lệ, status: 422, code: INVALID_SEAT_LAYOUT, detail: Chọn layout đã phát hành, đúng sân đang hoạt động và đúng loại sự kiện. }
   /admin/events/{event_id}:
     get:
       operationId: getAdminEvent
@@ -2207,8 +1859,13 @@ paths:
         Chỉ cập nhật trường có giá trị khác null; trường không gửi hoặc null giữ nguyên.
         attributes khác null thay thế toàn bộ object thuộc tính.
         Body rỗng là thao tác không thay đổi dữ liệu.
-        Không sửa trạng thái, sơ đồ, suất, hạng giá, giá khu hoặc tồn kho qua endpoint này.
-        Sự kiện ENDED hoặc CANCELLED bị khóa (EVENT_LOCKED).
+        Chỉ sự kiện DRAFT được đổi sân hoặc layout. Gửi cả venue_id và seat_layout_id.
+        Layout và sơ đồ tổng quát của layout phải đã công bố, thuộc sân đang hoạt động được chọn,
+        và layout phải cùng loại với sự kiện sau cập nhật. Hủy các suất còn dùng layout cũ trước khi đổi.
+        Thiếu một trong hai ID hoặc còn suất dùng layout cũ trả 400 VALIDATION_ERROR.
+        Layout không đáp ứng điều kiện trả 422 INVALID_SEAT_LAYOUT.
+        Sự kiện ENDED hoặc CANCELLED, hoặc yêu cầu đổi sân/layout hay đổi loại của sự kiện đã
+        chọn layout sau công bố, trả 409 EVENT_LOCKED.
         Sau khi cập nhật thành công, Search làm mới cache sau commit.
       parameters: [ { $ref: '#/components/parameters/EventId' } ]
       requestBody:
@@ -2223,7 +1880,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/EventDetail' }
         '400':
-          description: Tên, loại, poster, tuổi hoặc giới hạn vé không hợp lệ (VALIDATION_ERROR).
+          description: Thông tin sự kiện hoặc yêu cầu đổi layout không hợp lệ (VALIDATION_ERROR).
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
@@ -2232,11 +1889,17 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
-          description: Sự kiện đã kết thúc hoặc hủy (EVENT_LOCKED).
+          description: Sự kiện hoặc cấu hình layout đã bị khóa (EVENT_LOCKED).
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
               example: { title: Sự kiện bị khóa, status: 409, code: EVENT_LOCKED, detail: Không thể sửa sự kiện đã kết thúc hoặc hủy. }
+        '422':
+          description: Sơ đồ sân không hợp lệ (INVALID_SEAT_LAYOUT).
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+              example: { title: Sơ đồ sân không hợp lệ, status: 422, code: INVALID_SEAT_LAYOUT, detail: Chọn layout đã phát hành, đúng sân đang hoạt động và đúng loại sự kiện. }
   /admin/events/{event_id}/price-tiers:
     put:
       operationId: putPriceTiers
@@ -2245,7 +1908,8 @@ paths:
       description: >
         Admin đặt toàn bộ danh sách hạng giá.
         Event phải là DRAFT hoặc PUBLISHED, không có đơn
-        và không có suất chưa hủy đã tới giờ mở bán.
+        và không có suất đã công bố (SCHEDULED) đã tới giờ mở bán.
+        Suất DRAFT chưa bán được nên không khóa, kể cả khi đã qua sale_opens_at.
         Nếu có id, hạng phải thuộc đúng sự kiện.
         Nếu không có id, dùng lại hạng cùng tên đã bỏ khoảng trắng,
         hoặc tạo mới nếu chưa có.
@@ -2304,7 +1968,7 @@ paths:
         Admin thay toàn bộ danh sách gán hạng giá cho khu.
         Áp dụng cùng quy tắc khóa như PUT price-tiers:
         event DRAFT hoặc PUBLISHED, chưa có đơn và không có
-        suất chưa hủy đã tới giờ mở bán.
+        suất đã công bố (SCHEDULED) đã tới giờ mở bán.
         Mỗi zone_id chỉ xuất hiện một lần.
         Khu phải thuộc layout đã chọn của sự kiện. Sự kiện cũ chưa có layout chung
         dùng các layout của những suất chưa hủy.
@@ -2358,7 +2022,7 @@ paths:
       summary: DRAFT → PUBLISHED; các suất chuyển SCHEDULED
       description: >
         Công bố nguyên tử sự kiện DRAFT khi có ít nhất một suất chưa hủy, layout đã công bố,
-        sân còn hoạt động, thời gian suất hợp lệ và mọi khu có hạng giá thuộc sự kiện.
+        sân còn hoạt động, thời gian suất hợp lệ (chưa qua giờ đóng bán) và mọi khu có hạng giá thuộc sự kiện.
         Thiếu cấu hình trả 422 EVENT_INCOMPLETE. Suất DRAFT chuyển SCHEDULED;
         giữ nguyên tồn kho hiện có, kể cả BLOCKED, chỉ bổ sung dòng thiếu.
         Gửi lại sự kiện PUBLISHED trả dữ liệu hiện tại. ENDED/CANCELLED trả EVENT_LOCKED.
@@ -2404,8 +2068,10 @@ paths:
       tags: [Admin Catalog]
       summary: Tạo suất
       description: >
-        Tạo suất diễn gắn với hall_id và seat_layout_id đã PUBLISHED thuộc đúng hall đó.
-        Chọn địa điểm riêng cho từng suất, có thể dùng nhiều sân trong cùng sự kiện.
+        Tạo suất diễn gắn với seat_layout_id đã PUBLISHED thuộc đúng sân đó.
+        Mỗi sự kiện Bóng đá có tối đa một suất chưa hủy; tạo suất thứ hai trả VALIDATION_ERROR.
+        Mọi suất của sự kiện đã chọn layout phải dùng cùng layout đó.
+        Sự kiện cũ chưa chọn layout vẫn có thể dùng địa điểm riêng cho từng suất.
         Sự kiện phải là DRAFT hoặc PUBLISHED; trạng thái ENDED/CANCELLED trả EVENT_LOCKED.
         Tạo tồn kho của phiên bản đã chọn trong cùng transaction và làm mới cache sau commit.
       parameters: [ { $ref: '#/components/parameters/EventId' } ]
@@ -2429,7 +2095,7 @@ paths:
               schema: { $ref: '#/components/schemas/Problem' }
               example: { title: Sự kiện không cho phép chỉnh sửa, status: 409, code: EVENT_LOCKED, detail: Không thể thêm suất vào sự kiện đã kết thúc hoặc hủy. }
         '422':
-          description: Sơ đồ sân chưa công bố hoặc không thuộc hall được chọn (INVALID_SEAT_LAYOUT)
+          description: Sơ đồ sân chưa công bố hoặc không thuộc sân được chọn (INVALID_SEAT_LAYOUT)
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
@@ -2437,16 +2103,16 @@ paths:
                 title: Sơ đồ sân không hợp lệ
                 status: 422
                 code: INVALID_SEAT_LAYOUT
-                detail: Sơ đồ sân phải ở trạng thái PUBLISHED và thuộc đúng hall đã chọn.
+                detail: Sơ đồ sân phải ở trạng thái PUBLISHED và thuộc đúng sân đã chọn.
   /admin/showtimes/{showtime_id}:
     patch:
       operationId: updateShowtime
       tags: [Admin Catalog]
-      summary: Sửa suất (chỉ trước sale_opens_at)
+      summary: Sửa suất (suất DRAFT, hoặc suất SCHEDULED trước sale_opens_at)
       description: >
         Cập nhật thông tin suất diễn trước thời điểm mở bán hiện tại, không áp default cho trường không gửi hoặc null.
         Sự kiện ENDED/CANCELLED trả EVENT_LOCKED; suất đã hủy hoặc đã tới giờ mở bán trả SHOWTIME_LOCKED.
-        Nếu đổi hall_id hoặc seat_layout_id thì sơ đồ phải đã PUBLISHED và thuộc đúng hall.
+        Nếu đổi seat_layout_id thì sơ đồ phải đã PUBLISHED và thuộc đúng sân.
         Đổi sơ đồ chỉ được khi chưa có đơn hoặc tồn kho HELD/SOLD/BLOCKED.
         Metadata, tồn kho và sự kiện làm mới cache được xử lý trong cùng transaction.
       parameters: [ { $ref: '#/components/parameters/ShowtimeId' } ]
@@ -2474,7 +2140,7 @@ paths:
                 code: SHOWTIME_LOCKED
                 detail: Suất diễn đã mở bán, không thể chỉnh sửa.
         '422':
-          description: Sơ đồ sân chưa công bố hoặc không thuộc hall được chọn (INVALID_SEAT_LAYOUT)
+          description: Sơ đồ sân chưa công bố hoặc không thuộc sân được chọn (INVALID_SEAT_LAYOUT)
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
@@ -2482,7 +2148,7 @@ paths:
                 title: Sơ đồ sân không hợp lệ
                 status: 422
                 code: INVALID_SEAT_LAYOUT
-                detail: Sơ đồ sân phải ở trạng thái PUBLISHED và thuộc đúng hall đã chọn.
+                detail: Sơ đồ sân phải ở trạng thái PUBLISHED và thuộc đúng sân đã chọn.
   /admin/showtimes/{showtime_id}/cancel:
     post:
       operationId: cancelShowtime
@@ -2926,6 +2592,80 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
+  /admin/nearby-parking:
+    get:
+      operationId: findNearbyParking
+      tags: [Venue Setup]
+      x-required-role: ADMIN
+      summary: Tìm bãi gửi xe quanh sân
+      description: Tìm bằng Geoapify Places trong 3 km đường chim bay, tối đa 10 gợi ý xếp theo khoảng cách.
+      parameters:
+        - { name: lat, in: query, required: true, schema: { type: number, minimum: -90, maximum: 90 } }
+        - { name: lng, in: query, required: true, schema: { type: number, minimum: -180, maximum: 180 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 10, default: 5 } }
+      responses:
+        '200':
+          description: Gợi ý chuẩn hóa, không làm thay đổi vị trí đã lưu.
+          content:
+            application/json:
+              schema:
+                type: object
+                title: FindNearbyParkingResponse
+                required: [data]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/LocationSuggestion' }, maxItems: 10 }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /admin/location-suggestions:
+    get:
+      operationId: suggestVenueLocations
+      tags: [Venue Setup]
+      x-required-role: ADMIN
+      summary: Gợi ý địa điểm bằng Geoapify Address Autocomplete
+      description: Proxy server tới Geoapify; chỉ nhận q từ 3 ký tự, debounce 300–500 ms ở client, giới hạn 10 kết quả. API key không gửi về client. Dữ liệu OSM được trả theo điều khoản attribution của Geoapify.
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string, minLength: 3, maxLength: 200 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 10, default: 5 } }
+      responses:
+        '200':
+          description: Gợi ý chuẩn hóa, không làm thay đổi vị trí đã lưu.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/LocationSuggestion' }, maxItems: 10 }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /admin/location-reverse-geocode:
+    get:
+      operationId: reverseGeocodeVenueLocation
+      tags: [Venue Setup]
+      x-required-role: ADMIN
+      summary: Chuẩn hóa địa chỉ từ vị trí đã chọn
+      description: Proxy reverse geocode Geoapify sau khi admin chọn điểm hoặc thả marker; không gọi liên tục trong lúc kéo marker.
+      parameters:
+        - { name: lat, in: query, required: true, schema: { type: number, minimum: -90, maximum: 90 } }
+        - { name: lng, in: query, required: true, schema: { type: number, minimum: -180, maximum: 180 } }
+      responses:
+        '200':
+          description: Địa chỉ chuẩn hóa; administrative_area có thể rỗng hoặc thiếu cấp.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LocationSuggestion' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /admin/venue-imports/{import_id}/parking-guidance:
     post:
       operationId: generateImportParkingGuidance
@@ -2982,7 +2722,6 @@ components:
     OrderId: { name: order_id, in: path, required: true, schema: { type: string, format: uuid } }
     TicketId: { name: ticket_id, in: path, required: true, schema: { type: string, format: uuid } }
     VenueId: { name: venue_id, in: path, required: true, schema: { type: string, format: uuid } }
-    ParkingId: { name: parking_id, in: path, required: true, schema: { type: string, format: uuid } }
     ConversationId: { name: conversation_id, in: path, required: true, schema: { type: string, format: uuid } }
     ActionId: { name: action_id, in: path, required: true, schema: { type: string, format: uuid } }
     Cursor: { name: cursor, in: query, schema: { type: string } }
@@ -3006,24 +2745,29 @@ components:
               reason: { type: string, minLength: 3 }
 
   responses:
-    ImportTooLarge:
-      description: PAYLOAD_TOO_LARGE - vượt giới hạn file/request/session
+    ServiceUnavailable:
+      description: Dịch vụ ngoài không khả dụng (SERVICE_UNAVAILABLE).
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
-          example: { status: 413, code: PAYLOAD_TOO_LARGE, detail: Tổng file nguồn của phiên vượt 40 MiB. }
+          example: { status: 503, code: SERVICE_UNAVAILABLE, title: Dịch vụ không khả dụng }
     ImportConflict:
       description: ACTION_STATE_INVALID - phiên đã đổi, đóng hoặc hết hạn
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
           example: { status: 409, code: ACTION_STATE_INVALID, detail: Nháp đã thay đổi. Hãy tải lại revision hiện tại. }
+    ImportTooLarge:
+      description: PAYLOAD_TOO_LARGE - vượt giới hạn file/request/session
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          example: { status: 413, code: PAYLOAD_TOO_LARGE, detail: Tổng file nguồn của phiên vượt 40 MiB. }
     ValidationError:
       description: VALIDATION_ERROR
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
-          example: { title: Dữ liệu không hợp lệ, status: 400, code: VALIDATION_ERROR, detail: Kiểm tra lại các trường được gửi }
     Unauthorized:
       description: UNAUTHORIZED
       content:
@@ -3039,49 +2783,11 @@ components:
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
-          example: { title: Không có quyền, status: 403, code: FORBIDDEN, detail: Yêu cầu vai trò ADMIN }
     NotFound:
       description: NOT_FOUND
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
-          example: { title: Không tìm thấy, status: 404, code: NOT_FOUND, detail: Không tìm thấy tài nguyên }
-    ServiceUnavailable:
-      description: Dịch vụ phụ thuộc ngoài tạm không khả dụng (SERVICE_UNAVAILABLE)
-      content:
-        application/problem+json:
-          schema: { $ref: '#/components/schemas/Problem' }
-          example: { title: Dịch vụ tạm thời không khả dụng, status: 503, code: SERVICE_UNAVAILABLE, detail: Thử lại sau }
-    ContentTooLarge:
-      description: Tệp vượt giới hạn (CONTENT_TOO_LARGE)
-      content:
-        application/problem+json:
-          schema: { $ref: '#/components/schemas/Problem' }
-          example: { title: Tệp quá lớn, status: 413, code: CONTENT_TOO_LARGE, detail: PDF vượt giới hạn 20 MiB hoặc 100 trang }
-    UnsupportedMediaType:
-      description: Loại tệp không hỗ trợ (UNSUPPORTED_MEDIA_TYPE)
-      content:
-        application/problem+json:
-          schema: { $ref: '#/components/schemas/Problem' }
-          example: { title: Loại tệp không hỗ trợ, status: 415, code: UNSUPPORTED_MEDIA_TYPE, detail: Chỉ chấp nhận application/pdf }
-    ParkingConflict:
-      description: Quy tắc bãi gửi xe bị vi phạm (PARKING_PRIMARY_REQUIRED, PARKING_OUT_OF_RANGE, GUIDANCE_REVISION_CONFLICT)
-      content:
-        application/problem+json:
-          schema: { $ref: '#/components/schemas/Problem' }
-          examples:
-            primaryRequired:
-              value: { title: Cần chọn bãi chính khác, status: 409, code: PARKING_PRIMARY_REQUIRED, detail: Hãy chọn bãi chính khác trước khi xóa bãi này }
-            outOfRange:
-              value: { title: Bãi nằm ngoài phạm vi, status: 409, code: PARKING_OUT_OF_RANGE, detail: Bãi phải cách sân không quá 3000 m đường chim bay }
-            guidanceRevisionConflict:
-              value: { title: Dữ liệu đã thay đổi, status: 409, code: GUIDANCE_REVISION_CONFLICT, detail: Hãy tạo lại hoặc rà soát hướng dẫn theo dữ liệu bãi hiện tại }
-    FoodHallConflict:
-      description: Hall không thuộc sân đã chọn (FOOD_HALL_MISMATCH)
-      content:
-        application/problem+json:
-          schema: { $ref: '#/components/schemas/Problem' }
-          example: { title: Hall không hợp lệ, status: 409, code: FOOD_HALL_MISMATCH, detail: Hall phải thuộc đúng sân đang cấu hình }
     GoogleLoginDisabled:
       description: Đăng nhập Google chưa được bật
       content:
@@ -3095,7 +2801,6 @@ components:
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
-          example: { title: Gọi quá nhanh, status: 429, code: RATE_LIMITED, detail: Thử lại sau 60 giây }
 
   schemas:
     Problem:
@@ -3112,9 +2817,8 @@ components:
                  EMAIL_TAKEN, PHONE_TAKEN, OTP_INVALID, OTP_EXPIRED, OTP_TOO_MANY_ATTEMPTS,
                  SERVICE_UNAVAILABLE, SEAT_TAKEN, NOT_ENOUGH_STOCK, SHOWTIME_NOT_ON_SALE, ORDER_STATE_INVALID, HOLD_EXPIRED,
                  PROFILE_REQUIRED, MAX_TICKETS_EXCEEDED, IDEMPOTENCY_CONFLICT, TICKET_NOT_VALID, TICKET_USED,
-                 VENUE_IN_USE, HALL_NAME_TAKEN, UNSUPPORTED_MEDIA_TYPE, INVALID_SEAT_LAYOUT, SEAT_LAYOUT_LOCKED, EVENT_LOCKED, EVENT_INCOMPLETE,
-                 SHOWTIME_LOCKED, ACTION_STATE_INVALID, RATE_LIMITED, CONTENT_TOO_LARGE,
-                 PARKING_PRIMARY_REQUIRED, PARKING_OUT_OF_RANGE, GUIDANCE_REVISION_CONFLICT, FOOD_HALL_MISMATCH]
+                 VENUE_IN_USE, PAYLOAD_TOO_LARGE, UNSUPPORTED_MEDIA_TYPE, INVALID_SEAT_LAYOUT, SEAT_LAYOUT_LOCKED, EVENT_LOCKED, EVENT_INCOMPLETE,
+                 SHOWTIME_LOCKED, ACTION_STATE_INVALID, RATE_LIMITED]
         errors:
           type: array
           description: Lỗi theo field (VALIDATION_ERROR)
@@ -3142,7 +2846,27 @@ components:
                     description: ID layer trong SVG nếu xác định được.
                   reason:
                     type: string
-                    description: Mã nguyên nhân của lỗi, ví dụ DUPLICATE_SEAT.
+                    description: >
+                      Mã nguyên nhân, ví dụ DUPLICATE_SEAT, SEAT_OVERLAPS_GATE,
+                      ZONE_OVERLAPS_GATE hoặc UNSUPPORTED_COLLISION_GEOMETRY.
+                      Collision kiểm tra phần fill thực sau transform/use và mask nhị phân được hỗ trợ;
+                      stroke và nhãn cổng không thuộc vùng collision. Zone được giao tối đa 0.5 đơn vị viewBox² với một cổng;
+                      ghế không được giao diện tích hoặc có tâm bên trong cổng. Chạm biên không có diện tích được phép.
+                      Phần tử/path/mask không phân giải chắc chắn được bị từ chối, không bỏ qua.
+                  gate_id:
+                    type: string
+                    description: ID GATE__ trong SVG gây collision.
+                  zone_id:
+                    type: string
+                    description: ID ZONE__ của zone hoặc ghế gây collision.
+                  intersection_area:
+                    type: number
+                    minimum: 0
+                    description: Diện tích fill giao nhau, đơn vị tọa độ viewBox bình phương, không phải CSS pixel².
+                  tolerance:
+                    type: number
+                    minimum: 0
+                    description: Ngưỡng diện tích được phép; 0 cho ghế và 0.5 cho zone.
                   message:
                     type: string
                     description: Thông báo để admin biết cần sửa gì trong Figma.
@@ -3204,7 +2928,7 @@ components:
       type: string
       enum: [HCM, HN, DN]
       description: |
-        Mã vùng tìm kiếm sự kiện hiện được hỗ trợ. Không dùng enum này làm giới hạn địa chỉ sân; location.city_code chỉ có giá trị khi địa điểm ánh xạ chắc chắn vào mã:
+        Mã thành phố (danh sách tạm, catalog sẽ chốt). Backend không tự đổi tên sang mã; agent tự map tên người dùng nói sang mã:
         HCM: TP. Hồ Chí Minh, Sài Gòn, HCMC;
         HN: Hà Nội, Hanoi;
         DN: Đà Nẵng, Da Nang.
@@ -3219,6 +2943,11 @@ components:
     LayoutType:
       type: string
       enum: [FOOTBALL, CONCERT]
+    ImportRevision:
+      type: object
+      required: [revision]
+      properties:
+        revision: { type: integer, format: int64, minimum: 0 }
     VenueImportCreate:
       type: object
       properties:
@@ -3356,289 +3085,41 @@ components:
         areas: { type: array, items: { $ref: '#/components/schemas/OverviewArea' } }
         zone_areas: { type: object, additionalProperties: { type: string } }
         issues: { type: array, items: { $ref: '#/components/schemas/VenueImportIssue' } }
-    ImportRevision:
-      type: object
-      required: [revision]
-      properties:
-        revision: { type: integer, format: int64, minimum: 0 }
     Venue:
       type: object
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
         type: { type: string, enum: [STADIUM, THEATER, OUTDOOR] }
-        address: { type: [string, 'null'], description: Alias tương thích ngược của location.display_address; giữ giá trị legacy khi chưa có location chuẩn }
-        city: { oneOf: [ { $ref: '#/components/schemas/CityCode' }, { type: 'null' } ], description: Mã tìm kiếm legacy; null khi không ánh xạ chắc chắn }
+        address: { type: string }
+        city: { $ref: '#/components/schemas/CityCode' }
         city_name: { type: string, description: Tên hiển thị của thành phố }
-        district: { type: [string, 'null'], description: Alias legacy; địa giới mới nằm trong location.administrative_area }
-        lat: { type: [number, 'null'], minimum: -90, maximum: 90 }
-        lng: { type: [number, 'null'], minimum: -180, maximum: 180 }
-        location: { oneOf: [ { $ref: '#/components/schemas/VenueLocation' }, { type: 'null' } ], description: Dữ liệu chuẩn; server dựng fallback từ các cột legacy nếu location chưa được backfill }
-        facilities: { $ref: '#/components/schemas/VenueFacilities' }
+        district: { type: string }
+        lat: { type: number }
+        lng: { type: number }
         info:
           type: object
           properties:
             opening_hours: { type: string }
             rules: { type: string }
-            parking: { type: string, deprecated: true, description: Văn bản gửi xe cũ; chỉ dùng fallback nếu sân chưa có parking_locations }
+            parking: { type: string }
     VenueInput:
       type: object
       properties:
+        location: { $ref: '#/components/schemas/VenueLocationInput' }
         name: { type: string }
         type: { type: string, enum: [STADIUM, THEATER, OUTDOOR] }
-        location: { $ref: '#/components/schemas/VenueLocationInput' }
-        address: { type: string, deprecated: true, description: Trường legacy; chỉ cần nếu client cũ gửi theo cặp address + city }
-        city: { $ref: '#/components/schemas/CityCode', deprecated: true }
-        district: { type: string, deprecated: true }
-        lat: { type: number, minimum: -90, maximum: 90, deprecated: true }
-        lng: { type: number, minimum: -180, maximum: 180, deprecated: true }
-        info:
-          type: object
-          properties:
-            opening_hours: { type: string, maxLength: 2000 }
-            rules: { type: string, maxLength: 50000 }
-            parking: { type: string, deprecated: true, description: Legacy fallback; dùng parking_locations cho dữ liệu mới }
+        address: { type: string }
+        city: { $ref: '#/components/schemas/CityCode' }
+        district: { type: string }
+        lat: { type: number }
+        lng: { type: number }
+        info: { type: object }
     VenueCreateInput:
       allOf:
         - $ref: '#/components/schemas/VenueInput'
         - type: object
-          required: [name, type]
-          anyOf:
-            - required: [location]
-            - required: [address, city]
-          description: Client mới gửi location; client cũ tiếp tục được chấp nhận với address + city.
-    VenueLocation:
-      allOf:
-        - $ref: '#/components/schemas/VenueLocationInput'
-        - type: object
-          required: [display_address, latitude, longitude, source]
-          properties:
-            updated_at: { type: string, format: date-time }
-    VenueLocationInput:
-      type: object
-      required: [display_address, latitude, longitude, source]
-      properties:
-        display_address: { type: string, minLength: 1, maxLength: 500 }
-        latitude: { type: number, minimum: -90, maximum: 90 }
-        longitude: { type: number, minimum: -180, maximum: 180 }
-        city_code: { oneOf: [ { $ref: '#/components/schemas/CityCode' }, { type: 'null' } ], description: Chỉ map HCM/HN/DN khi geocoder xác định rõ; null cho tỉnh/thành khác hoặc mơ hồ }
-        administrative_area:
-          type: array
-          maxItems: 8
-          items: { $ref: '#/components/schemas/AdministrativeArea' }
-        source: { type: string, enum: [GEOAPIFY, MANUAL_MAP_PIN, LEGACY] }
-        source_place_id: { type: [string, 'null'], maxLength: 200, description: Geoapify place id nếu có; không dùng làm địa chỉ hiển thị }
-    AdministrativeArea:
-      type: object
-      required: [name, level]
-      properties:
-        name: { type: string, maxLength: 200 }
-        level: { type: string, enum: [COUNTRY, PROVINCE, CITY, DISTRICT, WARD, SUBDISTRICT, OTHER] }
-        code: { type: [string, 'null'], maxLength: 100 }
-    LocationSuggestion:
-      allOf:
-        - $ref: '#/components/schemas/VenueLocationInput'
-        - type: object
-          required: [label]
-          properties:
-            label: { type: string, maxLength: 500 }
-            straight_line_meters: { type: integer, minimum: 0 }
-    VenueFacilities:
-      type: object
-      required: [wheelchair_access, covered_seating, restroom, parking, service_counter]
-      properties:
-        wheelchair_access: { $ref: '#/components/schemas/Availability' }
-        covered_seating: { $ref: '#/components/schemas/Availability' }
-        restroom: { $ref: '#/components/schemas/Availability' }
-        parking: { $ref: '#/components/schemas/Availability' }
-        service_counter: { $ref: '#/components/schemas/Availability' }
-        accessibility_description: { type: [string, 'null'], maxLength: 2000 }
-    Availability: { type: string, enum: [YES, NO, UNKNOWN], description: YES=Có, NO=Không, UNKNOWN=Chưa cập nhật }
-    VenueOperationsContact:
-      type: object
-      required: [department, contact_name, phone, email, notes]
-      properties:
-        department: { type: [string, 'null'], maxLength: 200 }
-        contact_name: { type: [string, 'null'], maxLength: 200 }
-        phone: { type: [string, 'null'], maxLength: 50 }
-        email: { type: [string, 'null'], format: email, maxLength: 254 }
-        notes: { type: [string, 'null'], maxLength: 2000 }
-      description: GET trả 200 với các trường null nếu chưa khai báo. PUT thay toàn bộ contact. Chỉ endpoint ADMIN; không nhúng vào Venue hoặc response public.
-    ParkingPriceStatus: { type: string, enum: [VERIFIED, UNVERIFIED], description: UNVERIFIED hiển thị Chưa xác minh; không được suy ra miễn phí }
-    ParkingPriceUnit:
-      type: string
-      enum: [PER_ENTRY, PER_HOUR, PER_DAY]
-      description: PER_ENTRY là mỗi lượt một phương tiện; PER_HOUR mỗi giờ; PER_DAY mỗi ngày.
-    ParkingLocationInput:
-      type: object
-      required: [name, location, price_status]
-      properties:
-        name: { type: string, minLength: 1, maxLength: 200 }
-        location: { $ref: '#/components/schemas/VenueLocationInput' }
-        is_primary: { type: boolean, default: false }
-        price_status: { $ref: '#/components/schemas/ParkingPriceStatus' }
-        price_vnd: { type: [integer, 'null'], format: int64, minimum: 0, description: Required when price_status=VERIFIED; 0 means free only when confirmed; absent/null when UNVERIFIED }
-        price_unit: { oneOf: [ { $ref: '#/components/schemas/ParkingPriceUnit' }, { type: 'null' } ] }
-        vehicle_type: { type: [string, 'null'], enum: [MOTORBIKE, CAR, BICYCLE, OTHER, null] }
-        opening_hours: { type: [string, 'null'], maxLength: 500 }
-        admin_notes: { type: [string, 'null'], maxLength: 2000 }
-      allOf:
-        - if:
-            properties:
-              price_status: { const: VERIFIED }
-            required: [price_status]
-          then:
-            required: [price_vnd, price_unit]
-            properties:
-              price_vnd: { type: integer, minimum: 0 }
-              price_unit: { $ref: '#/components/schemas/ParkingPriceUnit' }
-        - if:
-            properties:
-              price_status: { const: UNVERIFIED }
-            required: [price_status]
-          then:
-            properties:
-              price_vnd: { type: 'null' }
-              price_unit: { type: 'null' }
-    ParkingLocationPatch:
-      type: object
-      description: PATCH semantics; only provided fields change. Cross-field validation still applies to the resulting resource.
-      properties:
-        name: { type: string, minLength: 1, maxLength: 200 }
-        location: { $ref: '#/components/schemas/VenueLocationInput' }
-        is_primary: { type: boolean }
-        price_status: { $ref: '#/components/schemas/ParkingPriceStatus' }
-        price_vnd: { type: [integer, 'null'], format: int64, minimum: 0 }
-        price_unit: { oneOf: [ { $ref: '#/components/schemas/ParkingPriceUnit' }, { type: 'null' } ] }
-        vehicle_type: { type: [string, 'null'], enum: [MOTORBIKE, CAR, BICYCLE, OTHER, null] }
-        opening_hours: { type: [string, 'null'], maxLength: 500 }
-        admin_notes: { type: [string, 'null'], maxLength: 2000 }
-    ParkingLocationAdmin:
-      allOf:
-        - $ref: '#/components/schemas/ParkingLocationInput'
-        - type: object
-          required: [id, venue_id, is_primary, input_revision, created_at, updated_at, distance]
-          properties:
-            id: { type: string, format: uuid }
-            venue_id: { type: string, format: uuid }
-            is_primary: { type: boolean }
-            input_revision: { type: integer, minimum: 1, description: Tăng khi tọa độ, giá, giờ hoặc dữ kiện sinh hướng dẫn thay đổi }
-            distance: { $ref: '#/components/schemas/ParkingDistance' }
-            guidance: { oneOf: [ { $ref: '#/components/schemas/ParkingGuidance' }, { type: 'null' } ] }
-            created_at: { type: string, format: date-time }
-            updated_at: { type: string, format: date-time }
-    ParkingLocationPublic:
-      type: object
-      required: [id, name, location, is_primary, price_status]
-      properties:
-        id: { type: string, format: uuid }
-        name: { type: string }
-        location: { $ref: '#/components/schemas/VenueLocation' }
-        is_primary: { type: boolean }
-        price_status: { $ref: '#/components/schemas/ParkingPriceStatus' }
-        price_vnd: { type: [integer, 'null'], format: int64, minimum: 0 }
-        price_unit: { oneOf: [ { $ref: '#/components/schemas/ParkingPriceUnit' }, { type: 'null' } ] }
-        vehicle_type: { type: [string, 'null'], enum: [MOTORBIKE, CAR, BICYCLE, OTHER, null] }
-        opening_hours: { type: [string, 'null'] }
-        distance: { $ref: '#/components/schemas/ParkingDistance' }
-        guidance_text: { type: [string, 'null'], description: Chỉ bản đã admin duyệt; nháp và provenance không public }
-    ParkingDistance:
-      type: object
-      required: [straight_line_meters, route_status, route_mode]
-      properties:
-        straight_line_meters: { type: integer, minimum: 0, description: Khoảng cách đường chim bay, không phải lộ trình }
-        route_distance_meters: { type: [integer, 'null'], minimum: 0 }
-        route_duration_seconds: { type: [integer, 'null'], minimum: 0 }
-        route_status: { type: string, enum: [NOT_REQUESTED, READY, UNAVAILABLE, STALE], description: READY chỉ khi route_input_revision trùng với input_revision hiện tại của bãi }
-        route_mode: { type: string, enum: [WALKING] }
-        routing_provider: { type: [string, 'null'], enum: [GEOAPIFY, null] }
-        route_calculated_at: { type: [string, 'null'], format: date-time }
-        route_input_revision: { type: [integer, 'null'], minimum: 1, description: Revision tọa độ dùng để tính; phải khớp parking input_revision để route còn mới }
-    ParkingGuidanceInput:
-      type: object
-      required: [text, input_revision, status]
-      properties:
-        text: { type: string, minLength: 1, maxLength: 5000 }
-        input_revision: { type: integer, minimum: 1 }
-        status: { type: string, enum: [DRAFT, APPROVED] }
-    ParkingGuidance:
-      allOf:
-        - $ref: '#/components/schemas/ParkingGuidanceInput'
-        - type: object
-          required: [provider, model, prompt_version, generated_at, generated_by, updated_by]
-          properties:
-            provider: { type: string, maxLength: 100 }
-            model: { type: string, maxLength: 200 }
-            prompt_version: { type: string, maxLength: 100 }
-            generated_at: { type: string, format: date-time }
-            generated_by: { type: string, format: uuid }
-            updated_by: { type: string, format: uuid }
-            approved_at: { type: [string, 'null'], format: date-time }
-            approved_by: { type: [string, 'null'], format: uuid }
-    FoodCategory: { type: string, enum: [FOOD, BEVERAGE, CONVENIENCE, OTHER] }
-    OperatingMode: { type: string, enum: [EVENT_BASED, FIXED_HOURS], description: EVENT_BASED phục vụ theo sự kiện không có lịch cố định; FIXED_HOURS có opening_hours mô tả }
-    FoodStatus: { type: string, enum: [ACTIVE, TEMPORARILY_CLOSED], description: Trạng thái khai thác; không khẳng định cơ sở đang mở ngay thời điểm gọi }
-    FoodFacilityInput:
-      type: object
-      required: [name, category, location_description, operating_mode, status]
-      properties:
-        name: { type: string, minLength: 1, maxLength: 200 }
-        category: { $ref: '#/components/schemas/FoodCategory' }
-        location_description: { type: string, minLength: 1, maxLength: 500 }
-        hall_id: { type: [string, 'null'], format: uuid }
-        operating_mode: { $ref: '#/components/schemas/OperatingMode' }
-        opening_hours: { type: [string, 'null'], maxLength: 500, description: Phải có nội dung khi operating_mode=FIXED_HOURS; null nếu EVENT_BASED và chưa có giờ cố định }
-        status: { $ref: '#/components/schemas/FoodStatus' }
-        description: { type: [string, 'null'], maxLength: 2000 }
-      allOf:
-        - if:
-            properties:
-              operating_mode: { const: FIXED_HOURS }
-            required: [operating_mode]
-          then:
-            required: [opening_hours]
-            properties:
-              opening_hours: { type: string, minLength: 1, maxLength: 500 }
-    FoodFacilityPatch:
-      type: object
-      properties:
-        name: { type: string, minLength: 1, maxLength: 200 }
-        category: { $ref: '#/components/schemas/FoodCategory' }
-        location_description: { type: string, minLength: 1, maxLength: 500 }
-        hall_id: { type: [string, 'null'], format: uuid }
-        operating_mode: { $ref: '#/components/schemas/OperatingMode' }
-        opening_hours: { type: [string, 'null'], maxLength: 500, description: Nếu operating_mode sau khi cập nhật là FIXED_HOURS thì phải là chuỗi không rỗng }
-        status: { $ref: '#/components/schemas/FoodStatus' }
-        description: { type: [string, 'null'], maxLength: 2000 }
-    FoodFacility:
-      allOf:
-        - $ref: '#/components/schemas/FoodFacilityInput'
-        - type: object
-          required: [id, venue_id, created_at, updated_at]
-          properties:
-            id: { type: string, format: uuid }
-            venue_id: { type: string, format: uuid }
-            created_at: { type: string, format: date-time }
-            updated_at: { type: string, format: date-time }
-    FoodFacilityPublic:
-      type: object
-      required: [id, name, category, location_description, operating_mode, status]
-      properties:
-        id: { type: string, format: uuid }
-        name: { type: string }
-        category: { $ref: '#/components/schemas/FoodCategory' }
-        location_description: { type: string }
-        hall_id: { type: [string, 'null'], format: uuid }
-        operating_mode: { $ref: '#/components/schemas/OperatingMode' }
-        opening_hours: { type: [string, 'null'] }
-        status: { $ref: '#/components/schemas/FoodStatus' }
-        description: { type: [string, 'null'] }
-    Hall:
-      type: object
-      properties:
-        id: { type: string, format: uuid }
-        venue_id: { type: string, format: uuid }
-        name: { type: string }
+          required: [name, type, address, city]
     SeatLayoutInput:
       type: object
       required: [name, zones]
@@ -3713,6 +3194,7 @@ components:
         id: { type: string, format: uuid }
         code: { type: string }
         label: { type: string }
+        overview_area_id: { type: string, format: uuid, description: Vùng nền chứa zone nếu nền có AREA }
         stand_code: { type: string }
         level: { type: integer, minimum: 1 }
         kind: { type: string, enum: [SEATED, STANDING] }
@@ -4051,6 +3533,35 @@ components:
         buyer: { $ref: '#/components/schemas/BuyerProfile' }
         review_reason: { type: [string, 'null'], enum: [PAID_AFTER_EXPIRY, PAID_AFTER_CANCEL, AMOUNT_MISMATCH, PAYMENT_SUSPECTED, null] }
         created_at: { type: string, format: date-time }
+    AdminAccount:
+      type: object
+      required: [id, email, full_name, role, status, admin_locked, has_password, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string }
+        phone: { type: [string, 'null'] }
+        full_name: { type: string }
+        role: { type: string, enum: [BUYER, ADMIN] }
+        status: { type: string, enum: [UNVERIFIED, ACTIVE, LOCKED, DELETED] }
+        admin_locked: { type: boolean }
+        has_password: { type: boolean }
+        locked_until: { type: [string, 'null'], format: date-time }
+        created_at: { type: string, format: date-time }
+    AdminAccountPage:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/AdminAccount' }
+        next_cursor: { type: [string, 'null'] }
+    AdminAccountUpdate:
+      type: object
+      required: [reason]
+      properties:
+        role: { type: string, enum: [BUYER, ADMIN] }
+        locked: { type: boolean }
+        reason: { type: string, minLength: 1, maxLength: 500, pattern: '[\s\S]*\S[\s\S]*' }
     PaymentIntent:
       type: object
       properties:
@@ -4127,7 +3638,7 @@ components:
       properties:
         id: { type: string, format: uuid }
         actor_id: { type: string, format: uuid }
-        action: { type: string, enum: [VOID_TICKET, REISSUE_QR, RESEND_TICKET, RESOLVE_REVIEW, BLOCK_SEATS, CANCEL_EVENT, CANCEL_SHOWTIME] }
+        action: { type: string, enum: [VOID_TICKET, REISSUE_QR, RESEND_TICKET, RESOLVE_REVIEW, BLOCK_SEATS, CANCEL_EVENT, CANCEL_SHOWTIME, UPDATE_ACCOUNT] }
         entity: { type: string }
         entity_id: { type: string, format: uuid }
         reason: { type: string }
@@ -4152,13 +3663,41 @@ components:
               value: { type: number }
         definition: { type: string, description: 'Cách tính, ví dụ fill_rate = sold / capacity' }
 
+    VenueLocationInput:
+      type: object
+      required: [display_address, latitude, longitude, source]
+      properties:
+        display_address: { type: string, minLength: 1, maxLength: 500 }
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
+        city_code: { oneOf: [ { $ref: '#/components/schemas/CityCode' }, { type: 'null' } ], description: Chỉ map HCM/HN/DN khi geocoder xác định rõ; null cho tỉnh/thành khác hoặc mơ hồ }
+        administrative_area:
+          type: array
+          maxItems: 8
+          items: { $ref: '#/components/schemas/AdministrativeArea' }
+        source: { type: string, enum: [GEOAPIFY, MANUAL_MAP_PIN, LEGACY] }
+        source_place_id: { type: [string, 'null'], maxLength: 200, description: Geoapify place id nếu có; không dùng làm địa chỉ hiển thị }
+    AdministrativeArea:
+      type: object
+      required: [name, level]
+      properties:
+        name: { type: string, maxLength: 200 }
+        level: { type: string, enum: [COUNTRY, PROVINCE, CITY, DISTRICT, WARD, SUBDISTRICT, OTHER] }
+        code: { type: [string, 'null'], maxLength: 100 }
+    LocationSuggestion:
+      allOf:
+        - $ref: '#/components/schemas/VenueLocationInput'
+        - type: object
+          required: [label]
+          properties:
+            label: { type: string, maxLength: 500 }
+            straight_line_meters: { type: integer, minimum: 0 }
     ImportParkingGuidanceRequest:
       type: object
       required: [revision, parking_index]
       properties:
         revision: { type: integer, format: int64, minimum: 0 }
         parking_index: { type: integer, minimum: 0, maximum: 19 }
-
     ParkingSetupDraft:
       type: object
       required: [name, location, price_status]

@@ -13,7 +13,7 @@ import type { Venue, VenueInput } from '@/api/generated/model'
 import { AdminPage, ConfirmDialog, ErrorNotice, Field, Panel, QueryState } from '@/design/admin/AdminUi'
 import { Button } from '@/design/ui/button'
 import { download } from '@/design/admin/data'
-import { useLayoutDirectory, useVenueDirectory, venueTypes, cities } from './catalog'
+import { useLayoutDirectory, useVenueDirectory, venueTypes, cities, venueInfoText } from './catalog'
 import { VenueLayoutWorkspace } from './VenueLayoutWorkspace'
 import { VenueActions } from './VenueActions'
 import { venueLayout } from './venueLayoutModel'
@@ -196,7 +196,7 @@ function VenueMetadata({ venue }: { venue: Venue }) {
         {(['parking', 'opening_hours', 'rules'] as const).map((k, i) => (
           <Field key={k} label={['Gửi xe', 'Giờ hoạt động', 'Nội quy'][i]}>
             <textarea
-              value={body.info?.[k] ?? ''}
+              value={venueInfoText(body.info, k) ?? ''}
               onChange={(e) => setBody({ ...body, info: { ...body.info, [k]: e.target.value } })}
             />
           </Field>
