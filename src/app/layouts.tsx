@@ -107,12 +107,12 @@ export function AuthLayout() {
 }
 
 export function PlainLayout() {
-  // Landing page: cuộn trong ScrollPane giống trang Khám phá.
-  const landing = useMatch('/') !== null
-  const main = (
+  // Landing cuộn theo cửa sổ, KHÔNG bọc ScrollPane: phần demo ghim (GSAP ScrollTrigger) nghe cuộn
+  // của window; cuộn trong một div khiến phần ghim không bám và để lại khoảng trống.
+  // Thanh cuộn của html đã được làm mảnh trong index.css nên nhìn vẫn giống trang Khám phá.
+  return (
     <main className="flex min-h-dvh flex-col">
       <Outlet />
     </main>
   )
-  return landing ? <ScrollPane className="h-dvh">{main}</ScrollPane> : main
 }
