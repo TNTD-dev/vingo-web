@@ -13,6 +13,7 @@ import { getPaymentMock } from '@/api/generated/endpoints/payment/payment.msw'
 import { getSearchMock } from '@/api/generated/endpoints/search/search.msw'
 import { getTicketsMock } from '@/api/generated/endpoints/tickets/tickets.msw'
 
+import { venueImportHandlers } from './venueImports'
 import { adminCatalogHandlers } from './adminCatalog'
 import { adminOperationsHandlers } from './adminOperations'
 import { copilotHandlers } from './copilot'
@@ -33,6 +34,7 @@ export const worker = setupWorker(
   navigationPassthrough,
   meStreamHandler,
   ...authHandlers,
+  ...venueImportHandlers,
   ...adminCatalogHandlers,
   ...adminOperationsHandlers,
   ...copilotHandlers,

@@ -31,7 +31,7 @@ export type MapModel = {
 export function buildMapModel(svgZones: ZoneRef[], availability: GetAvailability200ZonesItem[]): MapModel {
   const byCode: Record<string, GetAvailability200ZonesItem> = {}
   for (const z of svgZones) {
-    const match = availability.find((a) => sameZone(z.code, a.name))
+    const match = availability.find((a) => sameZone(z.code, a.code ?? a.name))
     if (match) byCode[z.code] = match
   }
   const seatedPrices = [
@@ -47,7 +47,7 @@ export function buildMapModel(svgZones: ZoneRef[], availability: GetAvailability
     const price = a?.tier?.price
     const left = a?.seats_left ?? 0
     const key = z.kind === 'STANDING' ? 'standing' : price === undefined ? undefined : seatedPrices.indexOf(price) + 1
-    zones[z.code] = { tier: typeof key === 'number' ? key : undefined, soldOut: !a || left <= 0 }
+    zones[z.code] = { tier: typeof key === 'number' ? key : undefined, color: a?.tier?.color, soldOut: !a || left <= 0 }
     if (key === undefined || price === undefined) continue
     const g = grouped.get(key) ?? { price, codes: [], left: 0 }
     g.codes.push(z.code)

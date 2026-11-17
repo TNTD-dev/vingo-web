@@ -28,7 +28,6 @@ export const venues: Venue[] = [
       parking: 'Bãi xe tại cổng A và B.',
       rules: 'Xuất trình vé QR tại cổng. Không mang vật sắc nhọn.',
     },
-    halls: [{ id: uid('0193c200', 1), name: 'Sân chính', venue_id: uid('0193c100', 1) }],
   },
   {
     id: uid('0193c100', 2),
@@ -37,7 +36,6 @@ export const venues: Venue[] = [
     address: '6 Mạc Đĩnh Chi',
     city: 'HCM',
     city_name: 'TP. Hồ Chí Minh',
-    halls: [{ id: uid('0193c200', 2), name: 'Khán phòng lớn', venue_id: uid('0193c100', 2) }],
   },
   {
     id: uid('0193c100', 3),
@@ -46,7 +44,6 @@ export const venues: Venue[] = [
     address: '202 Hoàng Văn Thụ',
     city: 'HCM',
     city_name: 'TP. Hồ Chí Minh',
-    halls: [{ id: uid('0193c200', 3), name: 'Sân khấu ngoài trời', venue_id: uid('0193c100', 3) }],
   },
   {
     id: uid('0193c100', 4),
@@ -56,7 +53,6 @@ export const venues: Venue[] = [
     city: 'HN',
     city_name: 'Hà Nội',
     district: 'Đống Đa',
-    halls: [{ id: uid('0193c200', 4), name: 'Sân chính', venue_id: uid('0193c100', 4) }],
   },
   {
     id: uid('0193c100', 5),
@@ -65,7 +61,6 @@ export const venues: Venue[] = [
     address: 'Khu biểu diễn ngoài trời',
     city: 'DN',
     city_name: 'Đà Nẵng',
-    halls: [{ id: uid('0193c200', 5), name: 'Sân ngoài trời', venue_id: uid('0193c100', 5) }],
   },
   {
     id: uid('0193c100', 6),
@@ -75,13 +70,59 @@ export const venues: Venue[] = [
     city: 'HN',
     city_name: 'Hà Nội',
     district: 'Nam Từ Liêm',
-    halls: [{ id: uid('0193c200', 6), name: 'Sân chính', venue_id: uid('0193c100', 6) }],
   },
 ]
+function seatGrid(zone: string, rows: string[], cols: number, x0: number, y0: number, dx: number, dy: number) {
+  return rows
+    .flatMap((row, r) =>
+      Array.from({ length: cols }, (_, c) => {
+        const num = String(c + 1).padStart(2, '0')
+        return `<circle id="SEAT__${zone}__${row}__${num}" cx="${x0 + c * dx}" cy="${y0 + r * dy}" r="6" fill="#475569"/>`
+      }),
+    )
+    .join('')
+}
+const theaterSvg = `<svg viewBox="0 0 1000 700" xmlns="http://www.w3.org/2000/svg">
+  <rect id="BACKGROUND" width="1000" height="700" fill="#ffffff"/>
+  <g id="STAGE" transform="translate(250 40)">
+    <rect x="0" y="0" width="500" height="110" rx="16" fill="#1e293b"/>
+    <text x="250" y="62" text-anchor="middle" fill="#f8fafc" font-size="22" font-weight="600">SÂN KHẤU</text>
+  </g>
+  <g id="ZONE__A1-T1__SEATED" transform="translate(110 200)"><path d="M0 0H340V220H0Z" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/></g>
+  <g id="CONTENT__A1-T1" transform="translate(110 200)">
+    ${seatGrid('A1-T1', ['A', 'B', 'C', 'D'], 8, 55, 48, 34, 40)}
+    <g id="GATE__A1-T1__01"><rect x="-18" y="88" width="32" height="44" rx="4" fill="#fff1dc" stroke="#e8590c" stroke-width="1.5"/><text id="GATE_LABEL__A1-T1__01" x="-2" y="114" text-anchor="middle" font-size="11" fill="#c2410c">01</text></g>
+  </g>
+  <g id="LABEL__A1-T1"><rect x="250" y="210" width="60" height="24" rx="12" fill="#ffffff" stroke="#2563eb"/><text x="280" y="226" text-anchor="middle" font-size="12" fill="#1d4ed8">A1-T1</text></g>
+  <g id="ZONE__A2-T1__SEATED" transform="translate(550 200)"><path d="M0 0H340V220H0Z" fill="#e0e7ff" stroke="#4f46e5" stroke-width="2"/></g>
+  <g id="CONTENT__A2-T1" transform="translate(550 200)">
+    ${seatGrid('A2-T1', ['A', 'B', 'C', 'D'], 8, 55, 48, 34, 40)}
+    <g id="GATE__A2-T1__02"><rect x="326" y="88" width="32" height="44" rx="4" fill="#fff1dc" stroke="#e8590c" stroke-width="1.5"/><text id="GATE_LABEL__A2-T1__02" x="342" y="114" text-anchor="middle" font-size="11" fill="#c2410c">02</text></g>
+  </g>
+  <g id="LABEL__A2-T1"><rect x="690" y="210" width="60" height="24" rx="12" fill="#ffffff" stroke="#4f46e5"/><text x="720" y="226" text-anchor="middle" font-size="12" fill="#4338ca">A2-T1</text></g>
+  <g transform="translate(180 460)"><g transform="translate(20 10)"><path id="ZONE__BAL-T2__SEATED" d="M0 0H600V160H0Z" fill="#fef3c7" stroke="#d97706" stroke-width="2"/></g></g>
+  <g transform="translate(180 460)"><g id="CONTENT__BAL-T2" transform="translate(20 10)">${seatGrid('BAL-T2', ['A', 'B', 'C'], 10, 75, 44, 50, 38)}</g></g>
+  <g id="LABEL__BAL-T2"><rect x="466" y="480" width="68" height="24" rx="12" fill="#ffffff" stroke="#d97706"/><text x="500" y="496" text-anchor="middle" font-size="12" fill="#b45309">BAL-T2</text></g>
+</svg>`
+const outdoorSvg = `<svg viewBox="0 0 900 600" xmlns="http://www.w3.org/2000/svg">
+  <rect id="BACKGROUND" width="900" height="600" fill="#f8fafc"/>
+  <g id="STAGE" transform="translate(260 32)">
+    <rect x="0" y="0" width="380" height="84" rx="12" fill="#0f172a"/>
+    <text x="190" y="48" text-anchor="middle" fill="#c6f24e" font-size="20" font-weight="600">SÂN KHẤU NGOÀI TRỜI</text>
+  </g>
+  <path id="ZONE__GA-T1__STANDING__600" d="M160 150H740V340H160Z" fill="#dcfce7" stroke="#16a34a" stroke-width="2" stroke-dasharray="8 4"/>
+  <g id="LABEL__GA-T1"><rect x="380" y="232" width="140" height="28" rx="14" fill="#ffffff" stroke="#16a34a"/><text x="450" y="250" text-anchor="middle" font-size="12" fill="#15803d">GA-T1 · Đứng (600)</text></g>
+  <g id="ZONE__VIP-T1__SEATED" transform="translate(180 376)"><rect x="0" y="0" width="540" height="170" rx="10" fill="#fef9c3" stroke="#ca8a04" stroke-width="2"/></g>
+  <g id="CONTENT__VIP-T1" transform="translate(180 376)">
+    ${seatGrid('VIP-T1', ['A', 'B', 'C'], 12, 60, 46, 38, 38)}
+    <g id="GATE__VIP-T1__01"><rect x="-16" y="64" width="32" height="42" rx="4" fill="#fff1dc" stroke="#e8590c" stroke-width="1.5"/><text id="GATE_LABEL__VIP-T1__01" x="0" y="89" text-anchor="middle" font-size="11" fill="#c2410c">01</text></g>
+  </g>
+  <g id="LABEL__VIP-T1"><rect x="415" y="388" width="70" height="24" rx="12" fill="#ffffff" stroke="#ca8a04"/><text x="450" y="404" text-anchor="middle" font-size="12" fill="#a16207">VIP-T1</text></g>
+</svg>`
 export type LayoutFixture = { overview: SeatLayoutOverview; svg: string; zones: SeatLayoutZoneDetail[] }
 export const layouts = new Map<string, LayoutFixture>()
 export function makeLayout(
-  hallId: string,
+  venueId: string,
   name: string,
   svg: string,
   version = 1,
@@ -122,11 +163,13 @@ export function makeLayout(
   const result: LayoutFixture = {
     overview: {
       id,
-      hall_id: hallId,
+      venue_id: venueId,
       name,
       status: 'DRAFT',
       version,
-      schema_version: 1,
+      schema_version: 2,
+      legacy: false,
+      layout_type: 'FOOTBALL',
       zone_count: zones.length,
       seat_count: zones.reduce((n, z) => n + (z.kind === 'SEATED' ? z.capacity : 0), 0),
       zones: zones.map(({ rows: _rows, ...z }) => z),
@@ -137,8 +180,13 @@ export function makeLayout(
   layouts.set(id, result)
   return result
 }
-const seeded = makeLayout(uid('0193c200', 1), 'Sơ đồ sân · 4 khán đài', stadiumSvg, 1, uid('0193c400', 1))
+const seeded = makeLayout(uid('0193c100', 1), 'Sơ đồ sân · 4 khán đài', stadiumSvg, 1, uid('0193c400', 1))
 seeded.overview.status = 'PUBLISHED'
+makeLayout(uid('0193c100', 2), 'Sơ đồ khán phòng · Bản nháp', theaterSvg, 1, uid('0193c400', 2))
+const outdoor = makeLayout(uid('0193c100', 5), 'Sơ đồ ngoài trời · Khu đứng & VIP', outdoorSvg, 1, uid('0193c400', 5))
+outdoor.overview.status = 'PUBLISHED'
+outdoor.overview.layout_type = 'CONCERT'
+makeLayout(uid('0193c100', 6), 'Khán đài chính · Nháp', stadiumSvg, 1, uid('0193c400', 6))
 export const events: EventDetail[] = EVENTS.slice(0, 8).map((e, i) => {
   const d = structuredClone(detailOf(e))
   d.status = i === 6 ? 'DRAFT' : i === 7 ? 'CANCELLED' : 'PUBLISHED'
@@ -146,7 +194,6 @@ export const events: EventDetail[] = EVENTS.slice(0, 8).map((e, i) => {
   d.showtimes = d.showtimes?.map((s, j) => ({
     ...s,
     id: uid('0193c300', i * 10 + j + 1),
-    hall_id: uid('0193c200', 1),
     seat_layout_id: uid('0193c400', 1),
     venue: venues[0],
     sale_closes_at: s.starts_at,
@@ -174,7 +221,7 @@ export function mapOf(showId: string): SeatMap | undefined {
           : event?.price_tiers?.[z.kind === 'STANDING' ? 3 : i % 3]
       return {
         zone_id: z.id,
-        name: z.code,
+        name: event?.zone_prices?.find((row) => row.zone_id === z.id)?.display_name ?? z.code,
         kind: z.kind,
         tier,
         seats_left: z.kind === 'STANDING' ? Math.floor(z.capacity * 0.7) : undefined,

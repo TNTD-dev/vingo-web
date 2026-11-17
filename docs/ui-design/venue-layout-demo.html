@@ -1,0 +1,1454 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Vingo — Demo bố cục sân V02</title>
+    <style>
+      :root {
+        --canvas: #f0f0f0;
+        --surface: #fff;
+        --ink: #1a1a1a;
+        --muted: #707573;
+        --line: #e3e6e3;
+        --lime: #c6f24e;
+        --soft: #edf8d5;
+        --pitch: #348247;
+        --track: #b66a54;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font:
+          14px/1.45 system-ui,
+          sans-serif;
+        color: var(--ink);
+        background: var(--canvas);
+      }
+      button,
+      input,
+      select {
+        font: inherit;
+      }
+      button {
+        cursor: pointer;
+      }
+      button:focus-visible,
+      input:focus-visible,
+      select:focus-visible {
+        outline: 3px solid var(--lime);
+        outline-offset: 2px;
+      }
+      button {
+        border: 1px solid var(--line);
+        background: var(--surface);
+        border-radius: 7px;
+        padding: 8px 12px;
+        color: var(--ink);
+      }
+      button:hover {
+        background: var(--soft);
+      }
+      button.primary {
+        background: var(--ink);
+        color: var(--surface);
+        border-color: var(--ink);
+      }
+      button.lime {
+        background: var(--lime);
+        border-color: var(--lime);
+        font-weight: 650;
+      }
+      button[disabled] {
+        opacity: 0.5;
+        cursor: default;
+      }
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+      h1 {
+        font-size: 26px;
+        letter-spacing: -0.8px;
+      }
+      h2 {
+        font-size: 15px;
+      }
+      h3 {
+        font-size: 14px;
+      }
+      small,
+      .muted {
+        color: var(--muted);
+      }
+      .app {
+        display: grid;
+        grid-template-columns: 206px 1fr;
+        min-height: 100vh;
+      }
+      .sidebar {
+        background: var(--ink);
+        color: #fff;
+        padding: 24px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 22px;
+      }
+      .brand {
+        font-size: 27px;
+        font-weight: 800;
+        letter-spacing: -1px;
+        padding: 0 12px;
+      }
+      .brand span {
+        font-size: 10px;
+        color: var(--lime);
+        letter-spacing: 1px;
+        margin-left: 10px;
+      }
+      .nav-label {
+        font-size: 10px;
+        letter-spacing: 1.5px;
+        color: #989e98;
+        padding: 18px 12px 7px;
+      }
+      .nav-item {
+        display: block;
+        border: 0;
+        text-align: left;
+        width: 100%;
+        background: transparent;
+        color: #c2c7c2;
+        padding: 11px 12px;
+        border-radius: 7px;
+        font-size: 13px;
+      }
+      .nav-item.active {
+        background: var(--lime);
+        color: var(--ink);
+        font-weight: 650;
+      }
+      .user {
+        margin-top: auto;
+        border-top: 1px solid #383d38;
+        padding: 16px 10px 0;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+      .avatar {
+        display: grid;
+        place-items: center;
+        border-radius: 50%;
+        height: 32px;
+        width: 32px;
+        background: var(--lime);
+        color: var(--ink);
+        font-size: 12px;
+      }
+      .user small {
+        display: block;
+        color: #a9afa9;
+        font-size: 11px;
+      }
+      .main {
+        min-width: 0;
+      }
+      .topbar {
+        height: 48px;
+        border-bottom: 1px solid var(--line);
+        background: var(--surface);
+        padding: 0 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 12px;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background: var(--soft);
+        border-radius: 5px;
+        padding: 4px 8px;
+        font-size: 11px;
+        white-space: nowrap;
+      }
+      .badge.demo {
+        background: #fff2da;
+        color: #71501e;
+      }
+      .content {
+        padding: 20px 24px;
+      }
+      .page-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 15px;
+      }
+      .subtitle {
+        margin-top: 5px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .address {
+        margin-top: 8px;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+        font-size: 12px;
+      }
+      .text-button {
+        border: 0;
+        background: none;
+        padding: 0;
+        color: #426b20;
+        font-size: 12px;
+        text-decoration: underline;
+      }
+      .actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .tabs {
+        margin-top: 18px;
+        display: flex;
+        gap: 22px;
+        border-bottom: 1px solid var(--line);
+      }
+      .tabs button {
+        border: 0;
+        background: none;
+        border-radius: 0;
+        padding: 10px 0;
+        color: var(--muted);
+      }
+      .tabs button[aria-selected='true'] {
+        color: var(--ink);
+        box-shadow: inset 0 -3px var(--lime);
+        font-weight: 650;
+      }
+      .stats {
+        display: flex;
+        gap: 20px;
+        align-items: center;
+        padding: 13px 0;
+        font-size: 12px;
+        flex-wrap: wrap;
+      }
+      .stats b {
+        font-size: 15px;
+        margin-right: 4px;
+      }
+      .stats .scope {
+        margin-left: auto;
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .workspace {
+        display: grid;
+        grid-template-columns: minmax(380px, 1fr) 310px;
+        gap: 12px;
+        align-items: stretch;
+      }
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        min-width: 0;
+      }
+      .rail {
+        padding: 12px;
+      }
+      .section-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+      }
+      .icon {
+        padding: 3px 8px;
+        font-size: 16px;
+      }
+      .hall {
+        width: 100%;
+        text-align: left;
+        padding: 10px;
+        border: 0;
+        background: var(--soft);
+      }
+      .hall small {
+        display: block;
+        font-size: 11px;
+        margin-top: 4px;
+      }
+      .versions {
+        border-top: 1px solid var(--line);
+        margin-top: 18px;
+        padding-top: 14px;
+      }
+      .version {
+        border: 0;
+        border-radius: 5px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        margin-top: 8px;
+        padding: 8px;
+        font-size: 12px;
+      }
+      .version.active {
+        background: var(--soft);
+      }
+      .version small {
+        font-size: 10px;
+      }
+      .map-panel {
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+      .map-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--line);
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .map-toolbar select {
+        padding: 6px;
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        background: var(--surface);
+        max-width: 180px;
+        font-size: 12px;
+      }
+      .map-toolbar button {
+        font-size: 12px;
+        padding: 6px 10px;
+      }
+      .map-name {
+        padding: 11px 14px 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .map-name strong {
+        font-size: 12px;
+      }
+      .map-name small {
+        display: block;
+        margin-top: 2px;
+        font-size: 10px;
+      }
+      .canvas {
+        height: 480px;
+        min-height: 320px;
+        position: relative;
+        overflow: hidden;
+        touch-action: none;
+        background: #f9faf8;
+        background-size: 14px 14px;
+        margin: 8px;
+      }
+      .canvas svg {
+        height: 100%;
+        width: 100%;
+        display: block;
+        user-select: none;
+        cursor: grab;
+      }
+      .canvas svg.dragging {
+        cursor: grabbing;
+      }
+      .zone {
+        cursor: pointer;
+        transition: fill 0.15s;
+      }
+      .zone:hover {
+        fill: var(--soft) !important;
+        stroke: var(--ink);
+        stroke-width: 1;
+      }
+      .zone.selected {
+        fill: var(--lime) !important;
+        stroke: var(--ink);
+        stroke-width: 2;
+      }
+      .zone-label {
+        font-size: 11px;
+        font-weight: 700;
+        pointer-events: none;
+        text-anchor: middle;
+        dominant-baseline: middle;
+      }
+      .seat {
+        cursor: pointer;
+        fill: #425542;
+        stroke: white;
+        stroke-width: 0.3;
+      }
+      .seat:hover {
+        fill: #c6f24e;
+        stroke: #1a1a1a;
+        stroke-width: 1;
+      }
+      .zoom-bar {
+        position: absolute;
+        bottom: 8px;
+        right: 8px;
+        background: var(--surface);
+        display: flex;
+        align-items: center;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px #0001;
+      }
+      .zoom-bar button {
+        border: 0;
+        border-radius: 0;
+        padding: 6px 10px;
+      }
+      .zoom-bar output {
+        font-size: 11px;
+        min-width: 42px;
+        text-align: center;
+      }
+      .view-mode {
+        position: absolute;
+        left: 8px;
+        top: 4px;
+        background: var(--surface);
+        padding: 5px 8px;
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        font-size: 10px;
+      }
+      .map-footer {
+        margin-top: auto;
+        border-top: 1px solid var(--line);
+        padding: 9px 12px;
+        color: var(--muted);
+        font-size: 10px;
+      }
+      .inspector {
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+      }
+      .search {
+        display: flex;
+        gap: 6px;
+        margin: 12px 0 7px;
+      }
+      .search input {
+        width: 100%;
+        min-width: 0;
+      }
+      .search input,
+      .search select {
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        background: var(--surface);
+        padding: 7px;
+        font-size: 11px;
+      }
+      .table-wrap {
+        max-height: 300px;
+        overflow: auto;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 11px;
+      }
+      th {
+        text-align: left;
+        font-size: 10px;
+        color: var(--muted);
+        font-weight: 500;
+        background: #f6f7f5;
+        position: sticky;
+        top: 0;
+      }
+      th,
+      td {
+        padding: 9px 7px;
+        border-bottom: 1px solid var(--line);
+      }
+      td:last-child,
+      th:last-child {
+        text-align: right;
+      }
+      tbody tr {
+        cursor: pointer;
+      }
+      tbody tr:hover {
+        background: #f5f8f1;
+      }
+      tr.selected {
+        background: var(--soft);
+      }
+      td button {
+        border: 0;
+        background: transparent;
+        padding: 0;
+        font-size: 11px;
+        text-align: left;
+      }
+      .table-count {
+        font-size: 10px;
+        color: var(--muted);
+        padding-top: 8px;
+      }
+      .zone-detail {
+        margin-top: 16px;
+        padding-top: 14px;
+        border-top: 1px solid var(--line);
+      }
+      .zone-detail h3 {
+        border-left: 3px solid var(--lime);
+        padding-left: 8px;
+      }
+      .zone-detail p {
+        font-size: 11px;
+        color: var(--muted);
+        margin: 7px 0;
+      }
+      .zone-detail button {
+        font-size: 11px;
+        width: 100%;
+        margin-top: 8px;
+      }
+      .seat-info {
+        font-size: 11px;
+        background: var(--soft);
+        padding: 8px;
+        border-radius: 5px;
+        margin-top: 8px;
+      }
+      .info-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        margin-top: 16px;
+      }
+      .info-card {
+        padding: 20px;
+      }
+      .facts {
+        display: grid;
+        grid-template-columns: 130px 1fr;
+        gap: 14px;
+        font-size: 13px;
+        margin-top: 18px;
+      }
+      .facts dt {
+        color: var(--muted);
+      }
+      .facts dd {
+        margin: 0;
+      }
+      .fnb-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin: 18px 0;
+      }
+      .fnb-list {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+      }
+      .fnb-card {
+        padding: 18px;
+      }
+      .fnb-card p {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 12px;
+      }
+      .fnb-card .badge {
+        margin-top: 12px;
+      }
+      .demo-note {
+        font-size: 11px;
+        color: #71501e;
+        background: #fff6e6;
+        border: 1px solid #efdebb;
+        padding: 9px 12px;
+        border-radius: 7px;
+        margin-top: 16px;
+      }
+      .empty {
+        padding: 24px;
+        text-align: center;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      [hidden] {
+        display: none !important;
+      }
+      dialog {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        width: min(460px, 90vw);
+        padding: 22px;
+      }
+      dialog::backdrop {
+        background: #0005;
+      }
+      dialog p {
+        margin: 14px 0;
+        line-height: 1.6;
+        color: var(--muted);
+      }
+      .dialog-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+      .mobile-brand {
+        display: none;
+      }
+      @media (min-width: 1600px) {
+        .workspace {
+          grid-template-columns: minmax(420px, 1fr) 360px;
+        }
+        .canvas {
+          height: 540px;
+        }
+      }
+      @media (max-width: 1200px) {
+        .app {
+          grid-template-columns: 176px 1fr;
+        }
+        .content {
+          padding: 16px;
+        }
+        .workspace {
+          grid-template-columns: minmax(320px, 1fr) 275px;
+        }
+        .inspector {
+          grid-column: auto;
+        }
+        .table-wrap {
+          max-height: 230px;
+        }
+        .fnb-list {
+          grid-template-columns: 1fr 1fr;
+        }
+        .stats {
+          gap: 12px;
+        }
+        .topbar {
+          padding: 0 16px;
+        }
+      }
+      @media (max-width: 760px) {
+        .app {
+          display: block;
+        }
+        .sidebar {
+          display: none;
+        }
+        .mobile-brand {
+          display: inline;
+          font-weight: 800;
+        }
+        .topbar {
+          gap: 8px;
+          height: auto;
+          min-height: 48px;
+          font-size: 10px;
+        }
+        .topbar .crumb {
+          display: none;
+        }
+        .content {
+          padding: 12px;
+        }
+        .page-header {
+          display: block;
+        }
+        h1 {
+          font-size: 23px;
+        }
+        .actions {
+          margin-top: 12px;
+        }
+        .stats {
+          gap: 10px;
+          font-size: 10px;
+        }
+        .stats .scope {
+          margin-left: 0;
+          width: 100%;
+        }
+        .workspace {
+          display: flex;
+          flex-direction: column;
+        }
+        .rail {
+          display: flex;
+          gap: 10px;
+          align-items: center;
+          padding: 8px;
+        }
+        .rail .section-title {
+          margin: 0;
+          min-width: 65px;
+        }
+        .hall {
+          width: 125px;
+        }
+        .versions {
+          display: none;
+        }
+        .canvas {
+          height: 350px;
+        }
+        .info-grid,
+        .fnb-list {
+          grid-template-columns: 1fr;
+        }
+        .facts {
+          grid-template-columns: 105px 1fr;
+          gap: 12px;
+        }
+        .tabs {
+          gap: 20px;
+        }
+        .map-name strong {
+          font-size: 10px;
+        }
+        .map-footer {
+          font-size: 9px;
+        }
+        .fnb-toolbar {
+          align-items: flex-start;
+        }
+        .fnb-toolbar h2 {
+          max-width: 170px;
+        }
+      }
+      .map-toolbar strong {
+        font-size: 13px;
+      }
+      .map-legend {
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+        padding: 6px 14px 12px;
+        font-size: 10px;
+        color: var(--muted);
+      }
+      .map-legend span {
+        display: inline-flex;
+        gap: 5px;
+        align-items: center;
+      }
+      .map-legend i {
+        width: 10px;
+        height: 10px;
+        border-radius: 2px;
+        display: inline-block;
+      }
+      @media (max-width: 980px) and (min-width: 761px) {
+        .app {
+          grid-template-columns: 150px 1fr;
+        }
+        .workspace {
+          grid-template-columns: minmax(280px, 1fr) 235px;
+        }
+        .content {
+          padding: 12px;
+        }
+        .sidebar {
+          padding: 18px 8px;
+        }
+        .nav-item {
+          font-size: 11px;
+        }
+      }
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(100px, 160px)) 1fr;
+        gap: 12px;
+        padding: 16px 0;
+        align-items: center;
+      }
+      .stats .metric {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        padding: 12px 16px;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: var(--surface);
+        position: relative;
+      }
+      .stats .metric::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 15px;
+        bottom: 15px;
+        width: 3px;
+        background: var(--lime);
+        border-radius: 0 2px 2px 0;
+      }
+      .stats .metric b {
+        font-size: 27px;
+        font-weight: 750;
+        line-height: 1.1;
+        letter-spacing: -0.7px;
+        margin: 0;
+        color: var(--ink);
+      }
+      .stats .metric span {
+        font-size: 13px;
+        font-weight: 550;
+        color: #535c55;
+      }
+      .stats .scope {
+        width: auto;
+        text-align: right;
+      }
+      @media (max-width: 760px) {
+        .stats {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 8px;
+          padding: 12px 0;
+        }
+        .stats .metric {
+          padding: 11px 12px;
+        }
+        .stats .metric b {
+          font-size: 24px;
+        }
+        .stats .metric span {
+          font-size: 12px;
+        }
+        .stats .scope {
+          grid-column: 1/-1;
+          text-align: left;
+          font-size: 10px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar" aria-label="Điều hướng demo">
+        <div class="brand">vingo<span>ADMIN</span></div>
+        <div>
+          <div class="nav-label">VẬN HÀNH</div>
+          <button class="nav-item" data-note="Ngoài phạm vi demo sân.">⌂ &nbsp; Tổng quan</button
+          ><button class="nav-item" data-note="Ngoài phạm vi demo sân.">▥ &nbsp; Báo cáo</button>
+          <div class="nav-label">CATALOG</div>
+          <button class="nav-item active" id="nav-venue">◉ &nbsp; Sân & sơ đồ ghế</button
+          ><button class="nav-item" data-note="Ngoài phạm vi demo sân.">▦ &nbsp; Sự kiện & suất diễn</button>
+          <div class="nav-label">BÁN VÉ</div>
+          <button class="nav-item" data-note="Ngoài phạm vi demo sân.">▤ &nbsp; Đơn hàng</button
+          ><button class="nav-item" data-note="Ngoài phạm vi demo sân.">◇ &nbsp; Vé</button
+          ><button class="nav-item" data-note="Ngoài phạm vi demo sân.">▣ &nbsp; Check-in</button>
+          <div class="nav-label">HỆ THỐNG</div>
+          <button class="nav-item" data-note="Ngoài phạm vi demo sân.">▧ &nbsp; Nhật ký audit</button>
+        </div>
+        <div class="user">
+          <span class="avatar">AV</span>
+          <div>Admin Vingo<small>Tài khoản minh họa</small></div>
+        </div>
+      </aside>
+      <main class="main">
+        <div class="topbar">
+          <span class="mobile-brand">vingo · ADMIN</span
+          ><span class="crumb">⌂ &nbsp; Sân & địa điểm &nbsp; / &nbsp; <b>Sân Thiên Trường</b></span
+          ><span class="badge demo">DEMO V02 · Chưa chốt</span>
+        </div>
+        <div class="content">
+          <header class="page-header">
+            <div>
+              <h1>Sân Thiên Trường</h1>
+              <p class="subtitle">Sân vận động <span class="badge">● Sẵn sàng</span></p>
+              <div class="address">
+                ⌖ &nbsp; Đường Đặng Xuân Thiều, TP. Nam Định
+                <button
+                  class="text-button"
+                  data-note="Đây là địa chỉ minh họa. Bản thật sẽ mở bản đồ từ địa chỉ hoặc tọa độ API."
+                >
+                  Xem bản đồ ↗
+                </button>
+              </div>
+            </div>
+            <div class="actions">
+              <button data-note="Form thông tin sân sẽ dùng API hiện có khi triển khai. Demo này chỉ để duyệt bố cục.">
+                Sửa thông tin sân</button
+              ><button
+                class="lime"
+                data-note="Luồng thật sẽ chọn tệp SVG và tạo phiên bản nháp mới. Demo không tải tệp hoặc ghi dữ liệu."
+              >
+                ↑ Nhập SVG xuất từ Figma
+              </button>
+            </div>
+          </header>
+          <div class="tabs" role="tablist" aria-label="Thông tin địa điểm">
+            <button id="tab-map" role="tab" aria-selected="true" aria-controls="view-map">Sơ đồ sân</button
+            ><button id="tab-info" role="tab" aria-selected="false" aria-controls="view-info" tabindex="-1">
+              Thông tin sân</button
+            ><button id="tab-fnb" role="tab" aria-selected="false" aria-controls="view-fnb" tabindex="-1">
+              F&B <small>3</small>
+            </button>
+          </div>
+          <section id="view-map" role="tabpanel" aria-labelledby="tab-map">
+            <div class="stats">
+              <span class="metric"><b>27</b><span>Khu</span></span
+              ><span class="metric"><b>6.699</b><span>Ghế ngồi</span></span
+              ><span class="metric"><b>0</b><span>Chỗ đứng</span></span
+              ><span class="scope">Sức chứa sơ đồ đang hiển thị</span>
+            </div>
+            <div class="workspace">
+              <section class="panel map-panel" aria-label="Sơ đồ sân">
+                <div class="map-toolbar">
+                  <div>
+                    <strong>Sơ đồ sân</strong> &nbsp;
+                    <span class="badge">▣ Đã khóa</span>
+                  </div>
+                  <button data-note="Bản thật xuất Khu hoặc Ghế bằng endpoint CSV hiện có.">↓ Xuất CSV</button>
+                </div>
+                <div class="map-name">
+                  <div>
+                    <strong>Toàn cảnh sân Thiên Trường</strong
+                    ><small>Sơ đồ sân và lối tiếp cận · Bắc ↑ · Cổng minh họa</small>
+                  </div>
+                  <span class="badge" id="selected-badge">Chưa chọn khu</span>
+                </div>
+                <div class="canvas" id="canvas">
+                  <span class="view-mode" id="mode">Tổng quan khu</span
+                  ><svg
+                    id="map"
+                    viewBox="0 0 1000 720"
+                    role="application"
+                    tabindex="0"
+                    aria-label="Sơ đồ demo. Lăn chuột hoặc phím cộng trừ để zoom; kéo để di chuyển; bấm khu để xem ghế."
+                  >
+                    <g id="stadium"></g>
+                  </svg>
+                  <div class="zoom-bar">
+                    <button id="fit" aria-label="Về toàn cảnh">⛶</button
+                    ><button id="minus" aria-label="Thu nhỏ">−</button><output id="zoom">100%</output
+                    ><button id="plus" aria-label="Phóng to">+</button>
+                  </div>
+                </div>
+                <div class="map-legend">
+                  <span><i style="background: #237a3c"></i>Sân thi đấu</span
+                  ><span><i style="background: #b95c43"></i>Đường chạy điền kinh</span
+                  ><span><i style="background: #e7ece9; border: 1px solid #b7c5bb"></i>Khán đài</span
+                  ><span><i style="background: var(--lime)"></i>Khu đang chọn</span>
+                </div>
+                <div class="map-footer">
+                  Lăn chuột để zoom · Kéo để di chuyển · Bấm khu để xem ghế<br />▣ Bản đã phát hành được khóa. Nhập SVG
+                  xuất từ Figma để tạo cấu hình mới.
+                </div>
+              </section>
+              <aside class="panel inspector">
+                <div class="section-title">
+                  <h2>Danh sách khu (27)</h2>
+                  <span class="muted" style="font-size: 10px">Ghế ngồi</span>
+                </div>
+                <div class="search"><input id="search" placeholder="Tìm mã khu…" aria-label="Tìm mã khu" /></div>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Mã khu</th>
+                        <th>Loại</th>
+                        <th>Sức chứa</th>
+                      </tr>
+                    </thead>
+                    <tbody id="zone-rows"></tbody>
+                  </table>
+                </div>
+                <div class="table-count" id="count"></div>
+                <div class="zone-detail" id="zone-detail">
+                  <h3>Chọn một khu</h3>
+                  <p>Bấm vào khu trên sơ đồ hoặc một hàng trong danh sách để xem ghế.</p>
+                </div>
+              </aside>
+            </div>
+          </section>
+          <section id="view-info" role="tabpanel" aria-labelledby="tab-info" hidden>
+            <div class="info-grid">
+              <article class="panel info-card">
+                <h2>Thông tin cơ bản</h2>
+                <dl class="facts">
+                  <dt>Tên sân</dt>
+                  <dd>Sân Thiên Trường</dd>
+                  <dt>Loại địa điểm</dt>
+                  <dd>Sân vận động</dd>
+                  <dt>Địa chỉ</dt>
+                  <dd>Đường Đặng Xuân Thiều, TP. Nam Định</dd>
+                  <dt>Sức chứa cấu hình</dt>
+                  <dd><b>6.699 chỗ</b><br /><small>27 khu · cấu hình minh họa</small></dd>
+                  <dt>Giờ mở cửa</dt>
+                  <dd>Theo lịch sự kiện</dd>
+                </dl>
+              </article>
+              <article class="panel info-card">
+                <h2>Hướng dẫn & tiện ích</h2>
+                <dl class="facts">
+                  <dt>Gửi xe</dt>
+                  <dd>Bãi xe gần cổng A — dữ liệu mẫu</dd>
+                  <dt>Tiếp cận</dt>
+                  <dd>Lối tiếp cận xe lăn tại cổng A2 — dữ liệu mẫu</dd>
+                  <dt>Nhà vệ sinh</dt>
+                  <dd>Khán đài A, B — dữ liệu mẫu</dd>
+                  <dt>Nội quy</dt>
+                  <dd>Xuất trình vé khi vào sân. Không mang vật dụng bị cấm.</dd>
+                  <dt>Liên hệ quản lý</dt>
+                  <dd>Chưa cập nhật</dd>
+                </dl>
+              </article>
+            </div>
+            <p class="demo-note">
+              Thông tin trên chỉ minh họa bố cục. Tiện ích và tiếp cận cần bổ sung contract trước khi lưu thật.
+            </p>
+          </section>
+          <section id="view-fnb" role="tabpanel" aria-labelledby="tab-fnb" hidden>
+            <div class="fnb-toolbar">
+              <div>
+                <h2>Cơ sở F&B trong sân</h2>
+                <p class="subtitle">3 cơ sở · 2 đang khai thác</p>
+              </div>
+              <button
+                class="primary"
+                data-note="Form F&B đề xuất: tên, loại hình, Hall/vị trí, giờ phục vụ, trạng thái và mô tả. Chưa có API lưu dữ liệu."
+              >
+                + Thêm cơ sở
+              </button>
+            </div>
+            <div class="fnb-list">
+              <article class="panel fnb-card">
+                <h3>Quầy nước A</h3>
+                <small>ĐỒ UỐNG</small>
+                <p>⌖ Khán đài A · Tầng 1 · Cổng A2</p>
+                <p>◷ Phục vụ theo giờ sự kiện</p>
+                <span class="badge">● Đang khai thác</span>
+                <p>Nước uống đóng chai, nước giải khát.</p>
+                <button data-note="Demo bố cục F&B. Chưa kết nối API sửa cơ sở.">Xem / sửa</button>
+              </article>
+              <article class="panel fnb-card">
+                <h3>Góc ăn nhanh B</h3>
+                <small>ĐỒ ĂN</small>
+                <p>⌖ Khán đài B · Gần lối B1</p>
+                <p>◷ Mở trước sự kiện 60 phút</p>
+                <span class="badge">● Đang khai thác</span>
+                <p>Đồ ăn nhẹ, bánh mì và món mang đi.</p>
+                <button data-note="Demo bố cục F&B. Chưa kết nối API sửa cơ sở.">Xem / sửa</button>
+              </article>
+              <article class="panel fnb-card">
+                <h3>Cửa hàng tiện lợi C</h3>
+                <small>CỬA HÀNG TIỆN LỢI</small>
+                <p>⌖ Khán đài C · Tầng trệt</p>
+                <p>◷ Chưa cập nhật</p>
+                <span class="badge demo">● Tạm đóng</span>
+                <p>Đang bảo trì khu phục vụ.</p>
+                <button data-note="Demo bố cục F&B. Chưa kết nối API sửa cơ sở.">Xem / sửa</button>
+              </article>
+            </div>
+            <p class="demo-note">
+              F&B là đề xuất mới. Mọi cơ sở trên đều là dữ liệu minh họa; các nút không ghi vào hệ thống.
+            </p>
+          </section>
+        </div>
+      </main>
+    </div>
+    <dialog id="notice">
+      <h2>Thông tin bản demo</h2>
+      <p id="notice-text"></p>
+      <div class="dialog-actions"><button id="close-notice" class="primary">Đã hiểu</button></div>
+    </dialog>
+    <script>
+      const $ = (id) => document.getElementById(id)
+      const ns = 'http://www.w3.org/2000/svg'
+      const codes = [
+        'A1-T1',
+        'A2-T1',
+        'A3-T1',
+        'A4-T1',
+        'A5-T1',
+        'A6-T1',
+        'B1-T1',
+        'B2-T1',
+        'B3-T1',
+        'B4-T1',
+        'B5-T1',
+        'B6-T1',
+        'B7-T1',
+        'C1-T1',
+        'C2-T1',
+        'C3-T1',
+        'C4-T1',
+        'C5-T1',
+        'C6-T1',
+        'C7-T1',
+        'D1-T1',
+        'D2-T1',
+        'D3-T1',
+        'D4-T1',
+        'D5-T1',
+        'D6-T1',
+        'D7-T1',
+      ]
+      const zones = codes.map((code, i) => ({ code, capacity: i === 0 ? 344 : i === 26 ? 255 : 244, i }))
+      const colors = ['#d3e3ec', '#d4e7db', '#eae4cc']
+      let view = { x: 0, y: 0, w: 1000, h: 720 },
+        selected = null,
+        detailed = false,
+        drag = null,
+        moved = false
+      const nodes = []
+      function make(tag, attrs, parent = $('stadium')) {
+        const e = document.createElementNS(ns, tag)
+        for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v))
+        parent.append(e)
+        return e
+      }
+      const point = (rx, ry, a) => [500 + rx * Math.cos(a), 360 + ry * Math.sin(a)]
+      function sector(i) {
+        const a = (i / zones.length) * Math.PI * 2 + 0.006,
+          b = ((i + 1) / zones.length) * Math.PI * 2 - 0.006,
+          p = point(455, 305, a),
+          q = point(455, 305, b),
+          r = point(341, 220, b),
+          s = point(341, 220, a)
+        return `M${p} A455 305 0 0 1 ${q} L${r} A341 220 0 0 0 ${s}Z`
+      }
+      make('ellipse', { cx: 500, cy: 360, rx: 470, ry: 320, fill: '#e9ece8' })
+      zones.forEach((z) => {
+        const g = make('g', { 'data-zone': z.code })
+        const path = make(
+          'path',
+          { d: sector(z.i), fill: '#e7ece9', stroke: 'white', 'stroke-width': 3, class: 'zone' },
+          g,
+        )
+        const a = ((z.i + 0.5) / 27) * Math.PI * 2,
+          p = point(398, 265, a)
+        const label = make('text', { x: p[0], y: p[1], class: 'zone-label' }, g)
+        label.textContent = z.code
+        const seats = make('g', { class: 'seats', display: 'none' }, g)
+        for (let row = 0; row < 5; row++) {
+          for (let col = 0; col < 9; col++) {
+            const a = ((z.i + (col + 0.7) / 10) / 27) * Math.PI * 2,
+              p = point(351 + row * 19, 229 + row * 15, a)
+            make(
+              'circle',
+              {
+                cx: p[0],
+                cy: p[1],
+                r: 2.7,
+                class: 'seat',
+                'data-seat': `${z.code} · Hàng ${String.fromCharCode(65 + row)} · Ghế ${col + 1}`,
+              },
+              seats,
+            )
+          }
+        }
+        nodes.push({ path, label, seats, g })
+      })
+      make('ellipse', { cx: 500, cy: 360, rx: 326, ry: 205, fill: '#b95c43' })
+      for (let i = 0; i < 4; i++)
+        make('ellipse', {
+          cx: 500,
+          cy: 360,
+          rx: 322 - i * 8,
+          ry: 201 - i * 8,
+          fill: 'none',
+          stroke: '#f7d7c5',
+          'stroke-width': 1,
+        })
+      make('ellipse', { cx: 500, cy: 360, rx: 290, ry: 169, fill: '#e7e3d9' })
+      make('rect', { x: 292, y: 237, width: 416, height: 246, rx: 1, fill: '#237a3c' })
+      for (let i = 0; i < 8; i++)
+        make('rect', { x: 292 + i * 52, y: 237, width: 52, height: 246, fill: i % 2 ? '#2b8b47' : '#237a3c' })
+      make('rect', { x: 302, y: 247, width: 396, height: 226, fill: 'none', stroke: 'white', 'stroke-width': 2.7 })
+      make('path', {
+        d: 'M500 247V473 M302 293H365V427H302 M698 293H635V427H698 M302 328H325V392H302 M698 328H675V392H698',
+        fill: 'none',
+        stroke: 'white',
+        'stroke-width': 2.7,
+      })
+      make('circle', { cx: 500, cy: 360, r: 33, fill: 'none', stroke: 'white', 'stroke-width': 2.7 })
+      make('circle', { cx: 500, cy: 360, r: 2, fill: 'white' })
+      // Chỉ giữ màu và đường kẻ; không đặt chữ lên sân thi đấu hoặc đường chạy.
+      make('rect', { x: 285, y: 334, width: 7, height: 52, fill: 'none', stroke: '#ffffff', 'stroke-width': 2.5 })
+      make('rect', { x: 708, y: 334, width: 7, height: 52, fill: 'none', stroke: '#ffffff', 'stroke-width': 2.5 })
+      // Cổng và hướng tiếp cận chỉ minh họa, không suy ra vị trí thật từ địa danh sân.
+      const gates = [
+        { name: 'Bắc', x: 500, y: 23, corridor: 'M500 48V143', arrow: '↓', ax: 500, ay: 112 },
+        { name: 'Đông', x: 940, y: 360, corridor: 'M942 360H842', arrow: '←', ax: 877, ay: 366 },
+        { name: 'Nam', x: 500, y: 699, corridor: 'M500 678V579', arrow: '↑', ax: 500, ay: 622 },
+        { name: 'Tây', x: 60, y: 360, corridor: 'M58 360H158', arrow: '→', ax: 124, ay: 366 },
+      ]
+      gates.forEach((gate) => {
+        const g = make('g', {
+          role: 'button',
+          tabindex: 0,
+          'aria-label': `Cổng ${gate.name}, lối ra vào minh họa`,
+          'data-note': `Cổng ${gate.name}: vị trí lối ra/vào minh họa cho bản demo. Cần đối chiếu cổng thực tế và SVG Figma trước khi triển khai.`,
+        })
+        make('path', { d: gate.corridor, fill: 'none', stroke: '#ffffff', 'stroke-width': 24 }, g)
+        make(
+          'path',
+          { d: gate.corridor, fill: 'none', stroke: '#768676', 'stroke-width': 1.5, 'stroke-dasharray': '4 4' },
+          g,
+        )
+        const arrow = make(
+          'text',
+          {
+            x: gate.ax,
+            y: gate.ay,
+            fill: '#355e39',
+            'font-size': 25,
+            'font-weight': 700,
+            'text-anchor': 'middle',
+            'pointer-events': 'none',
+          },
+          g,
+        )
+        arrow.textContent = gate.arrow
+        make(
+          'rect',
+          {
+            x: gate.x - 48,
+            y: gate.y - 14,
+            width: 96,
+            height: 28,
+            rx: 5,
+            fill: '#f2f9df',
+            stroke: '#526d42',
+            'stroke-width': 1.5,
+          },
+          g,
+        )
+        const label = make(
+          'text',
+          {
+            x: gate.x,
+            y: gate.y + 4,
+            fill: '#25462b',
+            'font-size': 14,
+            'font-weight': 700,
+            'text-anchor': 'middle',
+            'pointer-events': 'none',
+          },
+          g,
+        )
+        label.textContent = `Cổng ${gate.name}`
+        g.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            $('notice-text').textContent = g.dataset.note
+            $('notice').showModal()
+          }
+        })
+      })
+      function renderRows() {
+        const q = $('search').value.trim().toLowerCase(),
+          list = zones.filter((z) => z.code.toLowerCase().includes(q))
+        $('zone-rows').replaceChildren()
+        list.forEach((z) => {
+          const tr = document.createElement('tr')
+          tr.classList.toggle('selected', selected === z.code)
+          const td = document.createElement('td'),
+            btn = document.createElement('button')
+          btn.textContent = z.code
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation()
+            select(z)
+          })
+          td.append(btn)
+          tr.append(td)
+          const kind = document.createElement('td')
+          kind.textContent = 'Ghế ngồi'
+          tr.append(kind)
+          const cap = document.createElement('td')
+          cap.textContent = z.capacity
+          tr.append(cap)
+          tr.addEventListener('click', () => select(z))
+          $('zone-rows').append(tr)
+        })
+        $('count').textContent = `${list.length} / 27 khu · dữ liệu minh họa`
+        if (!list.length) {
+          const tr = document.createElement('tr'),
+            td = document.createElement('td')
+          td.colSpan = 3
+          td.textContent = 'Không có khu phù hợp'
+          tr.append(td)
+          $('zone-rows').append(tr)
+        }
+      }
+      function update() {
+        const scale = 1000 / view.w
+        if (scale >= 2.1) detailed = true
+        else if (scale < 1.8) detailed = false
+        $('map').setAttribute('viewBox', `${view.x} ${view.y} ${view.w} ${view.h}`)
+        $('zoom').textContent = `${Math.round(scale * 100)}%`
+        $('mode').textContent = detailed ? 'Chi tiết ghế' : 'Tổng quan khu'
+        nodes.forEach((n, i) => {
+          n.seats.setAttribute('display', detailed ? 'inline' : 'none')
+          n.label.setAttribute('display', detailed ? 'none' : 'inline')
+          n.path.classList.toggle('selected', zones[i].code === selected)
+        })
+      }
+      function select(z) {
+        selected = z.code
+        const b = nodes[z.i].g.getBBox(),
+          w = Math.max(b.width * 1.8, 240),
+          h = w * 0.72
+        view = { x: b.x + b.width / 2 - w / 2, y: b.y + b.height / 2 - h / 2, w, h }
+        detailed = true
+        $('selected-badge').textContent = z.code
+        const box = $('zone-detail')
+        box.replaceChildren()
+        const h3 = document.createElement('h3')
+        h3.textContent = `Khu ${z.code}`
+        const p = document.createElement('p')
+        p.textContent = `${z.capacity} ghế · Cấu hình minh họa`
+        const code = document.createElement('p')
+        code.textContent = `ZONE__${z.code}__SEATED`
+        const note = document.createElement('p')
+        note.textContent = 'Bấm một ghế để xem thông tin minh họa.'
+        const seat = document.createElement('div')
+        seat.id = 'seat-info'
+        seat.className = 'seat-info'
+        seat.textContent = 'Chi tiết ghế chưa được chọn'
+        const btn = document.createElement('button')
+        btn.textContent = '← Về toàn cảnh'
+        btn.onclick = fit
+        box.append(h3, p, code, note, seat, btn)
+        renderRows()
+        update()
+      }
+      function fit() {
+        view = { x: 0, y: 0, w: 1000, h: 720 }
+        detailed = false
+        update()
+      }
+      function zoom(factor, anchor) {
+        const old = view,
+          w = Math.max(120, Math.min(1000, old.w / factor)),
+          k = w / old.w,
+          a = anchor || { x: old.x + old.w / 2, y: old.y + old.h / 2 }
+        view = { x: a.x - (a.x - old.x) * k, y: a.y - (a.y - old.y) * k, w, h: w * 0.72 }
+        update()
+      }
+      function svgPoint(e) {
+        const m = $('map').getScreenCTM()
+        return m ? new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse()) : null
+      }
+      $('canvas').addEventListener(
+        'wheel',
+        (e) => {
+          if (e.target.closest('button')) return
+          e.preventDefault()
+          const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 440 : 1
+          zoom(Math.exp(-Math.max(-180, Math.min(180, e.deltaY * unit)) * 0.003), svgPoint(e))
+        },
+        { passive: false },
+      )
+      $('map').addEventListener('pointerdown', (e) => {
+        if (e.button !== 0) return
+        drag = { point: svgPoint(e), view: { ...view }, x: e.clientX, y: e.clientY }
+        moved = false
+        $('map').setPointerCapture(e.pointerId)
+      })
+      $('map').addEventListener('pointermove', (e) => {
+        if (!drag) return
+        if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > 5) moved = true
+        if (!moved) return
+        const p = svgPoint(e)
+        if (!p) return
+        view.x = Math.max(-view.w * 0.5, Math.min(1000 - view.w * 0.5, view.x + drag.point.x - p.x))
+        view.y = Math.max(-view.h * 0.5, Math.min(720 - view.h * 0.5, view.y + drag.point.y - p.y))
+        $('map').classList.add('dragging')
+        update()
+      })
+      $('map').addEventListener('pointerup', () => {
+        drag = null
+        $('map').classList.remove('dragging')
+      })
+      $('map').addEventListener('pointercancel', () => {
+        drag = null
+        moved = false
+        $('map').classList.remove('dragging')
+      })
+      $('map').addEventListener('click', (e) => {
+        if (moved) {
+          moved = false
+          return
+        }
+        const seat = e.target.closest('[data-seat]')
+        if (seat && detailed) {
+          if ($('seat-info')) $('seat-info').textContent = seat.dataset.seat + ' · Chỉ xem'
+          return
+        }
+        const g = e.target.closest('[data-zone]')
+        if (g) select(zones.find((z) => z.code === g.dataset.zone))
+      })
+      $('map').addEventListener('keydown', (e) => {
+        if (['+', '=', '-', '0'].includes(e.key)) {
+          e.preventDefault()
+          if (e.key === '0') fit()
+          else zoom(e.key === '-' ? 1 / 1.4 : 1.4)
+        }
+      })
+      $('plus').onclick = () => zoom(1.4)
+      $('minus').onclick = () => zoom(1 / 1.4)
+      $('fit').onclick = fit
+      $('search').oninput = renderRows
+      function tab(name) {
+        for (const key of ['map', 'info', 'fnb']) {
+          $('tab-' + key).setAttribute('aria-selected', key === name)
+          $('tab-' + key).tabIndex = key === name ? 0 : -1
+          $('view-' + key).hidden = key !== name
+        }
+      }
+      const keys = ['map', 'info', 'fnb']
+      keys.forEach((key, i) => {
+        $('tab-' + key).onclick = () => tab(key)
+        $('tab-' + key).onkeydown = (e) => {
+          if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return
+          e.preventDefault()
+          const n = e.key === 'Home' ? 0 : e.key === 'End' ? 2 : (i + (e.key === 'ArrowRight' ? 1 : 2)) % 3
+          tab(keys[n])
+          $('tab-' + keys[n]).focus()
+        }
+      })
+      $('nav-venue').onclick = () => tab('map')
+      document.querySelectorAll('[data-note]').forEach(
+        (b) =>
+          (b.onclick = () => {
+            $('notice-text').textContent = b.dataset.note
+            $('notice').showModal()
+          }),
+      )
+      $('close-notice').onclick = () => $('notice').close()
+      renderRows()
+      update()
+    </script>
+  </body>
+</html>

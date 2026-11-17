@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router'
 import { useQueries } from '@tanstack/react-query'
 import { AlertTriangle, MapPin } from 'lucide-react'
@@ -54,18 +54,25 @@ export default function VenuesPage() {
     [status, setStatus] = useState<StatusFilter>(''),
     [q, setQ] = useState('')
   const venues = query.data
-  // Sơ đồ theo hall: mỗi hall một yêu cầu (có cache dùng chung với wizard). API danh sách sân chưa trả tóm tắt sơ đồ.
-  const halls = useMemo(() => venues?.flatMap((v) => v.halls ?? []) ?? [], [venues])
   const layoutQueries = useQueries({
-    queries: halls.map((h) => ({
-      queryKey: ['admin-layout-directory', h.id],
-      queryFn: async () => (await listSeatLayouts(h.id!, { limit: 100 })).data ?? [],
+    queries: (venues ?? []).map((v) => ({
+      queryKey: ['admin-layout-directory', v.id],
+      queryFn: async () => {
+        const all: SeatLayout[] = []
+        let cursor: string | undefined
+        do {
+          const page = await listSeatLayouts(v.id!, { limit: 100, cursor })
+          all.push(...(page.data ?? []))
+          cursor = page.next_cursor ?? undefined
+        } while (cursor)
+        return all
+      },
       staleTime: 30_000,
     })),
   })
   const layoutsOf = (venue: Venue): SeatLayout[][] | undefined => {
-    const list = venue.halls?.map((h) => layoutQueries[halls.findIndex((x) => x.id === h.id)])
-    return list?.every((r) => r?.data) ? list.map((r) => r!.data!) : venue.halls?.length ? undefined : []
+    const query = layoutQueries[venues?.findIndex((v) => v.id === venue.id) ?? -1]
+    return query?.data ? [query.data] : undefined
   }
   const states = new Map(venues?.map((v) => [v.id, layoutsOf(v) && venueState(layoutsOf(v)!)]))
   const ready = venues?.filter((v) => states.get(v.id) === 'READY').length ?? 0
@@ -156,7 +163,7 @@ function VenueCard({ venue: v, layouts }: { venue: Venue; layouts?: SeatLayout[]
   const dash = <span aria-label="Chưa có">–</span>
   return (
     <article className="wz-venue">
-      <Link to={`/admin/venues/${v.id}`} className="wz-venue-cover" aria-label={`Quản lý ${v.name}`}>
+      <Link to={setup} className="wz-venue-cover" aria-label={`Quản lý ${v.name}`}>
         <CoverArt type={v.type} />
         <span className="wz-chip">{v.type}</span>
         {state && (
@@ -167,7 +174,7 @@ function VenueCard({ venue: v, layouts }: { venue: Venue; layouts?: SeatLayout[]
       </Link>
       <div className="wz-venue-body">
         <div className="wz-venue-title">
-          <Link to={`/admin/venues/${v.id}`}>
+          <Link to={setup}>
             <h2>{v.name}</h2>
           </Link>
           <DropdownMenu>
@@ -178,10 +185,10 @@ function VenueCard({ venue: v, layouts }: { venue: Venue; layouts?: SeatLayout[]
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem asChild>
-                <Link to={`/admin/venues/${v.id}`}>Quản lý hall & sơ đồ</Link>
+                <Link to={setup}>Quản lý sân & sơ đồ</Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link to={`${setup}?step=1`}>Sửa thông tin sân</Link>
+                <Link to={setup}>Chỉnh sửa sân</Link>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -192,7 +199,6 @@ function VenueCard({ venue: v, layouts }: { venue: Venue; layouts?: SeatLayout[]
           {v.district ? ` · ${v.district}` : ''}
         </p>
         <div className="wz-venue-stats">
-          <span>{v.halls?.length ?? 0} Hall</span>
           <span>{!layouts ? '…' : version ? `Sơ đồ v${version}` : draftVersion ? `v${draftVersion} nháp` : dash}</span>
           <span>{!layouts ? '…' : seats ? `${seats.toLocaleString('vi-VN')} ghế` : dash}</span>
         </div>
@@ -205,8 +211,8 @@ function VenueCard({ venue: v, layouts }: { venue: Venue; layouts?: SeatLayout[]
               Tạo sự kiện →
             </Link>
           ) : state ? (
-            <Link className="wz-link" to={`${setup}?step=2`}>
-              {state === 'NO_LAYOUT' ? 'Nhập sơ đồ' : 'Phát hành'} →
+            <Link className="wz-link" to={setup}>
+              Hoàn thiện sân →
             </Link>
           ) : null}
         </div>

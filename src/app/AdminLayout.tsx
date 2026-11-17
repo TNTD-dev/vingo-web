@@ -51,7 +51,17 @@ const groups = [
 ]
 
 /** Nút mở Copilot ở góc màn quản trị (Figma `copilot-launcher`): mascot + "Mở Copilot ⌘J". */
-function CopilotLauncher() {
+function CopilotLauncher({ compact = false }: { compact?: boolean }) {
+  if (compact)
+    return (
+      <Link
+        to="/admin/copilot"
+        className="fixed right-4 bottom-3 z-40 rounded-md border border-line bg-surface px-3 py-2 text-xs shadow-float"
+        aria-label="Mở Copilot (⌘J)"
+      >
+        Mở Copilot ⌘J
+      </Link>
+    )
   return (
     <Link
       to="/admin/copilot"
@@ -93,16 +103,9 @@ function NavTip({ label, show, children }: { label: string; show: boolean; child
 
 export function AdminLayout() {
   const { user, logout } = useAuth()
-  const [open, setOpen] = useState(false),
-    [collapsed, setCollapsed] = useState(readCollapsed)
-  const toggle = () => setCollapsed((c) => !c)
-  useEffect(() => {
-    try {
-      localStorage.setItem(COLLAPSED_KEY, collapsed ? '1' : '0')
-    } catch {
-      // Không lưu được thì chỉ mất ghi nhớ giữa các lần mở trang.
-    }
-  }, [collapsed])
+  const venueDetail = useMatch('/admin/venues/:venueId')
+  const compact = !!venueDetail && venueDetail.params.venueId !== 'new'
+  const [open, setOpen] = useState(false)
   useCopilotShortcut('/admin/copilot')
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
@@ -146,16 +149,24 @@ export function AdminLayout() {
     </nav>
   )
   return (
-    <Tooltip.Provider>
-      <div className="admin" data-sidebar={collapsed ? 'collapsed' : 'expanded'}>
-        <a className="sr-only focus:not-sr-only" href="#admin-content">
-          Đến nội dung
-        </a>
-        <aside className="admin-sidebar" data-collapsed={collapsed || undefined}>
-          <div className="admin-sidebar-top">
-            <Link to="/admin" className="admin-sidebar-brand" aria-label="Vingo Admin · Tổng quan">
-              {collapsed ? <img src={logoMark.dark} alt="" className="h-[30px] w-auto" /> : <Logo theme="dark" />}
-              {!collapsed && <StatusBadge tone="dark">Admin</StatusBadge>}
+    <div className={compact ? 'admin admin-venue-console' : 'admin'}>
+      <a className="sr-only focus:not-sr-only" href="#admin-content">
+        Đến nội dung
+      </a>
+      <aside className="admin-sidebar">
+        <Link to="/admin" className="flex items-center justify-between px-2 pb-2">
+          <Logo theme="dark" />
+          <StatusBadge tone="dark">Admin</StatusBadge>
+        </Link>
+        {navigation}
+        <div className="mt-auto flex items-center gap-3 rounded-md bg-ink-raised p-3">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-pill bg-agent text-xs text-ink">
+            {initials(user?.full_name ?? user?.email ?? 'Admin')}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm">{user?.full_name ?? 'Quản trị viên'}</p>
+            <Link to="/events" className="text-xs text-on-ink-secondary hover:underline">
+              {import.meta.env.VITE_USE_MOCK === 'true' ? 'Dữ liệu demo · Về trang mua vé' : user?.email}
             </Link>
             <NavTip label="Mở rộng (⌘B)" show={collapsed}>
               <button
@@ -216,6 +227,7 @@ export function AdminLayout() {
         </div>
         <CopilotLauncher />
       </div>
-    </Tooltip.Provider>
+      <CopilotLauncher compact={compact} />
+    </div>
   )
 }

@@ -12,9 +12,9 @@ export type ZoneKind = 'SEATED' | 'STANDING'
 
 export type ZoneRef = { code: string; kind: ZoneKind }
 
-const ZONE_ID = /^ZONE__([A-Z0-9]+(?:-T\d+)?)__(SEATED|STANDING)(?:__\d+)?$/
-const ZONE_PART_ID = /^(?:ZONE|CONTENT|LABEL)__([A-Z0-9]+(?:-T\d+)?)(?:__|$)/
-const SEAT_ID = /^SEAT__([A-Z0-9]+(?:-T\d+)?)__([A-Z]+)__(\d+)$/
+const ZONE_ID = /^ZONE__([A-Z0-9][A-Z0-9-]*)__(SEATED|STANDING)(?:__\d+)?$/
+const ZONE_PART_ID = /^(?:ZONE|CONTENT|LABEL)__([A-Z0-9][A-Z0-9-]*)(?:__|$)/
+const SEAT_ID = /^SEAT__([A-Z0-9][A-Z0-9-]*)__([A-Za-z0-9-]+)__(\d+)$/
 const GATE_ID = /^GATE__(.+)__(\d+)$/
 
 export function parseZoneId(id: string): ZoneRef | null {
@@ -61,6 +61,7 @@ export type SvgIndex = {
 
 const ALLOWED_TAGS = new Set([
   'svg',
+  'use',
   'g',
   'path',
   'circle',
@@ -84,6 +85,11 @@ const ALLOWED_TAGS = new Set([
 
 const ALLOWED_ATTRS = new Set([
   'id',
+  'href',
+  'xlink:href',
+  'xmlns:xlink',
+  'visibility',
+  'display',
   'class',
   'd',
   'x',
@@ -153,7 +159,12 @@ function clean(el: Element) {
     clean(child)
   }
   for (const attr of Array.from(el.attributes)) {
-    if (!ALLOWED_ATTRS.has(attr.name) || !safeValue(attr.value)) el.removeAttribute(attr.name)
+    if (
+      !ALLOWED_ATTRS.has(attr.name) ||
+      !safeValue(attr.value) ||
+      ((attr.name === 'href' || attr.name === 'xlink:href') && !/^#[A-Za-z0-9_.:-]+$/.test(attr.value))
+    )
+      el.removeAttribute(attr.name)
   }
 }
 

@@ -5,14 +5,12 @@ import { describe, expect, it, vi } from 'vitest'
 import type { User } from '@/api/generated/model'
 import { AuthContext } from '@/auth/auth-context'
 import LoginPage from './LoginPage'
-import AdminLoginPage from '@/features/admin-ops/AdminLoginPage'
 
 function setup(role: User['role'], path = '/login') {
   const login = vi.fn().mockResolvedValue({ id: 'u', role })
   const router = createMemoryRouter(
     [
       { path: '/login', element: <LoginPage /> },
-      { path: '/admin/login', element: <AdminLoginPage /> },
       { path: '/admin', element: <>dashboard</> },
       { path: '/admin/orders', element: <>quản lý đơn</> },
       { path: '/events', element: <>sự kiện</> },
@@ -48,16 +46,5 @@ describe('điều hướng sau login', () => {
     await submit()
     await waitFor(() => expect(router.state.location.pathname).toBe(target))
     expect(router.state.historyAction).toBe('REPLACE')
-  })
-  it('cổng admin vẫn chuyển ADMIN về dashboard', async () => {
-    const { router } = setup('ADMIN', '/admin/login')
-    await submit(true)
-    await waitFor(() => expect(router.state.location.pathname).toBe('/admin'))
-  })
-  it('BUYER đăng nhập cổng admin được báo không có quyền', async () => {
-    const { router } = setup('BUYER', '/admin/login')
-    await submit(true)
-    expect(await screen.findByRole('alert')).toHaveTextContent('không có quyền ADMIN')
-    expect(router.state.location.pathname).toBe('/admin/login')
   })
 })

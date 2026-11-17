@@ -139,7 +139,7 @@ export default function TicketDetailPage() {
         <Info
           icon={<MapPin className="size-5" aria-hidden />}
           title={`Khu ${t.zone ?? ''}${t.venue?.name ? ` · ${t.venue.name}` : ''}`}
-          hint={t.venue?.address}
+          hint={t.venue?.address ?? undefined}
         />
         <Info
           icon={<Clock className="size-5" aria-hidden />}
