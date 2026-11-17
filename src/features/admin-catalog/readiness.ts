@@ -84,7 +84,9 @@ export function showtimeIssues(s: Showtime): SaleIssue[] {
 export function eventChecklist({ event, layouts, assignments }: EventReadinessInput): Check[] {
   const shows = event.showtimes?.filter(active) ?? []
   const badShows = shows.filter((s) => showtimeIssues(s).length)
-  const layoutIds = [...new Set(shows.flatMap((s) => (s.seat_layout_id ? [s.seat_layout_id] : [])))]
+  const layoutIds = event.seat_layout_id
+    ? [event.seat_layout_id]
+    : [...new Set(shows.flatMap((s) => (s.seat_layout_id ? [s.seat_layout_id] : [])))]
   const known = layoutIds.filter((id) => layouts[id])
   const unpublished = known.filter((id) => layouts[id].status !== 'PUBLISHED')
   const zones = known.flatMap((id) => layouts[id].zones ?? [])
@@ -177,9 +179,9 @@ export function readinessSummary(checks: Check[]) {
 
 export type VenueLayoutInfo = { status?: string; seat_count?: number; zone_count?: number; version?: number }
 export type VenueState = 'READY' | 'DRAFT_ONLY' | 'NO_LAYOUT'
-/** Sân dùng được cho suất diễn khi có ít nhất một hall với sơ đồ đã phát hành. */
-export function venueState(layoutsByHall: VenueLayoutInfo[][]): VenueState {
-  const all = layoutsByHall.flat()
+/** Sân dùng được cho suất diễn khi có ít nhất một layout đã phát hành. */
+export function venueState(layoutGroups: VenueLayoutInfo[][]): VenueState {
+  const all = layoutGroups.flat()
   if (all.some((l) => l.status === 'PUBLISHED')) return 'READY'
   return all.length ? 'DRAFT_ONLY' : 'NO_LAYOUT'
 }

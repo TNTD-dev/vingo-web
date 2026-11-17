@@ -188,6 +188,20 @@ function SeatSelection({ event, showtimeId }: { event: EventDetail; showtimeId: 
     }
   }
 
+  // Ghế gợi ý: khi có sơ đồ SVG thì svgId phải là id ghế trong SVG (không phải UUID) để sơ đồ tô được ghế đã chọn.
+  function suggestedSeatToPicked(zone: GetAvailability200ZonesItem, s: SeatMapZonesItemSeatsItem): PickedSeat {
+    const base = listSeatToPicked(zone, s)
+    const code = model && Object.keys(model.byCode).find((c) => model.byCode[c].zone_id === zone.zone_id)
+    if (!code) return base
+    return {
+      ...base,
+      svgId: seatSvgId(code, s.row ?? '', s.number ?? 0),
+      zoneCode: code,
+      zoneName: zone.name ?? code,
+      tier: tierOfZone(code),
+    }
+  }
+
   function onListSeatClick(
     zone: GetAvailability200ZonesItem,
     seat: SeatMapZonesItemSeatsItem,
@@ -238,7 +252,7 @@ function SeatSelection({ event, showtimeId }: { event: EventDetail; showtimeId: 
         const zone = availability.data?.zones?.find((a) => a.zone_id === z.zone_id)
         for (const s of z.seats ?? []) {
           if (s.seat_id && zone && suggestion.seatIds.includes(s.seat_id) && s.status === 'AVAILABLE') {
-            found.push(listSeatToPicked(zone, s))
+            found.push(suggestedSeatToPicked(zone, s))
           }
         }
       }

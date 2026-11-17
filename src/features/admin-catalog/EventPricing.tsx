@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useId, useMemo, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, X } from 'lucide-react'
 import { getAdminEvent, putPriceTiers, putZonePrices } from '@/api/generated/endpoints/admin-catalog/admin-catalog'
 import type { EventDetail, PriceTierInput } from '@/api/generated/model'
@@ -12,41 +12,48 @@ import { SeatMapView } from '@/seatmap/SeatMapView'
 import { toast } from 'sonner'
 import { dateText } from '@/design/admin/data'
 import { useLayoutSvg } from './catalog'
+import { getVenueOverview } from '@/api/generated/endpoints/venue-imports/venue-imports'
+import { mergeLayers } from './LayoutPreview'
 import { activeShowtimes, stepLabels, useEventLayouts, useZoneAssignments } from './eventSetup'
 import { formatVndShort } from './readiness'
 import { saveZoneAssignments } from './zoneAssignments'
 import { stepItems, WizardShell } from './WizardShell'
 
-type Tier = { key: string; id?: string; name: string; price: number }
-const tierNumber = (index: number) => Math.min(index, 3) + 1
+type Tier = { key: string; id?: string; name: string; price: number; color?: string }
+const palette = ['#86BDF6', '#A4CC83', '#F5BF70', '#B6A1E5', '#F49CAB', '#70C8C1']
+const fallbackColor = (price: number) => {
+  const hash = (Math.trunc(price) | 0) ^ (Math.trunc(price / 2 ** 32) | 0)
+  return palette[((hash % palette.length) + palette.length) % palette.length]
+}
 
 /** Bước 3 của wizard sự kiện: hạng giá + gán khu trên sơ đồ. */
 export default function EventPricing({ event, goStep }: { event: EventDetail; goStep: (step: number) => void }) {
   const layouts = useEventLayouts(event),
     saved = useZoneAssignments(event)
-  const shows = activeShowtimes(event)
-  if (layouts.data && saved.data !== undefined && shows.some((s) => s.seat_layout_id))
+  const ordered = !!event.seat_layout_id
+  const hasLayout = ordered || activeShowtimes(event).some((s) => !!s.seat_layout_id)
+  if (layouts.data && saved.data !== undefined && hasLayout)
     return (
       <PricingBody key={event.id} event={event} layouts={layouts.data} initial={saved.data ?? {}} goStep={goStep} />
     )
   return (
     <WizardShell
       title="Giá theo khu"
-      caption={`// ${event.title?.toUpperCase()} · BƯỚC 3/4`}
-      steps={stepItems(stepLabels(event), 2)}
+      caption={`// ${event.title?.toUpperCase()} · BƯỚC ${ordered ? '2/5' : '3/4'}`}
+      steps={stepItems(stepLabels(event), ordered ? 1 : 2)}
       onSelectStep={(i) => goStep(i + 1)}
       actions={
         <>
-          <LightButton back onClick={() => goStep(2)}>
+          <LightButton back onClick={() => goStep(ordered ? 1 : 2)}>
             Quay lại
           </LightButton>
         </>
       }
     >
-      {!shows.some((s) => s.seat_layout_id) ? (
+      {!hasLayout ? (
         <Panel>
           <p className="admin-notice">Thêm suất diễn có sơ đồ trước để gán giá theo khu.</p>
-          <Button className="admin-small-button mt-4" onClick={() => goStep(2)}>
+          <Button className="admin-small-button mt-4" onClick={() => goStep(ordered ? 1 : 2)}>
             Về bước Suất diễn
           </Button>
         </Panel>
@@ -71,10 +78,11 @@ function PricingBody({
   goStep: (step: number) => void
 }) {
   const client = useQueryClient()
+  const ordered = !!event.seat_layout_id
   const layoutList = Object.values(layouts)
   const [tiers, setTiers] = useState<Tier[]>(() =>
     event.price_tiers?.length
-      ? event.price_tiers.map((t) => ({ key: t.id!, id: t.id, name: t.name, price: t.price }))
+      ? event.price_tiers.map((t) => ({ key: t.id!, id: t.id, name: t.name, price: t.price, color: t.color }))
       : [{ key: 'new-0', name: '', price: 0 }],
   )
   // zone_id → key của hạng
@@ -88,7 +96,9 @@ function PricingBody({
     .filter((v): v is string => !!v)
     .sort()[0]
   const locked =
-    event.status === 'ENDED' || event.status === 'CANCELLED' || (!!firstOpen && Date.parse(firstOpen) <= viewedAt)
+    event.status === 'ENDED' ||
+    event.status === 'CANCELLED' ||
+    (event.status === 'PUBLISHED' && !!firstOpen && Date.parse(firstOpen) <= viewedAt)
   const layout = layouts[layoutId] ?? layoutList[0]
   const svg = useLayoutSvg(layout?.id ?? '')
   const zones = [...new Map(layoutList.flatMap((l) => l.zones.map((z) => [z.id, z] as const))).values()]
@@ -96,9 +106,27 @@ function PricingBody({
   const assigned = (zoneId: string) => (tierKeys.has(assign[zoneId]) ? assign[zoneId] : undefined)
   const unpriced = zones.filter((z) => !assigned(z.id))
   const names = tiers.map((t) => t.name.trim().toLowerCase())
+  const [displayNames, setDisplayNames] = useState(() =>
+    Object.fromEntries((event.zone_prices ?? []).map((zone) => [zone.zone_id, zone.display_name ?? ''])),
+  )
+  const [picked, setPicked] = useState<string[]>([])
+  const [bulk, setBulk] = useState(false)
+  const colorOf = (tier: Tier) =>
+    event.price_tiers?.find((saved) => saved.price === tier.price && saved.color)?.color ?? fallbackColor(tier.price)
+  const overview = useQuery({
+    queryKey: ['venue-overview', layout?.overview_id],
+    queryFn: ({ signal }) => getVenueOverview(layout!.overview_id!, { signal }),
+    enabled: !!layout?.overview_id,
+  })
+  const mapId = useId().replace(/[^a-zA-Z0-9_-]/g, '')
+  const mapSvg = useMemo(() => {
+    if (!svg.data || !overview.data?.svg_content) return svg.data
+    const merged = mergeLayers(overview.data.svg_content, [svg.data], `pricing-${mapId}`)
+    return merged.skipped ? svg.data : merged.svg || svg.data
+  }, [svg.data, overview.data?.svg_content, mapId])
   const tiersValid =
     tiers.length > 0 &&
-    tiers.every((t) => t.name.trim() && Number.isFinite(t.price) && t.price >= 0) &&
+    tiers.every((t) => t.name.trim() && Number.isSafeInteger(t.price) && t.price >= 0) &&
     new Set(names).size === names.length
 
   const stats = (key: string) => {
@@ -106,6 +134,7 @@ function PricingBody({
     return { zones: mine, seats: mine.reduce((sum, z) => sum + z.capacity, 0) }
   }
   const layoutZones = layout?.zones ?? []
+  const pickedPrices = new Set(picked.map((id) => tiers.find((tier) => tier.key === assigned(id))?.price))
   const estimate = layoutZones.reduce(
     (sum, z) => sum + z.capacity * (tiers.find((t) => t.key === assigned(z.id))?.price ?? 0),
     0,
@@ -119,6 +148,7 @@ function PricingBody({
         ...(t.id ? { id: t.id } : {}),
         name: t.name.trim(),
         price: t.price,
+        color: colorOf(t),
       }))
       await putPriceTiers(event.id!, body)
       const fresh = tiers.some((t) => !t.id) ? await getAdminEvent(event.id!) : event
@@ -126,7 +156,9 @@ function PricingBody({
       const keyToId = Object.fromEntries(tiers.map((t) => [t.key, idOf(t)]))
       const rows = zones.flatMap((z) => {
         const tierId = keyToId[assigned(z.id) ?? '']
-        return tierId ? [{ zone_id: z.id, price_tier_id: tierId }] : []
+        return tierId
+          ? [{ zone_id: z.id, price_tier_id: tierId, display_name: displayNames[z.id]?.trim() || undefined }]
+          : []
       })
       await putZonePrices(event.id!, rows)
       saveZoneAssignments(event.id!, Object.fromEntries(rows.map((r) => [r.zone_id, r.price_tier_id])))
@@ -134,7 +166,7 @@ function PricingBody({
     onSuccess: async () => {
       await client.invalidateQueries()
       toast.success(locked ? 'Giá đã khóa, không thay đổi' : 'Đã lưu giá theo khu')
-      goStep(4)
+      goStep(ordered ? 3 : 4)
     },
   })
 
@@ -142,6 +174,12 @@ function PricingBody({
     if (locked) return
     const zone = layoutZones.find((z) => z.code === code)
     if (!zone) return
+    if (bulk) {
+      setPicked((current) =>
+        current.includes(zone.id) ? current.filter((id) => id !== zone.id) : [...current, zone.id],
+      )
+      return
+    }
     setAssign((a) => {
       const next = { ...a }
       if (next[zone.id] === active) delete next[zone.id]
@@ -156,16 +194,16 @@ function PricingBody({
   return (
     <WizardShell
       title="Giá theo khu"
-      caption={`// ${event.title?.toUpperCase()} · BƯỚC 3/4`}
-      steps={stepItems(stepLabels(event), 2)}
+      caption={`// ${event.title?.toUpperCase()} · BƯỚC ${ordered ? '2/5' : '3/4'}`}
+      steps={stepItems(stepLabels(event), ordered ? 1 : 2)}
       onSelectStep={(i) => goStep(i + 1)}
       actions={
         <>
-          <LightButton back onClick={() => goStep(2)}>
+          <LightButton back onClick={() => goStep(ordered ? 1 : 2)}>
             Quay lại
           </LightButton>
           <AdminAction disabled={!tiersValid || save.isPending} onClick={() => save.mutate()}>
-            {save.isPending ? 'Đang lưu…' : 'Tiếp: Xem lại'}
+            {save.isPending ? 'Đang lưu…' : ordered ? 'Tiếp: Thông tin' : 'Tiếp: Xem lại'}
           </AdminAction>
         </>
       }
@@ -195,7 +233,7 @@ function PricingBody({
                 >
                   <div>
                     <div className="wz-tier-name">
-                      <span className="wz-tier-swatch" style={{ background: `var(--vg-tier-${tierNumber(i)})` }} />
+                      <span className="wz-tier-swatch" style={{ background: colorOf(t) }} />
                       <input
                         aria-label={`Tên hạng ${i + 1}`}
                         required
@@ -300,11 +338,20 @@ function PricingBody({
             <summary className="cursor-pointer font-medium">Gán theo danh sách khu</summary>
             <div className="mt-3 grid max-h-72 gap-2 overflow-auto">
               {zones.map((z) => (
-                <label key={z.id} className="flex items-center justify-between gap-3">
+                <div key={z.id} className="flex flex-wrap items-center justify-between gap-3">
                   <span>
                     {z.label || z.code}
                     <small className="wz-sub">{z.capacity.toLocaleString('vi-VN')} ghế</small>
                   </span>
+                  <input
+                    className="admin-input w-48"
+                    value={displayNames[z.id] ?? ''}
+                    maxLength={200}
+                    aria-label={`Tên khu ${z.code}`}
+                    placeholder="Dùng tên gốc"
+                    disabled={locked}
+                    onChange={(e) => setDisplayNames({ ...displayNames, [z.id]: e.target.value })}
+                  />
                   <select
                     className="admin-input w-48"
                     aria-label={`Hạng giá khu ${z.label || z.code}`}
@@ -326,7 +373,7 @@ function PricingBody({
                       </option>
                     ))}
                   </select>
-                </label>
+                </div>
               ))}
             </div>
           </details>
@@ -336,9 +383,11 @@ function PricingBody({
           <p className="wz-note mt-3">
             {locked
               ? 'Giá đã khóa vì suất đầu tiên đã mở bán, hoặc sự kiện đã kết thúc/hủy. Đơn đang giữ chỗ giữ nguyên mức giá cũ.'
-              : firstOpen
-                ? `Giá bị khóa khi suất đầu tiên mở bán (${dateText(firstOpen)}). Đơn đang giữ chỗ giữ nguyên mức giá cũ.`
-                : 'Giá bị khóa khi suất đầu tiên mở bán.'}
+              : event.status === 'DRAFT' && firstOpen && Date.parse(firstOpen) <= viewedAt
+                ? 'Giờ mở bán trong bản nháp đã qua. Bạn vẫn có thể đặt giá và đổi lịch ở bước Suất diễn.'
+                : firstOpen
+                  ? `Giá bị khóa khi suất đầu tiên mở bán (${dateText(firstOpen)}) nếu sự kiện đã công bố. Đơn đang giữ chỗ giữ nguyên mức giá cũ.`
+                  : 'Giá bị khóa khi suất đầu tiên mở bán.'}
           </p>
           <ErrorNotice error={save.error} />
           {!tiersValid && <p className="admin-notice mt-3">Mỗi hạng cần tên không trùng nhau và giá không âm.</p>}
@@ -369,20 +418,68 @@ function PricingBody({
               <span className="wz-chip">Sơ đồ v{layout?.version}</span>
             )}
           </div>
+          {!locked && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                aria-pressed={bulk}
+                onClick={() => {
+                  setBulk(!bulk)
+                  setPicked([])
+                }}
+              >
+                Chọn nhiều khu
+              </Button>
+              {bulk && (
+                <>
+                  <Button
+                    disabled={!picked.length}
+                    onClick={() => {
+                      setAssign((current) => ({ ...current, ...Object.fromEntries(picked.map((id) => [id, active])) }))
+                      setPicked([])
+                    }}
+                  >
+                    Gán hạng cho {picked.length} khu
+                  </Button>
+                  <Button variant="ghost" disabled={!picked.length} onClick={() => setPicked([])}>
+                    Bỏ chọn
+                  </Button>
+                  {picked.length > 0 && (
+                    <div className="w-full text-sm" aria-live="polite">
+                      <p>
+                        {zones
+                          .filter((zone) => picked.includes(zone.id))
+                          .map((zone) => displayNames[zone.id] || zone.label || zone.code)
+                          .join(', ')}
+                      </p>
+                      {pickedPrices.size > 1 && <p className="wz-sub">Các khu đang có mức giá khác nhau.</p>}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+          {overview.isError && <ErrorNotice error={overview.error} />}
           <div className="mt-4 h-[380px] overflow-hidden rounded-xl bg-canvas">
-            {svg.data ? (
+            {mapSvg && (!layout?.overview_id || !overview.isPending) ? (
               <SeatMapView
-                svg={svg.data}
+                svg={mapSvg}
                 zones={Object.fromEntries(
                   layoutZones.map((z) => {
                     const key = assigned(z.id),
                       i = tiers.findIndex((t) => t.key === key)
-                    return [z.code, i >= 0 ? { tier: tierNumber(i), soldOut: false } : { soldOut: true }]
+                    return [z.code, i >= 0 ? { tier: 1, color: colorOf(tiers[i]), soldOut: false } : { soldOut: true }]
                   }),
                 )}
                 selected={new Set()}
+                selectedZones={new Set(layoutZones.filter((zone) => picked.includes(zone.id)).map((zone) => zone.code))}
+                tooltip={(code) => {
+                  const zone = layoutZones.find((entry) => entry.code === code)
+                  if (!zone) return null
+                  const tier = tiers.find((entry) => entry.key === assigned(zone.id))
+                  return `${displayNames[zone.id] || zone.label || code} · ${tier ? formatVnd(tier.price) : 'Chưa có giá'}`
+                }}
                 onZoneClick={toggleZone}
-                onSeatClick={() => {}}
                 className="h-full"
               />
             ) : (
@@ -392,9 +489,9 @@ function PricingBody({
             )}
           </div>
           <div className="wz-legend">
-            {tiers.map((t, i) => (
+            {tiers.map((t) => (
               <p key={t.key}>
-                <span className="wz-tier-swatch" style={{ background: `var(--vg-tier-${tierNumber(i)})` }} />
+                <span className="wz-tier-swatch" style={{ background: colorOf(t) }} />
                 <span>{t.name || 'Hạng chưa đặt tên'}</span>
                 <span>{formatVnd(t.price)}</span>
               </p>

@@ -39,7 +39,10 @@ export default function AdminEventDetailPage() {
   return <QueryState query={query}>{query.data && <EventEditor key={eventId} event={query.data} />}</QueryState>
 }
 
-function initialData(event: EventDetail): Required<Omit<EventInput, 'attributes'>> & Pick<EventInput, 'attributes'> {
+// venue_id và seat_layout_id do wizard quản lý, trang sửa không gửi lại.
+function initialData(
+  event: EventDetail,
+): Required<Omit<EventInput, 'attributes' | 'venue_id' | 'seat_layout_id'>> & Pick<EventInput, 'attributes'> {
   return {
     title: event.title ?? '',
     category: event.category ?? 'OTHER',
@@ -170,6 +173,7 @@ function EventEditor({ event }: { event: EventDetail }) {
                   <select
                     form="admin-event-editor"
                     value={data.category}
+                    disabled={!!event.seat_layout_id}
                     onChange={(e) => set('category', e.target.value as EventInput['category'] & string)}
                   >
                     {Object.entries(categories).map(([value, label]) => (
@@ -262,7 +266,7 @@ function EventEditor({ event }: { event: EventDetail }) {
             <div className="admin-panel-head">
               <h2>Bán vé</h2>
               {!priceLocked && (
-                <Link className="wz-link text-sm" to={`/admin/events/${id}/setup?step=3`}>
+                <Link className="wz-link text-sm" to={`/admin/events/${id}/setup?step=${event.seat_layout_id ? 2 : 3}`}>
                   Gán khu →
                 </Link>
               )}
@@ -300,7 +304,7 @@ function EventEditor({ event }: { event: EventDetail }) {
               </div>
             )}
             {!tiers.length && (
-              <Link className="wz-link" to={`/admin/events/${id}/setup?step=3`}>
+              <Link className="wz-link" to={`/admin/events/${id}/setup?step=${event.seat_layout_id ? 2 : 3}`}>
                 Thêm hạng giá →
               </Link>
             )}
@@ -350,6 +354,7 @@ function EventEditor({ event }: { event: EventDetail }) {
                 type="button"
                 variant="outline"
                 className="wz-light admin-danger-light"
+                disabled={priceLocked}
                 onClick={() => begin({ kind: 'cancel' })}
               >
                 Hủy sự kiện
@@ -360,7 +365,12 @@ function EventEditor({ event }: { event: EventDetail }) {
       </fieldset>
       <div className="admin-page-end" aria-hidden />
       {editor && (
-        <ShowtimeForm eventId={id} initial={editor === 'new' ? undefined : editor} onClose={() => setEditor(null)} />
+        <ShowtimeForm
+          eventId={id}
+          event={event}
+          initial={editor === 'new' ? undefined : editor}
+          onClose={() => setEditor(null)}
+        />
       )}
       {action && (
         <ConfirmDialog

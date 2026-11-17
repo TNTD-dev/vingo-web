@@ -1,10 +1,12 @@
 import { useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { cancelShowtime } from '@/api/generated/endpoints/admin-catalog/admin-catalog'
 import type { EventDetail, Showtime } from '@/api/generated/model'
 import { AdminAction } from '@/design/admin/AdminAction'
-import { Panel, StateBadge } from '@/design/admin/AdminUi'
+import { ConfirmDialog, Panel, StateBadge } from '@/design/admin/AdminUi'
 import { dateText } from '@/design/admin/data'
 import { LightButton } from '@/design/admin/wizard'
-import { vnParts, useVenueDirectory } from './catalog'
+import { vnParts } from './catalog'
 import { activeShowtimes, stepLabels } from './eventSetup'
 import ShowtimeEditor from './ShowtimeEditor'
 import { stepItems, WizardShell } from './WizardShell'
@@ -21,27 +23,41 @@ export default function EventShowtimesStep({
   venueHint: string | null
   goStep: (step: number) => void
 }) {
-  const shows = activeShowtimes(event),
-    venues = useVenueDirectory()
+  const shows = activeShowtimes(event)
+  const client = useQueryClient()
+  const [cancelId, setCancelId] = useState<string>()
+  const cancel = useMutation({
+    mutationFn: (reason: string) => cancelShowtime(cancelId!, { reason }),
+    onSuccess: async () => {
+      setCancelId(undefined)
+      setMode({ kind: 'new' })
+      await client.invalidateQueries()
+    },
+  })
   const [mode, setMode] = useState<Mode>(() => (shows[0] ? { kind: 'edit', show: shows[0] } : { kind: 'new' }))
-  const hallName = (hallId?: string) =>
-    venues.data?.flatMap((v) => (v.halls ?? []).map((h) => ({ v, h }))).find((x) => x.h.id === hallId)
-  const selected = mode.kind === 'edit' ? mode.show : undefined
+  const ordered = !!event.seat_layout_id
+  const football = event.category === 'FOOTBALL'
+  const canAdd = !football || shows.length === 0
+  const editorMode: Mode =
+    football && shows.length
+      ? { kind: 'edit', show: shows.find((show) => mode.kind === 'edit' && show.id === mode.show.id) ?? shows[0] }
+      : mode
+  const selected = editorMode.kind === 'edit' ? editorMode.show : undefined
   // Form trống mặc định chọn sẵn sân của suất gần nhất để thêm các suất cùng sân nhanh hơn.
-  const lastVenue = hallName(shows.at(-1)?.hall_id)?.v.id ?? venueHint
+  const lastVenue = shows.at(-1)?.venue?.id ?? venueHint
   return (
     <WizardShell
       title="Suất diễn"
-      caption={`// ${event.title?.toUpperCase()} · BƯỚC 2/4`}
-      steps={stepItems(stepLabels(event), 1)}
+      caption={`// ${event.title?.toUpperCase()} · BƯỚC ${ordered ? '4/5' : '2/4'}`}
+      steps={stepItems(stepLabels(event), ordered ? 3 : 1)}
       onSelectStep={(i) => goStep(i + 1)}
       actions={
         <>
-          <LightButton back onClick={() => goStep(1)}>
+          <LightButton back onClick={() => goStep(ordered ? 3 : 1)}>
             Quay lại
           </LightButton>
-          <AdminAction disabled={!shows.length} onClick={() => goStep(3)}>
-            Tiếp: Giá theo khu
+          <AdminAction disabled={!shows.length} onClick={() => goStep(ordered ? 5 : 3)}>
+            {ordered ? 'Tiếp: Xem lại' : 'Tiếp: Giá theo khu'}
           </AdminAction>
         </>
       }
@@ -50,7 +66,7 @@ export default function EventShowtimesStep({
         <Panel className="wz-panel">
           <div className="mb-4 flex items-center justify-between gap-3">
             <h2>{shows.length} suất diễn</h2>
-            {selected && (
+            {selected && canAdd && (
               <LightButton
                 type="button"
                 onClick={() => setMode({ kind: 'new', template: selected })}
@@ -64,7 +80,7 @@ export default function EventShowtimesStep({
             const p = vnParts(s.starts_at),
               end = vnParts(s.ends_at),
               open = vnParts(s.sale_opens_at),
-              where = hallName(s.hall_id)
+              where = s.venue
             return (
               <button
                 key={s.id}
@@ -82,7 +98,7 @@ export default function EventShowtimesStep({
                     {p?.weekday} · {p?.time}–{end?.time}
                   </strong>
                   <small>
-                    {where ? `${where.h.name}` : 'Hall'} · mở bán{' '}
+                    {where ? `${where.name}` : 'Sân'} · mở bán{' '}
                     {open ? `${open.day}/${open.month} ${open.time}` : dateText(s.sale_opens_at)}
                   </small>
                   <span className="mt-1 inline-block">
@@ -92,22 +108,53 @@ export default function EventShowtimesStep({
               </button>
             )
           })}
-          <button type="button" className="wz-dashed" onClick={() => setMode({ kind: 'new' })}>
-            + Thêm suất
-          </button>
+          {!football && (
+            <button type="button" className="wz-dashed" onClick={() => setMode({ kind: 'new' })}>
+              + Thêm suất
+            </button>
+          )}
         </Panel>
         <Panel className="wz-panel">
           <ShowtimeEditor
-            key={mode.kind === 'edit' ? mode.show.id : `new-${mode.template?.id ?? ''}-${shows.length}`}
+            key={
+              editorMode.kind === 'edit' ? editorMode.show.id : `new-${editorMode.template?.id ?? ''}-${shows.length}`
+            }
             eventId={event.id!}
-            initial={mode.kind === 'edit' ? mode.show : undefined}
-            template={mode.kind === 'new' ? mode.template : undefined}
-            venueHint={lastVenue}
+            initial={editorMode.kind === 'edit' ? editorMode.show : undefined}
+            template={editorMode.kind === 'new' ? editorMode.template : undefined}
+            venueHint={event.venue_id ?? lastVenue}
+            requiredLayout={event.seat_layout_id}
+            category={event.category}
             onSaved={() => setMode({ kind: 'new' })}
             onCancel={() => setMode(shows[0] ? { kind: 'edit', show: shows[0] } : { kind: 'new' })}
           />
+          {selected?.id && event.status === 'DRAFT' && (
+            <LightButton
+              type="button"
+              onClick={() => {
+                cancel.reset()
+                setCancelId(selected.id)
+              }}
+            >
+              Hủy suất này
+            </LightButton>
+          )}
         </Panel>
       </div>
+      {cancelId && (
+        <ConfirmDialog
+          open
+          title="Hủy suất diễn?"
+          description="Suất này sẽ bị gỡ khỏi lịch bán vé. Sự kiện cần ít nhất một suất hợp lệ để công bố."
+          label="Hủy suất diễn"
+          cancelLabel="Giữ suất"
+          danger
+          pending={cancel.isPending}
+          error={cancel.error}
+          onClose={() => setCancelId(undefined)}
+          onConfirm={(reason) => cancel.mutate(reason)}
+        />
+      )}
     </WizardShell>
   )
 }

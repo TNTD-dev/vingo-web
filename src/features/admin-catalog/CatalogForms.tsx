@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from 'react'
-import type { EventCreateInput, EventDetail, Venue, VenueCreateInput } from '@/api/generated/model'
+import type { EventCreateInput, EventDetail } from '@/api/generated/model'
 import { Field, ErrorNotice } from '@/design/admin/AdminUi'
 import { Button } from '@/design/ui/button'
-import { categories, cities, venueTypes } from './catalog'
+import { categories } from './catalog'
 
 export { FormDialog } from '@/design/admin/FormDialog'
 
@@ -120,114 +120,6 @@ export function EventForm({
       <ErrorNotice error={error} />
       <Button disabled={pending || !data.title.trim()} className="rounded-pill">
         {pending ? 'Đang lưu…' : initial ? 'Lưu thông tin' : 'Tạo sự kiện nháp'}
-      </Button>
-    </form>
-  )
-}
-export function VenueForm({
-  initial,
-  pending,
-  error,
-  onSubmit,
-}: {
-  initial?: Venue
-  pending: boolean
-  error: unknown
-  onSubmit: (data: VenueCreateInput) => void
-}) {
-  const [data, setData] = useState<VenueCreateInput>({
-    name: initial?.name ?? '',
-    type: initial?.type ?? 'STADIUM',
-    address: initial?.address ?? '',
-    city: initial?.city ?? 'HCM',
-    district: initial?.district ?? '',
-    info: initial?.info ?? {},
-    lat: initial?.lat,
-    lng: initial?.lng,
-  })
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault()
-        onSubmit({ ...data, name: data.name?.trim(), address: data.address?.trim() })
-      }}
-      className="space-y-5"
-    >
-      <fieldset disabled={pending} className="grid gap-4 sm:grid-cols-2">
-        <div className="sm:col-span-2">
-          <Field label="Tên địa điểm *">
-            <input
-              required
-              maxLength={200}
-              value={data.name}
-              onChange={(e) => setData({ ...data, name: e.target.value })}
-            />
-          </Field>
-        </div>
-        <Field label="Loại địa điểm *">
-          <select
-            value={data.type}
-            onChange={(e) => setData({ ...data, type: e.target.value as VenueCreateInput['type'] })}
-          >
-            {Object.entries(venueTypes).map(([k, v]) => (
-              <option key={k} value={k}>
-                {v}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Thành phố *">
-          <select
-            value={data.city}
-            onChange={(e) => setData({ ...data, city: e.target.value as VenueCreateInput['city'] })}
-          >
-            {Object.entries(cities).map(([k, v]) => (
-              <option key={k} value={k}>
-                {v}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <div className="sm:col-span-2">
-          <Field label="Địa chỉ *">
-            <input required value={data.address} onChange={(e) => setData({ ...data, address: e.target.value })} />
-          </Field>
-        </div>
-        <Field label="Quận / huyện">
-          <input value={data.district} onChange={(e) => setData({ ...data, district: e.target.value })} />
-        </Field>
-        <Field label="Giờ mở cửa">
-          <input
-            value={String(data.info?.opening_hours ?? '')}
-            onChange={(e) => setData({ ...data, info: { ...data.info, opening_hours: e.target.value } })}
-          />
-        </Field>
-        {(['lat', 'lng'] as const).map((k) => (
-          <Field key={k} label={k === 'lat' ? 'Vĩ độ' : 'Kinh độ'}>
-            <input
-              type="number"
-              step="any"
-              min={k === 'lat' ? -90 : -180}
-              max={k === 'lat' ? 90 : 180}
-              value={data[k] ?? ''}
-              onChange={(e) => setData({ ...data, [k]: e.target.value ? Number(e.target.value) : undefined })}
-            />
-          </Field>
-        ))}
-        {(['parking', 'rules'] as const).map((k) => (
-          <div key={k} className="sm:col-span-2">
-            <Field label={k === 'parking' ? 'Hướng dẫn gửi xe' : 'Nội quy'}>
-              <textarea
-                value={String(data.info?.[k] ?? '')}
-                onChange={(e) => setData({ ...data, info: { ...data.info, [k]: e.target.value } })}
-              />
-            </Field>
-          </div>
-        ))}
-      </fieldset>
-      <ErrorNotice error={error} />
-      <Button disabled={pending || !data.name?.trim() || !data.address?.trim()} className="rounded-pill">
-        {pending ? 'Đang lưu…' : initial ? 'Lưu địa điểm' : 'Tạo địa điểm'}
       </Button>
     </form>
   )

@@ -11,21 +11,8 @@ import type {
   BlockSeatsBody,
   UnblockSeatsBody,
 } from '@/api/generated/model'
-import { sanitizeSvg } from '@/seatmap/svg'
 import { csvText } from '@/design/admin/data'
-import {
-  audit,
-  events,
-  findShow,
-  layouts,
-  makeLayout,
-  mapOf,
-  page,
-  stamp,
-  statusOverrides,
-  venues,
-  zonePrices,
-} from './adminStore'
+import { audit, events, findShow, layouts, mapOf, page, stamp, statusOverrides, venues, zonePrices } from './adminStore'
 
 const root = `*${API_BASE}`
 export const problem = (status = 404, code = 'NOT_FOUND') =>
@@ -35,7 +22,7 @@ export const adminCatalogHandlers = [
   http.get(`${root}/admin/venues`, ({ request }) => HttpResponse.json(page(venues, new URL(request.url)))),
   http.post(`${root}/admin/venues`, async ({ request }) => {
     const d = (await request.json()) as VenueCreateInput
-    const v = { ...d, id: crypto.randomUUID(), halls: [] }
+    const v = { ...d, id: crypto.randomUUID() }
     venues.unshift(v)
     return HttpResponse.json(v, { status: 201 })
   }),
@@ -48,43 +35,27 @@ export const adminCatalogHandlers = [
   http.delete(`${root}/admin/venues/:id`, ({ params }) => {
     const i = venues.findIndex((v) => v.id === params.id)
     if (i < 0) return problem()
-    if (venues[i].halls?.length) return problem(409, 'VENUE_IN_USE')
+    if (events.some((e) => e.showtimes?.some((s) => s.venue?.id === params.id))) return problem(409, 'VENUE_IN_USE')
     venues.splice(i, 1)
     return done()
   }),
-  http.post(`${root}/admin/venues/:id/halls`, async ({ params, request }) => {
-    const v = venues.find((v) => v.id === params.id)
-    if (!v) return problem()
-    const body = (await request.json()) as { name: string }
-    const h = { id: crypto.randomUUID(), venue_id: v.id, name: body.name }
-    v.halls ??= []
-    v.halls.push(h)
-    return HttpResponse.json(h, { status: 201 })
-  }),
-  http.get(`${root}/admin/halls/:id/seat-layouts`, ({ params, request }) =>
-    HttpResponse.json(
+  http.get(`${root}/admin/venues/:id/seat-layouts`, ({ params, request }) => {
+    const url = new URL(request.url)
+    return HttpResponse.json(
       page(
         [...layouts.values()]
           .map((l) => l.overview)
-          .filter((l) => l.hall_id === params.id)
+          .filter(
+            (l) =>
+              l.venue_id === params.id &&
+              (url.searchParams.get('include_legacy') === 'true' || !l.legacy) &&
+              (!url.searchParams.get('status') || l.status === url.searchParams.get('status')) &&
+              (!url.searchParams.get('layout_type') || l.layout_type === url.searchParams.get('layout_type')),
+          )
           .reverse(),
-        new URL(request.url),
+        url,
       ),
-    ),
-  ),
-  http.post(`${root}/admin/halls/:id/seat-layouts/import`, async ({ params, request }) => {
-    const form = await request.formData(),
-      file = form.get('file')
-    if (!(file instanceof File) || file.size > 10 * 1024 * 1024) return problem(400, 'VALIDATION_ERROR')
-    const svg = sanitizeSvg(await file.text())
-    if (!svg) return problem(400, 'VALIDATION_ERROR')
-    const layout = makeLayout(
-      String(params.id),
-      String(form.get('name') ?? ''),
-      svg,
-      [...layouts.values()].filter((l) => l.overview.hall_id === params.id).length + 1,
     )
-    return HttpResponse.json(layout.overview, { status: 201 })
   }),
   http.get(`${root}/admin/seat-layouts/:id`, ({ params }) => {
     const l = layouts.get(String(params.id))
@@ -178,11 +149,11 @@ export const adminCatalogHandlers = [
     return done()
   }),
   http.put(`${root}/admin/events/:id/zone-prices`, async ({ params, request }) => {
-    if (!events.some((e) => e.id === params.id)) return problem()
+    const e = events.find((e) => e.id === params.id)
+    if (!e) return problem()
     const d = (await request.json()) as ZonePriceInput[]
-    const current = zonePrices.get(String(params.id)) ?? new Map<string, string>()
-    d.forEach((z) => current.set(z.zone_id, z.price_tier_id))
-    zonePrices.set(String(params.id), current)
+    e.zone_prices = d
+    zonePrices.set(String(params.id), new Map(d.map((z) => [z.zone_id, z.price_tier_id])))
     return done()
   }),
   http.post(`${root}/admin/events/:id/publish`, ({ params }) => {
@@ -190,6 +161,9 @@ export const adminCatalogHandlers = [
     if (!e) return problem()
     if (!e.showtimes?.length || !e.price_tiers?.length) return problem(409, 'EVENT_NOT_READY')
     e.status = 'PUBLISHED'
+    e.showtimes.forEach((show) => {
+      if (show.status === 'DRAFT') show.status = 'SCHEDULED'
+    })
     return HttpResponse.json(e)
   }),
   http.post(`${root}/admin/events/:id/cancel`, async ({ params, request }) => {
@@ -208,7 +182,18 @@ export const adminCatalogHandlers = [
     const e = events.find((e) => e.id === params.id)
     if (!e) return problem()
     const d = (await request.json()) as ShowtimeInput
-    const s = { ...d, id: crypto.randomUUID(), event_id: e.id, status: 'SCHEDULED' as const }
+    if (
+      (e.seat_layout_id && d.seat_layout_id !== e.seat_layout_id) ||
+      (e.category === 'FOOTBALL' && e.showtimes?.some((s) => s.status !== 'CANCELLED'))
+    )
+      return problem(400, 'VALIDATION_ERROR')
+    const s = {
+      ...d,
+      id: crypto.randomUUID(),
+      event_id: e.id,
+      venue: venues.find((item) => item.id === layouts.get(d.seat_layout_id!)?.overview.venue_id),
+      status: e.status === 'DRAFT' ? ('DRAFT' as const) : ('SCHEDULED' as const),
+    }
     e.showtimes ??= []
     e.showtimes.push(s)
     return HttpResponse.json(s, { status: 201 })
