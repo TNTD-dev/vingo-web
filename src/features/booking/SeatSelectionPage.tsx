@@ -16,10 +16,12 @@ import { newIdempotencyKey } from '@/api/idempotency'
 import { isApiError } from '@/api/problem'
 import { useAuth } from '@/auth/auth-context'
 import { Mascot } from '@/design/Mascot'
+import { PhoneVerifyDialog } from '@/design/PhoneVerifyDialog'
 import { icons } from '@/design/icons'
 import { Skeleton } from '@/design/ui/skeleton'
 import { cn } from '@/lib/cn'
 import { formatVnd } from '@/lib/money'
+import { needsPhoneVerification } from '@/lib/phoneVerification'
 import { formatEventDateTime, formatShortDateTime } from '@/lib/time'
 import { SeatMapView, type SeatState } from '@/seatmap/SeatMapView'
 import { indexSvg, parseSeatId, seatSvgId } from '@/seatmap/svg'
@@ -75,6 +77,7 @@ function SeatSelection({ event, showtimeId }: { event: EventDetail; showtimeId: 
   const [standing, setStanding] = useState<Standing | null>(null)
   // Ghế gợi ý khi SEAT_TAKEN (cùng khu, cùng số lượng).
   const [suggestion, setSuggestion] = useState<{ zoneId?: string; seatIds: string[] } | null>(null)
+  const [phoneDialogOpen, setPhoneDialogOpen] = useState(false)
 
   // ---- dữ liệu ----
   const svg = useQuery({
@@ -278,9 +281,19 @@ function SeatSelection({ event, showtimeId }: { event: EventDetail; showtimeId: 
   const body = holdBody(picks, standing)
 
   function submitHold() {
+    startHold(false)
+  }
+
+  // `phoneJustVerified`: popup xác minh vừa xong; `user` trong closure này còn là bản cũ nên bỏ qua kiểm tra lần này.
+  function startHold(phoneJustVerified: boolean) {
     if (!body) return
     if (!user) {
       navigate(`/login?next=${encodeURIComponent(window.location.pathname)}`)
+      return
+    }
+    // Chưa xác minh SĐT thì backend sẽ trả 422; mở popup ngay, giữ nguyên lựa chọn ghế.
+    if (!phoneJustVerified && needsPhoneVerification(user)) {
+      setPhoneDialogOpen(true)
       return
     }
     const sig = JSON.stringify(body)
@@ -293,6 +306,12 @@ function SeatSelection({ event, showtimeId }: { event: EventDetail; showtimeId: 
           navigate(`/orders/${order.id}/checkout`)
         },
         onError: (error) => {
+          // Phiên web chưa biết cờ xác minh (hoặc đã cũ): backend là nơi chặn thật. Lỗi nghiệp vụ nên bỏ khoá idempotency.
+          if (isApiError(error, 'PHONE_VERIFICATION_REQUIRED')) {
+            keyRef.current = undefined
+            setPhoneDialogOpen(true)
+            return
+          }
           const failure = describeHoldError(error, max)
           // Lỗi chưa chắc chắn (mạng, 5xx, 429): giữ khoá để retry đúng một thao tác. Lỗi nghiệp vụ: bỏ khoá.
           if (!failure.retrySameKey) keyRef.current = undefined
@@ -508,6 +527,12 @@ function SeatSelection({ event, showtimeId }: { event: EventDetail; showtimeId: 
           </button>
         </aside>
       </div>
+      <PhoneVerifyDialog
+        open={phoneDialogOpen}
+        onOpenChange={setPhoneDialogOpen}
+        onVerified={() => startHold(true)}
+        initialPhone={user?.phone}
+      />
     </div>
   )
 }
