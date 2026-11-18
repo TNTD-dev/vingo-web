@@ -5,6 +5,7 @@ import { Link } from 'react-router'
 import { toast } from 'sonner'
 
 import { getListMyOrdersQueryKey, listMyOrders } from '@/api/generated/endpoints/booking/booking'
+import { useAuth } from '@/auth/auth-context'
 import { icons } from '@/design/icons'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/design/ui/dropdown-menu'
 import { cn } from '@/lib/cn'
@@ -55,7 +56,8 @@ export function NotificationsMenu() {
     queryFn: ({ signal }) => listMyOrders({ limit: 20 }, { signal }),
     refetchInterval: 60_000,
   })
-  const all = buildNotifications(query.data?.data ?? [], now)
+  const { user } = useAuth()
+  const all = buildNotifications(query.data?.data ?? [], now, user)
   const unread = all.filter((n) => !read.has(n.id))
   const shown = filter === 'unread' ? unread : all
 
@@ -143,7 +145,9 @@ export function NotificationsMenu() {
                       <span className="type-body-m-strong text-foreground">{n.title}</span>
                       <span className="type-caption text-ink-secondary">{n.hint}</span>
                       <span className="flex items-center gap-3">
-                        <span className="type-mono-small text-ink-tertiary uppercase">{relativeTime(n.at, now)}</span>
+                        {!n.pinned && (
+                          <span className="type-mono-small text-ink-tertiary uppercase">{relativeTime(n.at, now)}</span>
+                        )}
                         {n.action && (
                           <span className="rounded-pill bg-ink px-4 py-1.5 type-body-m-strong text-on-ink">
                             {n.action.label}
