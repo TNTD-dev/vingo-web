@@ -164,6 +164,13 @@ describe('verifyOtpMessage', () => {
 })
 
 describe('resendOtpMessage', () => {
+  it('Retry-After dài đổi sang phút hoặc giờ cho dễ đọc', () => {
+    expect(requestPhoneOtpMessage(error(429, 'RATE_LIMITED', 600)).message).toContain('sau 10 phút')
+    const m = requestPhoneOtpMessage(error(429, 'RATE_LIMITED', 31826))
+    expect(m.message).toContain('sau khoảng 9 giờ')
+    expect(m.cooldown).toBe(31826)
+  })
+
   it('429 trả số giây chờ theo Retry-After', () => {
     const m = resendOtpMessage(error(429, 'RATE_LIMITED', 45))
     expect(m.cooldown).toBe(45)
