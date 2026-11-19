@@ -5,16 +5,22 @@ import { useState, useSyncExternalStore } from 'react'
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { resendOtp, verifyOtp } from '@/api/generated/endpoints/auth/auth'
 import { requestPhoneOtp, verifyPhoneOtp } from '@/api/generated/endpoints/me/me'
 import type { OtpSession, PhoneOtpRequest, PhoneVerifyRequest, ProblemCode, User } from '@/api/generated/model'
 import { ApiError } from '@/api/problem'
 import { AuthContext, useAuth } from '@/auth/auth-context'
 import { tokenStore } from '@/auth/token-store'
-import { PhoneVerifyDialog, type PhoneVerifyDialogProps } from '@/design/PhoneVerifyDialog'
+import { OtpDialog, type OtpDialogProps } from '@/design/OtpDialog'
+import { captureDemoOtp, takeDemoOtp } from '@/lib/demoOtp'
 
 vi.mock('@/api/generated/endpoints/me/me', () => ({
   requestPhoneOtp: vi.fn(),
   verifyPhoneOtp: vi.fn(),
+}))
+vi.mock('@/api/generated/endpoints/auth/auth', () => ({
+  verifyOtp: vi.fn(),
+  resendOtp: vi.fn(),
 }))
 
 const PHONE = '+84912345678'
@@ -44,6 +50,8 @@ afterEach(() => {
   cleanup()
   clients.splice(0).forEach((client) => client.clear())
   tokenStore.set(null)
+  vi.unstubAllEnvs()
+  takeDemoOtp()
   vi.useRealTimers()
   vi.restoreAllMocks()
   vi.resetAllMocks()
@@ -54,7 +62,7 @@ function AuthProbe() {
   return <output aria-label="Trạng thái xác minh trong useAuth">{String(user?.phone_verified)}</output>
 }
 
-function setup(props: Partial<PhoneVerifyDialogProps> = {}) {
+function setup(props: Partial<OtpDialogProps> = {}) {
   const onOpenChange = vi.fn()
   const onVerified = vi.fn()
   const client = new QueryClient({
@@ -70,7 +78,7 @@ function setup(props: Partial<PhoneVerifyDialogProps> = {}) {
       <AuthContext.Provider
         value={{ ready: true, user: current?.user ?? null, login: async () => buyer, logout: async () => {} }}
       >
-        <PhoneVerifyDialog
+        <OtpDialog
           {...props}
           open={open}
           onOpenChange={(next) => {
@@ -133,7 +141,7 @@ function startClock() {
   vi.mocked(requestPhoneOtp).mockResolvedValue(otpSession)
 }
 
-describe('PhoneVerifyDialog', () => {
+describe('OtpDialog', () => {
   it('mở bước nhập số, có tiền tố +84 và điền sẵn initialPhone', () => {
     setup({ initialPhone: PHONE })
     expect(screen.getByRole('dialog', { name: 'Xác minh số điện thoại' })).toBeInTheDocument()
@@ -195,6 +203,73 @@ describe('PhoneVerifyDialog', () => {
     fireEvent.click(send)
     expect(requestPhoneOtp).toHaveBeenCalledTimes(1)
     await act(async () => resolveRequest(otpSession))
+  })
+
+  it('sendOnOpen gửi mã ngay tới số đã có đúng một lần và vào thẳng bước nhập mã', async () => {
+    setup({ initialPhone: PHONE, sendOnOpen: true })
+    await screen.findByRole('heading', { name: 'Nhập mã gồm 6 số' })
+    expect(requestPhoneOtp).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(requestPhoneOtp).mock.calls[0][0]).toEqual({ phone: PHONE })
+  })
+
+  it('sendOnOpen gặp PHONE_TAKEN thì ở lại bước nhập số để đổi số', async () => {
+    vi.mocked(requestPhoneOtp).mockRejectedValueOnce(apiError(409, 'PHONE_TAKEN'))
+    setup({ initialPhone: PHONE, sendOnOpen: true })
+    expect(await screen.findByRole('alert')).toHaveTextContent('đã được tài khoản khác xác minh')
+    expect(screen.getByRole('textbox', { name: /Số điện thoại/i })).toBeInTheDocument()
+  })
+
+  it('EMAIL vào thẳng bước nhập mã, xác thực thì đăng nhập bằng cặp token mới', async () => {
+    tokenStore.set(null)
+    vi.mocked(verifyOtp).mockResolvedValue({ access_token: 'new-access', refresh_token: 'new-refresh', user: verified })
+    const { onVerified } = setup({
+      channel: 'EMAIL',
+      emailSession: { sessionId: 'email-session', email: 'buyer@gmail.com', sentAt: Date.now() },
+    })
+    expect(screen.getByRole('dialog')).toHaveTextContent('b***@gmail.com')
+    expect(screen.getByRole('button', { name: /Gửi lại sau/ })).toBeDisabled()
+    enterOtp()
+    await press('Xác thực')
+    expect(verifyOtp).toHaveBeenCalledWith({ otp_session_id: 'email-session', otp: OTP })
+    expect(tokenStore.get()).toMatchObject({ accessToken: 'new-access', refreshToken: 'new-refresh', user: verified })
+    expect(screen.getByRole('heading', { name: 'Đã xác thực email' })).toBeInTheDocument()
+    await press('Tiếp tục')
+    expect(onVerified).toHaveBeenCalledWith(verified)
+    expect(requestPhoneOtp).not.toHaveBeenCalled()
+  })
+
+  it('EMAIL gửi lại mã qua resendOtp với đúng phiên', async () => {
+    vi.mocked(resendOtp).mockResolvedValue(undefined as never)
+    setup({ channel: 'EMAIL', emailSession: { sessionId: 'email-session', email: 'buyer@gmail.com', sentAt: 0 } })
+    await press('Gửi lại mã')
+    expect(resendOtp).toHaveBeenCalledWith({ otp_session_id: 'email-session' })
+    expect(screen.getByRole('button', { name: /Gửi lại sau/ })).toBeDisabled()
+  })
+
+  it('chế độ demo: hiện mã từ header lên màn hình và nút Điền mã điền sẵn ô OTP', async () => {
+    vi.stubEnv('VITE_DEMO_OTP', 'true')
+    vi.mocked(requestPhoneOtp).mockImplementationOnce(async () => {
+      captureDemoOtp(new Headers({ 'X-Demo-Otp': OTP }))
+      return otpSession
+    })
+    setup()
+    await requestCode()
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByRole('status')).toHaveTextContent(`Mã demo (không gửi SMS): ${OTP}`)
+    expect(screen.getByRole('button', { name: 'Xác minh' })).toBeDisabled()
+    await press('Điền mã')
+    expect(screen.getByRole('button', { name: 'Xác minh' })).toBeEnabled()
+  })
+
+  it('không bật demo thì không hiện hộp mã dù có header', async () => {
+    vi.stubEnv('VITE_DEMO_OTP', 'false')
+    vi.mocked(requestPhoneOtp).mockImplementationOnce(async () => {
+      captureDemoOtp(new Headers({ 'X-Demo-Otp': OTP }))
+      return otpSession
+    })
+    setup()
+    await requestCode()
+    expect(screen.queryByText(/Mã demo/)).not.toBeInTheDocument()
   })
 
   it('nút Xác minh bị vô hiệu khi chưa đủ sáu chữ số', async () => {
@@ -381,7 +456,7 @@ describe('PhoneVerifyDialog', () => {
   })
 })
 
-describe('PhoneVerifyDialog đếm ngược gửi lại', () => {
+describe('OtpDialog đếm ngược gửi lại', () => {
   it('khoá gửi lại đủ 60 giây rồi bật nút', async () => {
     startClock()
     setup()

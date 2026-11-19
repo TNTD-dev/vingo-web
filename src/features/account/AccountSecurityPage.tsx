@@ -9,7 +9,7 @@ import { useListMyTickets } from '@/api/generated/endpoints/tickets/tickets'
 import { isApiError, isNotImplemented, NOT_IMPLEMENTED_MESSAGE } from '@/api/problem'
 import { useAuth } from '@/auth/auth-context'
 import { Mascot } from '@/design/Mascot'
-import { PhoneVerifyDialog } from '@/design/PhoneVerifyDialog'
+import { OtpDialog } from '@/design/OtpDialog'
 import { StatusBadge } from '@/design/StatusBadge'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/design/ui/dialog'
 import { formatPhone, needsPhoneVerification } from '@/lib/phoneVerification'
@@ -140,7 +140,7 @@ export default function AccountSecurityPage() {
         </div>
       </AccountShell>
 
-      <PhoneVerifyDialog
+      <OtpDialog
         open={phoneMode !== null}
         onOpenChange={(open) => {
           if (!open) setPhoneMode(null)

@@ -23,7 +23,7 @@ describe('buildIcs', () => {
 
 describe('maskPhone', () => {
   it('giữ tiền tố và che đúng ba số cuối', () => {
-    expect(maskPhone('+84912345678')).toBe('+84912345***')
+    expect(maskPhone('+84912345678')).toBe('+84 912 345 ***')
   })
 
   it.each([null, undefined, ''])('trả chuỗi rỗng khi không có số: %s', (phone) => {
