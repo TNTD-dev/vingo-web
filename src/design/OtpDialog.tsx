@@ -1,28 +1,36 @@
 import { Check } from 'lucide-react'
-import { useId, useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 
+import { resendOtp, verifyOtp } from '@/api/generated/endpoints/auth/auth'
 import { requestPhoneOtp, verifyPhoneOtp } from '@/api/generated/endpoints/me/me'
 import type { User } from '@/api/generated/model'
 import { isApiError } from '@/api/problem'
 import { tokenStore } from '@/auth/token-store'
 import { OtpInput } from '@/design/OtpInput'
-import { requestPhoneOtpMessage, verifyPhoneOtpMessage } from '@/design/phoneVerifyErrors'
+import { requestPhoneOtpMessage, resendOtpMessage, verifyOtpMessage, verifyPhoneOtpMessage } from '@/design/otpErrors'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/design/ui/dialog'
 import { cn } from '@/lib/cn'
 import { formatCountdown } from '@/lib/countdown'
-import { maskPhone } from '@/lib/mask'
+import { maskEmail, maskPhone } from '@/lib/mask'
+import { takeDemoOtp } from '@/lib/demoOtp'
 import { formatNationalPhone, normalizeVnMobile } from '@/lib/phoneVerification'
 import { useNow } from '@/lib/useNow'
 
-export interface PhoneVerifyDialogProps {
+export interface OtpDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  /** Gọi khi người dùng bấm "Tiếp tục" ở bước thành công; user đã có `phone_verified=true`. */
+  /** Gọi khi người dùng bấm "Tiếp tục" ở bước thành công (SMS: `phone_verified=true`; EMAIL: đã đăng nhập). */
   onVerified: (user: User) => void
-  /** Số điền sẵn ở bước nhập số (bỏ qua khi `mode='change'`). */
+  /** `EMAIL`: mã kích hoạt tài khoản đã gửi lúc đăng ký, vào thẳng bước nhập mã. Mặc định `SMS`. */
+  channel?: 'SMS' | 'EMAIL'
+  /** SMS: số điền sẵn ở bước nhập số (bỏ qua khi `mode='change'`). */
   initialPhone?: string
-  /** `change`: đổi sang số khác, bước thành công không nhắc chuyện giữ ghế. */
+  /** SMS: gửi mã ngay tới `initialPhone` khi mở (số đã nhập lúc đăng ký), lỗi thì ở lại bước nhập số. */
+  sendOnOpen?: boolean
+  /** SMS, `change`: đổi sang số khác, bước thành công không nhắc chuyện giữ ghế. */
   mode?: 'verify' | 'change'
+  /** EMAIL: phiên OTP do trang đăng ký tạo; `sentAt` (ms) để tính đếm ngược gửi lại. */
+  emailSession?: { sessionId: string; email: string; sentAt: number }
 }
 
 const RESEND_COOLDOWN_MS = 60_000
@@ -34,37 +42,43 @@ const primary =
   'type-body-m-strong h-[52px] w-full rounded-pill bg-ink text-on-ink transition-opacity disabled:bg-muted disabled:text-ink-tertiary'
 const quiet = 'type-body-m-strong text-center text-ink-tertiary hover:text-foreground'
 
-/** "+84912345678" → "+84 912 345 ***": che ba số cuối khi hiển thị lại số vừa gửi. */
-function maskedPhone(e164: string): string {
-  return maskPhone(e164).replace(/^(\+84)(\d{3})(\d{3})\*{3}$/, '$1 $2 $3 ***')
-}
-
 /**
- * Popup xác minh số điện thoại bằng SMS OTP (Figma "PhoneVerifyDialog"): nhập số → nhập mã 6 số → thành công.
- * Dùng ở chọn ghế, Tài khoản & bảo mật và liên kết từ chuông thông báo. Không ghi SĐT/OTP vào log, storage hay URL.
+ * Popup OTP dùng chung (Figma "OtpDialog"). SMS: nhập số → nhập mã 6 số → thành công; EMAIL: nhập mã kích hoạt → thành công.
+ * Dùng ở trang xác thực tài khoản, chọn ghế, Tài khoản & bảo mật, chuông thông báo. Không ghi SĐT/OTP vào log, storage hay URL.
  */
-export function PhoneVerifyDialog(props: PhoneVerifyDialogProps) {
+export function OtpDialog(props: OtpDialogProps) {
   // Chỉ dựng nội dung khi mở để mỗi lần mở bắt đầu lại từ bước nhập số, và đồng hồ đếm ngược không chạy khi đóng.
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-      {props.open && <PhoneVerifyContent {...props} />}
+      {props.open && <OtpContent {...props} />}
     </Dialog>
   )
 }
 
-function PhoneVerifyContent({ onOpenChange, onVerified, initialPhone, mode = 'verify' }: PhoneVerifyDialogProps) {
+function OtpContent({
+  onOpenChange,
+  onVerified,
+  channel = 'SMS',
+  initialPhone,
+  sendOnOpen,
+  mode = 'verify',
+  emailSession,
+}: OtpDialogProps) {
+  const email = channel === 'EMAIL'
   const inputId = useId()
-  const [step, setStep] = useState<Step>('phone')
+  const [step, setStep] = useState<Step>(email ? 'code' : 'phone')
   const [phoneText, setPhoneText] = useState(() => (mode === 'change' ? '' : formatNationalPhone(initialPhone)))
   const [sentPhone, setSentPhone] = useState('')
-  const [sessionId, setSessionId] = useState('')
+  const [sessionId, setSessionId] = useState(emailSession?.sessionId ?? '')
   const [otp, setOtp] = useState('')
   const [error, setError] = useState<string>()
   const [needsResend, setNeedsResend] = useState(false)
   const [pending, setPending] = useState(false)
   // Thời điểm (ms) được gửi lại; Retry-After của 429 có thể đẩy xa hơn 60 giây nhưng không bao giờ rút ngắn.
-  const [resendAt, setResendAt] = useState(0)
+  const [resendAt, setResendAt] = useState(() => (emailSession ? emailSession.sentAt + RESEND_COOLDOWN_MS : 0))
   const [verifiedUser, setVerifiedUser] = useState<User>()
+  // Chỉ có khi demo (VITE_DEMO_OTP=true và backend SMS_PROVIDER=demo): mã hiện thẳng trên màn hình thay cho SMS.
+  const [demoCode, setDemoCode] = useState<string>()
   const now = useNow()
 
   const cooldown = Math.max(0, Math.ceil((resendAt - now) / 1000))
@@ -79,11 +93,26 @@ function PhoneVerifyContent({ onOpenChange, onVerified, initialPhone, mode = 've
     setPending(true)
     setError(undefined)
     setNeedsResend(false)
+    if (email) {
+      try {
+        await resendOtp({ otp_session_id: sessionId })
+        setOtp('')
+        setResendAt(Date.now() + RESEND_COOLDOWN_MS)
+      } catch (e) {
+        const m = resendOtpMessage(e)
+        setError(m.message)
+        if (m.cooldown) lockResend(m.cooldown * 1000)
+      } finally {
+        setPending(false)
+      }
+      return
+    }
     try {
       const session = await requestPhoneOtp({ phone })
       if (!session.otp_session_id) throw new Error('Thiếu otp_session_id')
       setSentPhone(phone)
       setSessionId(session.otp_session_id)
+      setDemoCode(takeDemoOtp())
       setOtp('')
       setResendAt(Date.now() + RESEND_COOLDOWN_MS)
       setStep('code')
@@ -103,13 +132,27 @@ function PhoneVerifyContent({ onOpenChange, onVerified, initialPhone, mode = 've
     setPending(true)
     setError(undefined)
     try {
-      const user = await verifyPhoneOtp({ otp_session_id: sessionId, otp })
-      // Cập nhật phiên ngay để mọi nơi dùng useAuth() thấy phone_verified=true, giữ nguyên token.
-      const current = tokenStore.get()
-      if (current) tokenStore.set({ ...current, user })
-      setVerifiedUser(user)
+      if (email) {
+        // Kích hoạt tài khoản: backend trả cặp token, đăng nhập luôn.
+        const pair = await verifyOtp({ otp_session_id: sessionId, otp })
+        tokenStore.set({ accessToken: pair.access_token, refreshToken: pair.refresh_token, user: pair.user })
+        setVerifiedUser(pair.user)
+      } else {
+        const user = await verifyPhoneOtp({ otp_session_id: sessionId, otp })
+        // Cập nhật phiên ngay để mọi nơi dùng useAuth() thấy phone_verified=true, giữ nguyên token.
+        const current = tokenStore.get()
+        if (current) tokenStore.set({ ...current, user })
+        setVerifiedUser(user)
+      }
       setStep('done')
     } catch (e) {
+      if (email) {
+        const m = verifyOtpMessage(e)
+        setError(m.message)
+        setNeedsResend(m.needsResend)
+        setOtp('')
+        return
+      }
       const m = verifyPhoneOtpMessage(e)
       setError(m.message)
       setNeedsResend(m.needsResend)
@@ -120,6 +163,16 @@ function PhoneVerifyContent({ onOpenChange, onVerified, initialPhone, mode = 've
       setPending(false)
     }
   }
+
+  // Số đã có từ lúc đăng ký: gửi mã ngay, một lần (ref chặn StrictMode chạy effect hai lần → gửi trùng SMS).
+  const autoSent = useRef(false)
+  useEffect(() => {
+    if (email || !sendOnOpen || autoSent.current) return
+    autoSent.current = true
+    const phone = initialPhone ? normalizeVnMobile(initialPhone) : null
+    if (phone) void send(phone)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- chỉ chạy khi mở
+  }, [])
 
   function submitPhone(event: FormEvent) {
     event.preventDefault()
@@ -143,7 +196,7 @@ function PhoneVerifyContent({ onOpenChange, onVerified, initialPhone, mode = 've
     onOpenChange(false)
   }
 
-  const shown = maskedPhone(sentPhone)
+  const shown = email ? maskEmail(emailSession?.email ?? '') || 'email của bạn' : maskPhone(sentPhone)
   const banner = error && (
     <p role="alert" className="rounded-[12px] bg-danger/10 px-4 py-3 type-body-m text-danger">
       {error}
@@ -194,10 +247,23 @@ function PhoneVerifyContent({ onOpenChange, onVerified, initialPhone, mode = 've
       {step === 'code' && (
         <form onSubmit={submitCode} noValidate className="flex min-w-0 flex-col gap-5">
           <Heading
-            eyebrow="// BƯỚC 2 · NHẬP MÃ"
+            eyebrow={email ? '// XÁC THỰC EMAIL' : '// BƯỚC 2 · NHẬP MÃ'}
             title="Nhập mã gồm 6 số"
-            hint={`Mã đã gửi tới ${shown}, có hiệu lực 5 phút.`}
+            hint={`Mã đã gửi tới ${shown}, có hiệu lực 5 phút.${email ? ' Kiểm tra cả thư rác nếu chưa thấy.' : ''}`}
           />
+          {demoCode && (
+            <div
+              role="status"
+              className="flex items-center justify-between gap-3 rounded-[12px] bg-agent px-4 py-3 type-body-m text-foreground"
+            >
+              <span>
+                Mã demo (không gửi SMS): <strong className="font-mono tracking-widest">{demoCode}</strong>
+              </span>
+              <button type="button" onClick={() => setOtp(demoCode)} className="type-caption underline">
+                Điền mã
+              </button>
+            </div>
+          )}
           {/* Ô OtpInput nền trắng dành cho khung xám; trên popup trắng cần viền, và fieldset phải co được để không tràn. */}
           <div className="min-w-0 [&_fieldset]:min-w-0 [&_input]:border [&_input]:border-line">
             <OtpInput
@@ -226,10 +292,10 @@ function PhoneVerifyContent({ onOpenChange, onVerified, initialPhone, mode = 've
             </button>
           </div>
           <button type="submit" disabled={otp.length !== OTP_LENGTH || pending} className={primary}>
-            Xác minh
+            {email ? 'Xác thực' : 'Xác minh'}
           </button>
-          <button type="button" onClick={backToPhone} className={quiet}>
-            Đổi số điện thoại
+          <button type="button" onClick={email ? () => onOpenChange(false) : backToPhone} className={quiet}>
+            {email ? 'Để sau' : 'Đổi số điện thoại'}
           </button>
         </form>
       )}
@@ -241,8 +307,12 @@ function PhoneVerifyContent({ onOpenChange, onVerified, initialPhone, mode = 've
           </span>
           <Heading
             eyebrow="// ĐÃ XÁC MINH"
-            title="Đã xác minh số điện thoại"
-            hint={`Số ${shown} đã gắn với tài khoản của bạn.${mode === 'verify' ? ' Bạn có thể giữ ghế ngay bây giờ.' : ''}`}
+            title={email ? 'Đã xác thực email' : 'Đã xác minh số điện thoại'}
+            hint={
+              email
+                ? `${shown} đã gắn với tài khoản của bạn.`
+                : `Số ${shown} đã gắn với tài khoản của bạn.${mode === 'verify' && !sendOnOpen ? ' Bạn có thể giữ ghế ngay bây giờ.' : ''}`
+            }
             centered
           />
           <button type="button" onClick={finish} className={primary}>

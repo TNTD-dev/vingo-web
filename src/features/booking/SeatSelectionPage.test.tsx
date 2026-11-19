@@ -11,7 +11,7 @@ import { newIdempotencyKey } from '@/api/idempotency'
 import { ApiError } from '@/api/problem'
 import { AuthContext } from '@/auth/auth-context'
 import { tokenStore } from '@/auth/token-store'
-import type { PhoneVerifyDialogProps } from '@/design/PhoneVerifyDialog'
+import type { OtpDialogProps } from '@/design/OtpDialog'
 import SeatSelectionPage from '@/features/booking/SeatSelectionPage'
 
 vi.mock('@/api/generated/endpoints/booking/booking', () => ({ holdSeats: vi.fn() }))
@@ -27,8 +27,8 @@ vi.mock('@/api/generated/endpoints/search/search', () => ({
   useGetSeatmap: () => ({ data: seatmap, isPending: false, isError: false, refetch: vi.fn() }),
   getSeatmap: vi.fn(),
 }))
-vi.mock('@/design/PhoneVerifyDialog', () => ({
-  PhoneVerifyDialog: ({ open, onOpenChange, onVerified }: PhoneVerifyDialogProps) =>
+vi.mock('@/design/OtpDialog', () => ({
+  OtpDialog: ({ open, onOpenChange, onVerified }: OtpDialogProps) =>
     open ? (
       <div role="dialog" aria-label="Xác minh số điện thoại">
         <button

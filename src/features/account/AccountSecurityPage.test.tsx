@@ -5,15 +5,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { User } from '@/api/generated/model'
 import { AuthContext } from '@/auth/auth-context'
-import type { PhoneVerifyDialogProps } from '@/design/PhoneVerifyDialog'
+import type { OtpDialogProps } from '@/design/OtpDialog'
 import AccountSecurityPage from '@/features/account/AccountSecurityPage'
 
 vi.mock('@/api/generated/endpoints/me/me', () => ({ deleteMe: vi.fn(), updateMe: vi.fn() }))
 vi.mock('@/api/generated/endpoints/tickets/tickets', () => ({
   useListMyTickets: () => ({ data: { data: [] }, isPending: false }),
 }))
-vi.mock('@/design/PhoneVerifyDialog', () => ({
-  PhoneVerifyDialog: ({ open, onOpenChange, initialPhone, mode = 'verify' }: PhoneVerifyDialogProps) =>
+vi.mock('@/design/OtpDialog', () => ({
+  OtpDialog: ({ open, onOpenChange, initialPhone, mode = 'verify' }: OtpDialogProps) =>
     open ? (
       <div role="dialog" aria-label="Xác minh số điện thoại" data-mode={mode} data-phone={initialPhone}>
         <button type="button" onClick={() => onOpenChange(false)}>
