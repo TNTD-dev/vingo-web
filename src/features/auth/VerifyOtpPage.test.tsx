@@ -11,10 +11,10 @@ import VerifyOtpPage from './VerifyOtpPage'
 
 // Dialog có test riêng; ở đây chỉ cần biết trang mở kênh nào với tham số nào.
 vi.mock('@/design/OtpDialog', () => ({
-  OtpDialog: ({ open, channel = 'SMS', initialPhone, sendOnOpen, emailSession }: OtpDialogProps) =>
+  OtpDialog: ({ open, channel = 'SMS', initialPhone, emailSession }: OtpDialogProps) =>
     open ? (
       <div role="dialog" aria-label={`otp-${channel}`}>
-        {channel}|{initialPhone ?? ''}|{String(Boolean(sendOnOpen))}|{emailSession?.sessionId ?? ''}
+        {channel}|{initialPhone ?? ''}|{emailSession?.sessionId ?? ''}
       </div>
     ) : null,
 }))
@@ -63,14 +63,28 @@ describe('VerifyOtpPage', () => {
     expect(screen.getByText(/đã gửi mã 6 số tới b\*\*\*@gmail.com/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Xác thực số điện thoại/ })).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: /Xác thực email/ }))
-    expect(screen.getByRole('dialog', { name: 'otp-EMAIL' })).toHaveTextContent('EMAIL||false|email-session')
+    expect(screen.getByRole('dialog', { name: 'otp-EMAIL' })).toHaveTextContent('EMAIL||email-session')
   })
 
-  it('email xong: SĐT gửi mã ngay tới số đã nhập khi đăng ký', () => {
+  it('đăng ký email mới khi vẫn đăng nhập tài khoản cũ: email mới chưa được tính là đã xác thực', () => {
+    saveOtpSession({ sessionId: 'new-session', email: 'moi@gmail.com', sentAt: 1 })
+    setup(buyer({ email: 'cu@gmail.com', phone_verified: true }))
+    expect(screen.queryByText('Đã xác thực')).not.toBeInTheDocument()
+    expect(screen.getByText(/đã gửi mã 6 số tới m\*\*\*@gmail.com/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Xác thực số điện thoại/ })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: /Tiếp tục/ })).not.toBeInTheDocument()
+  })
+
+  it('số lưu dạng 0968... vẫn hiển thị +84 968 884 ***', () => {
+    setup(buyer({ phone: '0968884966' }))
+    expect(screen.getByText(/qua SMS tới \+84 968 884 \*\*\*/)).toBeInTheDocument()
+  })
+
+  it('email xong: SĐT mở popup với số đã nhập khi đăng ký', () => {
     setup(buyer())
     expect(screen.getAllByText('Đã xác thực')).toHaveLength(1)
     fireEvent.click(screen.getByRole('button', { name: /Xác thực số điện thoại/ }))
-    expect(screen.getByRole('dialog', { name: 'otp-SMS' })).toHaveTextContent('SMS|+84912345678|true|')
+    expect(screen.getByRole('dialog', { name: 'otp-SMS' })).toHaveTextContent('SMS|+84912345678|')
     expect(screen.queryByRole('button', { name: /Tiếp tục/ })).not.toBeInTheDocument()
   })
 

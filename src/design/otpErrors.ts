@@ -4,9 +4,15 @@ const PHONE_TAKEN = 'Số điện thoại này đã được tài khoản khác 
 const SMS_UNAVAILABLE = 'Chưa gửi được SMS. Vui lòng thử lại sau ít phút.'
 
 function rateLimited(retryAfter?: number): string {
-  return retryAfter
-    ? `Bạn thử quá nhiều lần. Vui lòng thử lại sau ${retryAfter} giây.`
-    : 'Bạn thử quá nhiều lần. Vui lòng thử lại sau ít phút.'
+  return `Bạn thử quá nhiều lần. Vui lòng thử lại sau ${waitText(retryAfter)}.`
+}
+
+/** Retry-After (giây) → câu dễ đọc: hạn mức 24 giờ có thể trả hàng chục nghìn giây. */
+function waitText(seconds?: number): string {
+  if (!seconds) return 'ít phút'
+  if (seconds < 120) return `${seconds} giây`
+  if (seconds < 3600) return `${Math.ceil(seconds / 60)} phút`
+  return `khoảng ${Math.ceil(seconds / 3600)} giờ`
 }
 
 function smsUnavailable(error: unknown): boolean {
@@ -73,9 +79,8 @@ export function verifyOtpMessage(e: unknown): { message: string; needsResend: bo
 /** Lỗi POST /auth/otp/resend (email); `cooldown` (giây) khi backend yêu cầu chờ. */
 export function resendOtpMessage(e: unknown): { message: string; cooldown?: number } {
   if (isApiError(e, 'RATE_LIMITED')) {
-    const wait = e.retryAfter ? `${e.retryAfter} giây` : 'ít phút'
     return {
-      message: `Bạn đã gửi lại mã quá nhiều lần (tối đa 3 lần mỗi 15 phút). Vui lòng thử lại sau ${wait}.`,
+      message: `Bạn đã gửi lại mã quá nhiều lần (tối đa 3 lần mỗi 15 phút). Vui lòng thử lại sau ${waitText(e.retryAfter)}.`,
       cooldown: e.retryAfter,
     }
   }
