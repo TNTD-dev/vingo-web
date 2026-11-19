@@ -87,6 +87,9 @@ function setup(props: Partial<OtpDialogProps> = {}) {
           }}
           onVerified={onVerified}
         />
+        <button type="button" onClick={() => setOpen(true)}>
+          Mở lại
+        </button>
         <AuthProbe />
       </AuthContext.Provider>
     )
@@ -205,17 +208,34 @@ describe('OtpDialog', () => {
     await act(async () => resolveRequest(otpSession))
   })
 
-  it('sendOnOpen gửi mã ngay tới số đã có đúng một lần và vào thẳng bước nhập mã', async () => {
-    setup({ initialPhone: PHONE, sendOnOpen: true })
-    await screen.findByRole('heading', { name: 'Nhập mã gồm 6 số' })
+  it('mở popup không tự gửi mã, chỉ gửi khi bấm Gửi mã xác minh', async () => {
+    setup({ initialPhone: PHONE })
+    expect(requestPhoneOtp).not.toHaveBeenCalled()
+    await press('Gửi mã xác minh')
     expect(requestPhoneOtp).toHaveBeenCalledTimes(1)
-    expect(vi.mocked(requestPhoneOtp).mock.calls[0][0]).toEqual({ phone: PHONE })
   })
 
-  it('sendOnOpen gặp PHONE_TAKEN thì ở lại bước nhập số để đổi số', async () => {
-    vi.mocked(requestPhoneOtp).mockRejectedValueOnce(apiError(409, 'PHONE_TAKEN'))
-    setup({ initialPhone: PHONE, sendOnOpen: true })
-    expect(await screen.findByRole('alert')).toHaveTextContent('đã được tài khoản khác xác minh')
+  it('đóng rồi mở lại vẫn ở bước nhập mã với phiên cũ, không gửi lại', async () => {
+    setup()
+    await requestCode()
+    await press('Close')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await press('Mở lại')
+    expect(screen.getByRole('heading', { name: 'Nhập mã gồm 6 số' })).toBeInTheDocument()
+    expect(requestPhoneOtp).toHaveBeenCalledTimes(1)
+    enterOtp()
+    await press('Xác minh')
+    expect(vi.mocked(verifyPhoneOtp).mock.calls[0][0]).toEqual({ otp_session_id: 'phone-session', otp: OTP })
+  })
+
+  it('đóng bằng nút X ở bước thành công vẫn báo đã xác minh, lần mở sau bắt đầu lại', async () => {
+    const { onVerified } = setup()
+    await requestCode()
+    enterOtp()
+    await press('Xác minh')
+    await press('Close')
+    expect(onVerified).toHaveBeenCalledWith(verified)
+    await press('Mở lại')
     expect(screen.getByRole('textbox', { name: /Số điện thoại/i })).toBeInTheDocument()
   })
 

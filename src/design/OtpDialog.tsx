@@ -1,5 +1,5 @@
 import { Check } from 'lucide-react'
-import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
+import { useId, useRef, useState, type FormEvent } from 'react'
 
 import { resendOtp, verifyOtp } from '@/api/generated/endpoints/auth/auth'
 import { requestPhoneOtp, verifyPhoneOtp } from '@/api/generated/endpoints/me/me'
@@ -25,8 +25,6 @@ export interface OtpDialogProps {
   channel?: 'SMS' | 'EMAIL'
   /** SMS: số điền sẵn ở bước nhập số (bỏ qua khi `mode='change'`). */
   initialPhone?: string
-  /** SMS: gửi mã ngay tới `initialPhone` khi mở (số đã nhập lúc đăng ký), lỗi thì ở lại bước nhập số. */
-  sendOnOpen?: boolean
   /** SMS, `change`: đổi sang số khác, bước thành công không nhắc chuyện giữ ghế. */
   mode?: 'verify' | 'change'
   /** EMAIL: phiên OTP do trang đăng ký tạo; `sentAt` (ms) để tính đếm ngược gửi lại. */
@@ -47,23 +45,49 @@ const quiet = 'type-body-m-strong text-center text-ink-tertiary hover:text-foreg
  * Dùng ở trang xác thực tài khoản, chọn ghế, Tài khoản & bảo mật, chuông thông báo. Không ghi SĐT/OTP vào log, storage hay URL.
  */
 export function OtpDialog(props: OtpDialogProps) {
-  // Chỉ dựng nội dung khi mở để mỗi lần mở bắt đầu lại từ bước nhập số, và đồng hồ đếm ngược không chạy khi đóng.
+  // Dựng nội dung ở lần mở đầu và giữ lại khi đóng: mở lại vẫn ở bước nhập mã với phiên đã gửi (không gửi lại
+  // rồi dính 429). Chỉ dựng phiên mới sau khi xác minh xong.
+  const [mounted, setMounted] = useState(false)
+  const [round, setRound] = useState(0)
+  const verified = useRef<User | undefined>(undefined)
+  if (props.open && !mounted) setMounted(true)
+
+  function close() {
+    const user = verified.current
+    if (user) {
+      // Đã xác minh: bấm "Tiếp tục" hay nút đóng đều báo người gọi, lần mở sau bắt đầu lại.
+      verified.current = undefined
+      setMounted(false)
+      setRound((r) => r + 1)
+      props.onVerified(user)
+    }
+    props.onOpenChange(false)
+  }
+
   return (
-    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-      {props.open && <OtpContent {...props} />}
+    <Dialog open={props.open} onOpenChange={(open) => (open ? props.onOpenChange(true) : close())}>
+      {mounted && (
+        <OtpContent
+          key={round}
+          {...props}
+          onClose={close}
+          onDone={(user) => {
+            verified.current = user
+          }}
+        />
+      )}
     </Dialog>
   )
 }
 
 function OtpContent({
-  onOpenChange,
-  onVerified,
+  onClose,
+  onDone,
   channel = 'SMS',
   initialPhone,
-  sendOnOpen,
   mode = 'verify',
   emailSession,
-}: OtpDialogProps) {
+}: OtpDialogProps & { onClose: () => void; onDone: (user: User) => void }) {
   const email = channel === 'EMAIL'
   const inputId = useId()
   const [step, setStep] = useState<Step>(email ? 'code' : 'phone')
@@ -76,7 +100,6 @@ function OtpContent({
   const [pending, setPending] = useState(false)
   // Thời điểm (ms) được gửi lại; Retry-After của 429 có thể đẩy xa hơn 60 giây nhưng không bao giờ rút ngắn.
   const [resendAt, setResendAt] = useState(() => (emailSession ? emailSession.sentAt + RESEND_COOLDOWN_MS : 0))
-  const [verifiedUser, setVerifiedUser] = useState<User>()
   // Chỉ có khi demo (VITE_DEMO_OTP=true và backend SMS_PROVIDER=demo): mã hiện thẳng trên màn hình thay cho SMS.
   const [demoCode, setDemoCode] = useState<string>()
   const now = useNow()
@@ -136,13 +159,13 @@ function OtpContent({
         // Kích hoạt tài khoản: backend trả cặp token, đăng nhập luôn.
         const pair = await verifyOtp({ otp_session_id: sessionId, otp })
         tokenStore.set({ accessToken: pair.access_token, refreshToken: pair.refresh_token, user: pair.user })
-        setVerifiedUser(pair.user)
+        onDone(pair.user)
       } else {
         const user = await verifyPhoneOtp({ otp_session_id: sessionId, otp })
         // Cập nhật phiên ngay để mọi nơi dùng useAuth() thấy phone_verified=true, giữ nguyên token.
         const current = tokenStore.get()
         if (current) tokenStore.set({ ...current, user })
-        setVerifiedUser(user)
+        onDone(user)
       }
       setStep('done')
     } catch (e) {
@@ -164,16 +187,6 @@ function OtpContent({
     }
   }
 
-  // Số đã có từ lúc đăng ký: gửi mã ngay, một lần (ref chặn StrictMode chạy effect hai lần → gửi trùng SMS).
-  const autoSent = useRef(false)
-  useEffect(() => {
-    if (email || !sendOnOpen || autoSent.current) return
-    autoSent.current = true
-    const phone = initialPhone ? normalizeVnMobile(initialPhone) : null
-    if (phone) void send(phone)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- chỉ chạy khi mở
-  }, [])
-
   function submitPhone(event: FormEvent) {
     event.preventDefault()
     if (e164 && cooldown === 0) void send(e164)
@@ -189,11 +202,6 @@ function OtpContent({
     setOtp('')
     setError(undefined)
     setNeedsResend(false)
-  }
-
-  function finish() {
-    if (verifiedUser) onVerified(verifiedUser)
-    onOpenChange(false)
   }
 
   const shown = email ? maskEmail(emailSession?.email ?? '') || 'email của bạn' : maskPhone(sentPhone)
@@ -238,7 +246,7 @@ function OtpContent({
           <button type="submit" disabled={!e164 || pending || cooldown > 0} className={primary}>
             Gửi mã xác minh
           </button>
-          <button type="button" onClick={() => onOpenChange(false)} className={quiet}>
+          <button type="button" onClick={onClose} className={quiet}>
             Để sau
           </button>
         </form>
@@ -294,7 +302,7 @@ function OtpContent({
           <button type="submit" disabled={otp.length !== OTP_LENGTH || pending} className={primary}>
             {email ? 'Xác thực' : 'Xác minh'}
           </button>
-          <button type="button" onClick={email ? () => onOpenChange(false) : backToPhone} className={quiet}>
+          <button type="button" onClick={email ? onClose : backToPhone} className={quiet}>
             {email ? 'Để sau' : 'Đổi số điện thoại'}
           </button>
         </form>
@@ -311,11 +319,11 @@ function OtpContent({
             hint={
               email
                 ? `${shown} đã gắn với tài khoản của bạn.`
-                : `Số ${shown} đã gắn với tài khoản của bạn.${mode === 'verify' && !sendOnOpen ? ' Bạn có thể giữ ghế ngay bây giờ.' : ''}`
+                : `Số ${shown} đã gắn với tài khoản của bạn.${mode === 'verify' ? ' Bạn có thể giữ ghế ngay bây giờ.' : ''}`
             }
             centered
           />
-          <button type="button" onClick={finish} className={primary}>
+          <button type="button" onClick={onClose} className={primary}>
             Tiếp tục
           </button>
         </div>

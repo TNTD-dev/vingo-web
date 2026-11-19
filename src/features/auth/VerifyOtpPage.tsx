@@ -7,6 +7,7 @@ import { ArrowButton } from '@/design/ArrowButton'
 import { OtpDialog } from '@/design/OtpDialog'
 import { StatusBadge } from '@/design/StatusBadge'
 import { maskEmail, maskPhone } from '@/lib/mask'
+import { normalizeVnMobile } from '@/lib/phoneVerification'
 
 import { AuthHeading } from './authUi'
 import { clearOtpSession, loadOtpSession, safeNext } from './otpSession'
@@ -18,16 +19,19 @@ export default function VerifyOtpPage() {
   const [params] = useSearchParams()
   const { user } = useAuth()
   // Phiên OTP email lấy từ sessionStorage (do trang đăng ký ghi) nên tải lại trang vẫn còn.
-  const [session] = useState(loadOtpSession)
+  const [session, setSession] = useState(loadOtpSession)
+  const [next] = useState(() => session?.next ?? safeNext(params.get('next')) ?? '/events')
   const [dialog, setDialog] = useState<'EMAIL' | 'SMS' | null>(null)
 
   if (!session && !user) return <Navigate to="/register" replace />
 
-  const emailDone = Boolean(user)
-  const phoneDone = user?.phone_verified === true
-  const next = session?.next ?? safeNext(params.get('next')) ?? '/events'
+  // Còn phiên đăng ký chờ mã thì email chưa xác thực, kể cả khi trình duyệt vẫn đăng nhập tài khoản cũ.
+  const emailDone = !session && Boolean(user)
+  const phoneDone = emailDone && user?.phone_verified === true
   const emailText = maskEmail(session?.email ?? user?.email) || 'email của bạn'
-  const phoneText = maskPhone(user?.phone) || 'số bạn đã nhập khi đăng ký'
+  // Số lúc đăng ký lưu nguyên dạng người dùng gõ (0968...): chuẩn hoá về +84 rồi mới che.
+  const phoneText =
+    maskPhone(user?.phone ? (normalizeVnMobile(user.phone) ?? user.phone) : undefined) || 'số bạn đã nhập khi đăng ký'
 
   return (
     <div className="flex flex-col gap-5">
@@ -83,13 +87,15 @@ export default function VerifyOtpPage() {
         onOpenChange={(open) => !open && setDialog(null)}
         channel="EMAIL"
         emailSession={session ?? undefined}
-        onVerified={() => clearOtpSession()}
+        onVerified={() => {
+          clearOtpSession()
+          setSession(null)
+        }}
       />
       <OtpDialog
         open={dialog === 'SMS'}
         onOpenChange={(open) => !open && setDialog(null)}
         initialPhone={user?.phone}
-        sendOnOpen
         onVerified={() => setDialog(null)}
       />
     </div>
