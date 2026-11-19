@@ -221,7 +221,12 @@ describe('OtpDialog', () => {
 
   it('EMAIL vào thẳng bước nhập mã, xác thực thì đăng nhập bằng cặp token mới', async () => {
     tokenStore.set(null)
-    vi.mocked(verifyOtp).mockResolvedValue({ access_token: 'new-access', refresh_token: 'new-refresh', user: verified })
+    vi.mocked(verifyOtp).mockResolvedValue({
+      access_token: 'new-access',
+      refresh_token: 'new-refresh',
+      expires_in: 900,
+      user: verified,
+    })
     const { onVerified } = setup({
       channel: 'EMAIL',
       emailSession: { sessionId: 'email-session', email: 'buyer@gmail.com', sentAt: Date.now() },
