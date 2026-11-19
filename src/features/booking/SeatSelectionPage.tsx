@@ -16,7 +16,7 @@ import { newIdempotencyKey } from '@/api/idempotency'
 import { isApiError } from '@/api/problem'
 import { useAuth } from '@/auth/auth-context'
 import { Mascot } from '@/design/Mascot'
-import { PhoneVerifyDialog } from '@/design/PhoneVerifyDialog'
+import { OtpDialog } from '@/design/OtpDialog'
 import { icons } from '@/design/icons'
 import { Skeleton } from '@/design/ui/skeleton'
 import { cn } from '@/lib/cn'
@@ -527,7 +527,7 @@ function SeatSelection({ event, showtimeId }: { event: EventDetail; showtimeId: 
           </button>
         </aside>
       </div>
-      <PhoneVerifyDialog
+      <OtpDialog
         open={phoneDialogOpen}
         onOpenChange={setPhoneDialogOpen}
         onVerified={() => startHold(true)}

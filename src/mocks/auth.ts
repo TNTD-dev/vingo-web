@@ -45,11 +45,15 @@ export const authHandlers = [
   }),
   http.get(`*${API_BASE}/me`, () => HttpResponse.json(currentUser())),
   http.post(`*${API_BASE}/me/phone/otp`, () =>
-    HttpResponse.json<OtpSession>({
-      otp_session_id: '0193a000-0000-7000-8000-0000000000a1',
-      expires_at: new Date(Date.now() + 5 * 60_000).toISOString(),
-      channel: 'SMS',
-    }),
+    HttpResponse.json<OtpSession>(
+      {
+        otp_session_id: '0193a000-0000-7000-8000-0000000000a1',
+        expires_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+        channel: 'SMS',
+      },
+      // Giống backend SMS_PROVIDER=demo: để thử hộp "Mã demo" khi bật VITE_DEMO_OTP=true.
+      { headers: { 'X-Demo-Otp': MOCK_OTP } },
+    ),
   ),
   http.post(`*${API_BASE}/me/phone/verify`, async ({ request }) => {
     const body = (await request.json()) as PhoneVerifyRequest
