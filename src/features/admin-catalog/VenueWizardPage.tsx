@@ -1,11 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
-import { FileCode2, Upload } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { ArrowLeft, ArrowRight, Building2, Check, FileCode2, FileText, LoaderCircle, Lock, Upload } from 'lucide-react'
 import { Link, useBlocker, useNavigate, useParams, useSearchParams } from 'react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   createVenueImport,
   getVenueImport,
-  listVenueImports,
   updateVenueImport,
   uploadVenueImportFiles,
   deleteVenueImportFile,
@@ -22,6 +21,7 @@ import type {
   VenueImportIssue,
   VenueInput,
 } from '@/api/generated/model'
+import { AdminAction } from '@/design/admin/AdminAction'
 import { AdminPage, ErrorNotice, Field, Panel, QueryState } from '@/design/admin/AdminUi'
 import { Button } from '@/design/ui/button'
 import { ApiError } from '@/api/problem'
@@ -29,6 +29,7 @@ import { VenueSetupFields } from './VenueSetupFields'
 import { LayoutPreview } from './LayoutPreview'
 import { VenueWorkspace } from './VenueWorkspace'
 import './venue-console.css'
+import { useVenueDrafts, venueDraftsKey } from './catalog'
 import { useVenueOverviews } from './useVenueOverviews'
 
 const steps = ['OVERVIEW', 'LAYOUT', 'PREVIEW', 'DETAILS', 'REVIEW'] as const
@@ -68,7 +69,7 @@ export default function VenueWizardPage() {
   const { venueId } = useParams()
   const [params] = useSearchParams()
   return venueId && !params.has('import') && !params.has('session') ? (
-    <VenueWorkspace venueId={venueId} />
+    <VenueWorkspace key={venueId} venueId={venueId} />
   ) : (
     <ImportWizard key={params.get('session') ?? 'new'} venueId={venueId} />
   )
@@ -84,6 +85,8 @@ function ImportWizard({ venueId }: { venueId?: string }) {
   const [preview, setPreview] = useState<VenueImportPreview>()
   const [result, setResult] = useState<VenueImportResult>()
   const [baseline, setBaseline] = useState(JSON.stringify(blank))
+  const [checkingLayout, setCheckingLayout] = useState(false)
+  const [dragTarget, setDragTarget] = useState<boolean>()
   const [uploading, setUploading] = useState<{ overview: boolean; names: string[] }>()
   const [fileError, setFileError] = useState('')
   const lock = useRef(false)
@@ -104,7 +107,8 @@ function ImportWizard({ venueId }: { venueId?: string }) {
     retry: false,
     refetchOnWindowFocus: false,
   })
-  const drafts = useQuery({ queryKey: ['venue-import-drafts'], queryFn: () => listVenueImports({ limit: 100 }) })
+  const drafts = useVenueDrafts()
+  const started = useRef(false)
   function accept(s: VenueImportSession, keepPreview = false) {
     if (completed.current && !s.result) return
     completed.current = !!s.result
@@ -149,14 +153,29 @@ function ImportWizard({ venueId }: { venueId?: string }) {
       }
     },
     onSuccess: () => {
-      void client.invalidateQueries({ queryKey: ['venue-import-drafts'] })
+      void client.invalidateQueries({ queryKey: venueDraftsKey })
     },
   })
-  const run = (work: () => Promise<void>) => {
-    if (lock.current) return
-    lock.current = true
-    action.mutate(work)
-  }
+  const mutate = action.mutate
+  const run = useCallback(
+    (work: () => Promise<void>) => {
+      if (lock.current) return
+      lock.current = true
+      mutate(work)
+    },
+    [mutate],
+  )
+  const startNewVenue = useCallback(() => {
+    run(async () => {
+      const created = await createVenueImport({})
+      setParams({ session: created.id! }, { replace: true })
+    })
+  }, [run, setParams])
+  useEffect(() => {
+    if (venueId || sessionId || started.current) return
+    started.current = true
+    startNewVenue()
+  }, [venueId, sessionId, startNewVenue])
   async function save(next = step, nextDraft = draft, keepPreview = false) {
     if (!session?.id || session.revision === undefined) throw new Error('Hãy tạo hoặc mở phiên nháp trước.')
     const s = await updateVenueImport(session.id, {
@@ -194,16 +213,17 @@ function ImportWizard({ venueId }: { venueId?: string }) {
     files.every((file) => file.validation_status === 'VALIDATED') &&
     detailFiles.every((file) => !!typeFor(file.id))
 
-  function withFileTypes(nextDraft: VenueImportDraft): VenueImportDraft {
+  function withFileTypes(nextDraft: VenueImportDraft, sourceFiles = detailFiles): VenueImportDraft {
     const fileTypes: NonNullable<VenueImportDraft['file_layout_types']> = {}
-    for (const file of detailFiles) {
-      const type = typeFor(file.id)
+    for (const file of sourceFiles) {
+      const type = nextDraft.file_layout_types?.[file.id ?? ''] ?? inferLayoutType(file.original_filename)
       if (file.id && type) fileTypes[file.id] = type
     }
+    const types = Object.values(fileTypes)
     return {
       ...prepareDraft(nextDraft),
       file_layout_types: fileTypes,
-      layout_type: layoutTypes.find((type) => type === nextDraft.layout_type) ?? activeLayout ?? nextDraft.layout_type,
+      layout_type: types.find((type) => type === nextDraft.layout_type) ?? types[0] ?? nextDraft.layout_type,
     }
   }
   function prepareDraft(nextDraft: VenueImportDraft): VenueImportDraft {
@@ -228,12 +248,14 @@ function ImportWizard({ venueId }: { venueId?: string }) {
   ]
   const canNext = readyToCheck && saveBlockers.length === 0
   function assignType(fileId: string, type: NonNullable<VenueImportDraft['layout_type']>) {
-    change({
+    const updated = {
       ...draft,
       layout_type: type,
       zone_areas: {},
       file_layout_types: { ...draft.file_layout_types, [fileId]: type },
-    })
+    }
+    change(updated)
+    if (session) run(() => checkUpdatedLayout(session, updated))
   }
   function uploadFiles(chosen: File[], isOverview: boolean) {
     if (lock.current || !chosen.length) return
@@ -252,27 +274,63 @@ function ImportWizard({ venueId }: { venueId?: string }) {
     run(async () => {
       try {
         const nextDraft = isOverview ? { ...draft, overview_name: chosen[0].name.slice(0, 200) } : draft
-        const s = await updateVenueImport(session!.id!, {
-          revision: session!.revision!,
-          step,
-          draft_data: withFileTypes(nextDraft),
+        let current = session!
+        if (isOverview || dirty || current.step !== step) {
+          current = await updateVenueImport(current.id!, {
+            revision: current.revision!,
+            step,
+            draft_data: withFileTypes(nextDraft),
+          })
+          accept(current)
+        }
+        const uploaded = await uploadVenueImportFiles(current.id!, {
+          revision: current.revision!,
+          files: chosen.map((f) => new File([f], f.name, { type: 'image/svg+xml' })),
         })
-        accept(s)
-        accept(
-          await uploadVenueImportFiles(s.id!, {
-            revision: s.revision!,
-            files: chosen.map((f) => new File([f], f.name, { type: 'image/svg+xml' })),
-          }),
-        )
+        accept(uploaded)
+        setUploading(undefined)
+        if (!isOverview) await checkUpdatedLayout(uploaded, uploaded.draft_data ?? nextDraft)
       } finally {
         setUploading(undefined)
       }
     })
   }
+  async function checkUpdatedLayout(current: VenueImportSession, nextDraft: VenueImportDraft) {
+    const currentFiles = current.files ?? []
+    const details = currentFiles.filter((file) => file.role === 'SEAT_LAYOUT')
+    const prepared = withFileTypes(nextDraft, details)
+    const type = prepared.layout_type
+    const hasOverview =
+      prepared.overview_id || currentFiles.some((file) => file.role === 'OVERVIEW' && file.sanitized_svg)
+    if (
+      !type ||
+      !hasOverview ||
+      !details.length ||
+      currentFiles.some((file) => file.validation_status !== 'VALIDATED') ||
+      details.some((file) => !file.id || !prepared.file_layout_types?.[file.id])
+    )
+      return
+
+    setCheckingLayout(true)
+    try {
+      let saved = current
+      if (current.step !== step || JSON.stringify(prepared) !== JSON.stringify(current.draft_data)) {
+        saved = await updateVenueImport(current.id!, {
+          revision: current.revision!,
+          step,
+          draft_data: prepared,
+        })
+        accept(saved, true)
+      }
+      setPreview(await previewVenueImport(saved.id!, { revision: saved.revision! }))
+    } finally {
+      setCheckingLayout(false)
+    }
+  }
   async function validate(type: keyof typeof layoutNames) {
+    if (!session) return
     const nextDraft = draft.layout_type === type ? draft : { ...draft, layout_type: type, zone_areas: {} }
-    const s = await save(step, nextDraft)
-    setPreview(await previewVenueImport(s.id!, { revision: s.revision! }))
+    await checkUpdatedLayout(session, nextDraft)
   }
   async function finish() {
     setFinishPhase('checking')
@@ -309,107 +367,222 @@ function ImportWizard({ venueId }: { venueId?: string }) {
     setResult(saved)
     const search = new URLSearchParams({ tab: 'layout', type: layoutType ?? 'FOOTBALL', layout: saved.layout_id })
     // Đánh dấu cache cũ; trang đích tự tải lại, không chờ refetch danh sách trước khi điều hướng.
+    void client.invalidateQueries({ queryKey: venueDraftsKey })
     void client.invalidateQueries({ queryKey: ['admin-venue-directory'], refetchType: 'none' })
     void client.invalidateQueries({ queryKey: ['admin-layout-directory'], refetchType: 'none' })
     void client.invalidateQueries({ queryKey: ['admin-venue', saved.venue_id], refetchType: 'none' })
     void client.invalidateQueries({ queryKey: ['admin-layout-tree', saved.venue_id], refetchType: 'none' })
     void navigate(`/admin/venues/${saved.venue_id}/setup?${search}`, { replace: true, flushSync: true })
   }
+  const matchingDrafts = drafts.data?.filter((item) => (item.target_venue_id ?? undefined) === venueId) ?? []
+
+  function renderActions(currentSession: VenueImportSession) {
+    return (
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface p-3 sm:gap-3 sm:p-4">
+        {index === 1 && saveBlockers.length > 0 && (
+          <section
+            id="venue-save-blockers"
+            className="mb-1 w-full space-y-1 rounded-lg bg-canvas px-3 py-2 text-sm"
+            aria-label="Lý do chưa thể lưu"
+          >
+            <h3 className="font-semibold">Cần bổ sung trước khi lưu</h3>
+            <ul className="list-disc space-y-0.5 pl-5 text-ink-secondary">
+              {saveBlockers.map((reason) => (
+                <li key={reason}>{reason}</li>
+              ))}
+            </ul>
+          </section>
+        )}
+        {index > 0 && (
+          <Button
+            className="h-11 rounded-pill"
+            variant="outline"
+            onClick={() =>
+              run(async () => {
+                await save('DETAILS')
+              })
+            }
+          >
+            Quay lại
+          </Button>
+        )}
+        <Button
+          className="h-11 rounded-pill"
+          variant="outline"
+          onClick={() =>
+            run(async () => {
+              await save()
+            })
+          }
+        >
+          Lưu nháp
+        </Button>
+        {index === 0 ? (
+          <AdminAction
+            disabled={!venueReady}
+            onClick={() =>
+              run(async () => {
+                await save('OVERVIEW')
+              })
+            }
+          >
+            Tiếp tục
+          </AdminAction>
+        ) : (
+          <AdminAction
+            disabled={!canNext}
+            aria-describedby={saveBlockers.length ? 'venue-save-blockers' : undefined}
+            onClick={() => run(finish)}
+          >
+            {finishPhase === 'checking'
+              ? 'Đang kiểm tra…'
+              : finishPhase === 'saving'
+                ? 'Đang lưu…'
+                : 'Lưu sân & layout'}
+          </AdminAction>
+        )}
+        <Button
+          className="h-11 rounded-pill text-danger sm:ml-auto"
+          variant="ghost"
+          onClick={() =>
+            run(async () => {
+              accept(await cancelVenueImport(currentSession.id!, { revision: currentSession.revision! }))
+            })
+          }
+        >
+          Hủy phiên nháp
+        </Button>
+      </div>
+    )
+  }
+
   return (
     <AdminPage
-      title={venueId ? 'Thêm layout cho sân' : 'Tạo sân từ SVG'}
-      caption="THÔNG TIN SÂN → SƠ ĐỒ, LAYOUT & LƯU"
-      actions={
-        <Link to={venueId ? `/admin/venues/${venueId}/setup?tab=layout` : '/admin/venues'}>
-          {venueId ? 'Quay về sơ đồ sân' : 'Quay về danh sách'}
-        </Link>
+      title={venueId ? 'Thêm layout cho sân' : 'Thêm sân'}
+      caption={
+        <Button
+          asChild
+          variant="ghost"
+          className="h-10 rounded-pill px-2 font-sans text-sm tracking-normal normal-case"
+        >
+          <Link to={venueId ? `/admin/venues/${venueId}/setup?tab=layout` : '/admin/venues'}>
+            <ArrowLeft aria-hidden />
+            {venueId ? 'Quay về sơ đồ sân' : 'Quay về danh sách'}
+          </Link>
+        </Button>
       }
     >
       <div className="venue-import-shell">
-        {!sessionId && !session && (
-          <Panel className="venue-card space-y-4">
-            <h2>{venueId ? 'Tạo phiên bản sơ đồ mới' : 'Bắt đầu từ thông tin sân'}</h2>
-            {venueId && (
-              <>
-                <Field label="Nền cho phiên bản mới">
-                  <select
-                    value={overviewChoice}
-                    disabled={action.isPending || overviews.isPending}
-                    onChange={(event) => setOverviewChoice(event.target.value)}
-                  >
-                    <option value="">Nhập overview mới từ SVG</option>
-                    {reusableOverviews.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        Nền v{item.version}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <ErrorNotice error={overviews.error} />
-                {overviewChoice && !overviews.isPending && !selectedBase && (
-                  <p role="alert">Overview đã chọn không còn khả dụng. Chọn nền khác hoặc nhập overview mới.</p>
-                )}
-                <p className="venue-setup-hint">
-                  {selectedBase
-                    ? 'Giữ nền và cổng đã lưu; chỉ cần nhập SVG layout ghế mới.'
-                    : 'Nhập SVG nền mới và layout ghế tương ứng. Phiên bản đang dùng vẫn được giữ lại.'}
-                </p>
-              </>
+        {!venueId && !sessionId && (
+          <Panel>
+            {action.error ? (
+              <ErrorNotice error={action.error} retry={startNewVenue} />
+            ) : (
+              <output>Đang mở bước thông tin sân…</output>
             )}
-            <p>Nháp lưu trên server trong 30 ngày. Tệp nền và chi tiết dùng cùng viewBox; mỗi lần tải tối đa 10 MiB.</p>
-            <Button
-              disabled={action.isPending || (!!venueId && ((!!overviewChoice && !selectedBase) || overviews.isPending))}
-              onClick={() =>
-                run(async () => {
-                  const s = await createVenueImport(
-                    venueId
-                      ? { target_venue_id: venueId, ...(selectedBase?.id ? { overview_id: selectedBase.id } : {}) }
-                      : {},
-                  )
-                  const initial = await updateVenueImport(s.id!, {
-                    revision: s.revision!,
-                    step: venueId ? 'OVERVIEW' : 'DETAILS',
-                    draft_data: prepareDraft({ ...blank, ...s.draft_data, layout_type: requestedType }),
-                  })
-                  accept(initial)
-                  client.setQueryData(['venue-import', initial.id], initial)
-                  setParams({ session: s.id! }, { replace: true })
-                })
-              }
-            >
-              Tạo phiên nháp
-            </Button>
-            <QueryState query={drafts} empty={!drafts.data?.data?.length} emptyText="Chưa có phiên nháp.">
-              <ul>
-                {drafts.data?.data
-                  ?.filter((s) => (s.target_venue_id ?? undefined) === venueId)
-                  .map((s) => (
-                    <li key={s.id}>
-                      <Link to={`?session=${s.id}`}>
-                        Mở lại: {s.draft_data?.layout_name || s.draft_data?.venue?.name || 'Nháp chưa đặt tên'} ·{' '}
-                        {labels[steps.indexOf(s.step ?? 'OVERVIEW')]}
-                      </Link>
-                    </li>
-                  ))}
-              </ul>
-            </QueryState>
           </Panel>
+        )}
+        {venueId && !sessionId && !session && (
+          <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+            <Panel className="space-y-5">
+              <div className="mb-4 grid size-12 place-items-center rounded-xl bg-agent text-ink">
+                <FileCode2 aria-hidden />
+              </div>
+              <h2>Tạo phiên bản sơ đồ mới</h2>
+              <Field label="Nền cho phiên bản mới">
+                <select
+                  value={overviewChoice}
+                  disabled={action.isPending || overviews.isPending}
+                  onChange={(event) => setOverviewChoice(event.target.value)}
+                >
+                  <option value="">Nhập overview mới từ SVG</option>
+                  {reusableOverviews.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      Nền v{item.version}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <ErrorNotice error={overviews.error} />
+              {overviewChoice && !overviews.isPending && !selectedBase && (
+                <p role="alert">Overview đã chọn không còn khả dụng. Chọn nền khác hoặc nhập overview mới.</p>
+              )}
+              <p className="venue-setup-hint">
+                {selectedBase
+                  ? 'Giữ nền và cổng đã lưu; chỉ cần nhập SVG layout ghế mới.'
+                  : 'Nhập SVG nền mới và layout ghế tương ứng. Phiên bản đang dùng vẫn được giữ lại.'}
+              </p>
+              <div className="flex items-start gap-3 rounded-xl bg-canvas p-4 text-sm">
+                <FileCode2 className="mt-0.5 size-5 shrink-0 text-ink-secondary" aria-hidden />
+                <div>
+                  <p className="font-medium">Tệp sơ đồ SVG</p>
+                  <p className="mt-1 text-ink-secondary">
+                    Tệp nền và tệp chi tiết cần dùng cùng viewBox. Mỗi lần tải tối đa 10 MiB.
+                  </p>
+                </div>
+              </div>
+              <AdminAction
+                disabled={action.isPending || (!!overviewChoice && !selectedBase) || overviews.isPending}
+                onClick={() =>
+                  run(async () => {
+                    const s = await createVenueImport({
+                      target_venue_id: venueId,
+                      ...(selectedBase?.id ? { overview_id: selectedBase.id } : {}),
+                    })
+                    const initial = await updateVenueImport(s.id!, {
+                      revision: s.revision!,
+                      step: 'OVERVIEW',
+                      draft_data: prepareDraft({ ...blank, ...s.draft_data, layout_type: requestedType }),
+                    })
+                    accept(initial)
+                    client.setQueryData(['venue-import', initial.id], initial)
+                    setParams({ session: s.id! }, { replace: true })
+                  })
+                }
+              >
+                {action.isPending ? 'Đang tạo nháp…' : 'Tạo phiên nháp'}
+              </AdminAction>
+            </Panel>
+            <Panel className="space-y-4">
+              <div className="space-y-2">
+                <h2>Phiên nháp đang dở</h2>
+                <p className="text-sm text-ink-secondary">Phiên nháp được lưu trong 30 ngày.</p>
+              </div>
+              <QueryState query={drafts}>
+                {matchingDrafts.length ? (
+                  <ul className="divide-y divide-line">
+                    {matchingDrafts.map((item) => (
+                      <li key={item.id}>
+                        <Link
+                          className="flex items-center gap-3 rounded-lg px-2 py-3 hover:bg-canvas"
+                          to={`?session=${item.id}`}
+                        >
+                          <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-canvas">
+                            <FileText className="size-4 text-ink-secondary" aria-hidden />
+                          </span>
+                          <span className="min-w-0 flex-1 wrap-anywhere">
+                            <span className="block text-sm font-medium">
+                              {item.draft_data?.layout_name || item.draft_data?.venue?.name || 'Nháp chưa đặt tên'}
+                            </span>
+                            <span className="block text-xs text-ink-secondary">
+                              {labels[steps.indexOf(item.step ?? 'OVERVIEW')]}
+                            </span>
+                          </span>
+                          <ArrowRight className="size-4 shrink-0 text-ink-secondary" aria-hidden />
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="rounded-xl bg-canvas px-4 py-3 text-sm text-ink-secondary">Chưa có phiên nháp.</p>
+                )}
+              </QueryState>
+            </Panel>
+          </div>
         )}
         {sessionId && !session && <QueryState query={load}>{null}</QueryState>}
         {session && (
           <>
-            <p role="status">
-              {finishPhase === 'checking'
-                ? 'Đang kiểm tra sân và sơ đồ…'
-                : finishPhase === 'saving'
-                  ? 'Đang lưu sân & layout…'
-                  : action.isPending
-                    ? 'Đang xử lý…'
-                    : dirty
-                      ? 'Có thay đổi chưa lưu'
-                      : 'Đã lưu nháp trên server'}{' '}
-              · revision {session.revision}
-            </p>
             {result ? (
               <Panel className="venue-card space-y-4">
                 <h2>Đã lưu sân và layout nháp</h2>
@@ -422,23 +595,37 @@ function ImportWizard({ venueId }: { venueId?: string }) {
               <p>Phiên đã hủy. Hãy tạo phiên mới.</p>
             ) : (
               <>
-                <nav className="venue-import-steps" aria-label="Các bước nhập sân">
-                  {['Thông tin sân', 'Sơ đồ, layout & lưu'].map((label, i) => (
-                    <Button
-                      key={label}
-                      variant={i === index ? 'default' : 'outline'}
-                      aria-current={i === index ? 'step' : undefined}
-                      disabled={action.isPending || (i === 1 && !venueReady)}
-                      onClick={() =>
-                        run(async () => {
-                          await save(i === 0 ? 'DETAILS' : 'OVERVIEW')
-                        })
-                      }
-                    >
-                      {i + 1}. {label}
-                    </Button>
-                  ))}
-                </nav>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <nav className="venue-import-steps" aria-label="Các bước nhập sân">
+                    {['Thông tin sân', 'Sơ đồ, layout & lưu'].map((label, i) => (
+                      <Button
+                        key={label}
+                        variant={i === index ? 'default' : 'outline'}
+                        className="h-11 rounded-pill"
+                        aria-current={i === index ? 'step' : undefined}
+                        disabled={action.isPending || (i === 1 && !venueReady)}
+                        onClick={() =>
+                          run(async () => {
+                            await save(i === 0 ? 'DETAILS' : 'OVERVIEW')
+                          })
+                        }
+                      >
+                        {i + 1}. {label}
+                      </Button>
+                    ))}
+                  </nav>
+                  <output className="text-sm text-ink-secondary">
+                    {finishPhase === 'checking'
+                      ? 'Đang kiểm tra sân và sơ đồ…'
+                      : finishPhase === 'saving'
+                        ? 'Đang lưu sân & layout…'
+                        : action.isPending
+                          ? 'Đang xử lý…'
+                          : dirty
+                            ? 'Có thay đổi chưa lưu'
+                            : null}
+                  </output>
+                </div>
                 <fieldset disabled={action.isPending} className="venue-import-fieldset">
                   <Panel className="venue-card space-y-4">
                     <h2>
@@ -450,27 +637,55 @@ function ImportWizard({ venueId }: { venueId?: string }) {
                           {[true, false].map((isOverview) => {
                             const sectionFiles = files.filter((file) => (file.role === 'OVERVIEW') === isOverview)
                             const canUpload = isOverview ? !overviewReady : !!overviewReady
+                            const dragging = canUpload && !action.isPending && dragTarget === isOverview
                             return (
                               <section
                                 key={String(isOverview)}
                                 className={`venue-svg-section ${isOverview ? '' : 'venue-svg-section-detail'}`}
-                                onDragOver={(e) => {
-                                  e.preventDefault()
-                                  e.dataTransfer.dropEffect = canUpload ? 'copy' : 'none'
+                                data-dragging={dragging || undefined}
+                                onDragOver={(event) => {
+                                  if (!event.dataTransfer.types.includes('Files')) return
+                                  event.preventDefault()
+                                  const enabled = canUpload && !action.isPending
+                                  event.dataTransfer.dropEffect = enabled ? 'copy' : 'none'
+                                  if (enabled) setDragTarget(isOverview)
                                 }}
-                                onDrop={(e) => {
-                                  e.preventDefault()
-                                  if (canUpload) uploadFiles(Array.from(e.dataTransfer.files), isOverview)
+                                onDragLeave={(event) => {
+                                  if (
+                                    event.relatedTarget instanceof Node &&
+                                    event.currentTarget.contains(event.relatedTarget)
+                                  )
+                                    return
+                                  setDragTarget(undefined)
+                                }}
+                                onDrop={(event) => {
+                                  event.preventDefault()
+                                  setDragTarget(undefined)
+                                  if (canUpload && !action.isPending)
+                                    uploadFiles(Array.from(event.dataTransfer.files), isOverview)
                                 }}
                               >
                                 <header className="venue-svg-heading">
-                                  <div>
-                                    <h3>{isOverview ? 'SVG tổng quan' : 'Layout zone/ghế'}</h3>
-                                    <p>
-                                      {isOverview
-                                        ? 'Nền dùng chung cho các layout bên dưới.'
-                                        : 'Mỗi loại layout dùng một hoặc nhiều tệp SVG.'}
-                                    </p>
+                                  <div className="flex items-start gap-3">
+                                    <span
+                                      className={`grid size-10 shrink-0 place-items-center rounded-lg font-medium ${(isOverview ? overviewReady : detailFiles.length > 0) ? 'bg-agent text-ink' : 'bg-canvas text-ink-secondary'}`}
+                                    >
+                                      {(isOverview ? overviewReady : detailFiles.length > 0) ? (
+                                        <Check className="size-5" aria-hidden />
+                                      ) : isOverview ? (
+                                        '1'
+                                      ) : (
+                                        '2'
+                                      )}
+                                    </span>
+                                    <div>
+                                      <h3>{isOverview ? 'SVG tổng quan' : 'Layout zone/ghế'}</h3>
+                                      <p>
+                                        {isOverview
+                                          ? 'Nền dùng chung cho các layout.'
+                                          : 'Tải một hoặc nhiều tệp cho mỗi loại layout.'}
+                                      </p>
+                                    </div>
                                   </div>
                                   {!isOverview && detailFiles.length > 0 && (
                                     <span className="venue-svg-tag">
@@ -485,7 +700,13 @@ function ImportWizard({ venueId }: { venueId?: string }) {
                                 )}
                                 {canUpload && (
                                   <label className="venue-svg-chooser">
-                                    <Upload size={17} aria-hidden="true" />
+                                    <span className="venue-svg-upload-icon">
+                                      {uploading?.overview === isOverview ? (
+                                        <LoaderCircle className="size-5 motion-safe:animate-spin" aria-hidden />
+                                      ) : (
+                                        <Upload className="size-5" aria-hidden />
+                                      )}
+                                    </span>
                                     <span>
                                       {sectionFiles.length
                                         ? 'Thêm SVG zone/ghế'
@@ -493,7 +714,11 @@ function ImportWizard({ venueId }: { venueId?: string }) {
                                           ? 'Chọn SVG tổng quan'
                                           : 'Chọn SVG zone/ghế'}
                                     </span>
-                                    <small>hoặc kéo thả vào đây</small>
+                                    <small>
+                                      {dragging
+                                        ? 'Thả để tải tệp lên'
+                                        : 'Kéo thả hoặc bấm để chọn · SVG tối đa 10 MiB mỗi lần tải'}
+                                    </small>
                                     <input
                                       className="sr-only"
                                       type="file"
@@ -508,7 +733,22 @@ function ImportWizard({ venueId }: { venueId?: string }) {
                                   </label>
                                 )}
                                 {!isOverview && !canUpload && (
-                                  <p className="venue-svg-hint">Tải SVG tổng quan để mở phần này.</p>
+                                  <div className="flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-3 text-sm text-ink-secondary">
+                                    <Lock className="size-4 shrink-0" aria-hidden />
+                                    <p>Tải SVG tổng quan để mở phần này.</p>
+                                  </div>
+                                )}
+                                {!isOverview && checkingLayout && (
+                                  <div
+                                    role="status"
+                                    className="flex items-center gap-3 rounded-lg bg-canvas p-3 text-sm"
+                                  >
+                                    <LoaderCircle className="size-5 shrink-0 motion-safe:animate-spin" aria-hidden />
+                                    <div className="grid flex-1 gap-2">
+                                      <p className="font-medium">Đang kiểm tra hình học và mapping…</p>
+                                      <progress className="h-1.5 w-full accent-ink" aria-label="Kiểm tra sơ đồ ghế" />
+                                    </div>
+                                  </div>
                                 )}
                                 {(sectionFiles.length > 0 || uploading?.overview === isOverview) && (
                                   <ul
@@ -613,22 +853,28 @@ function ImportWizard({ venueId }: { venueId?: string }) {
                                     Kiểm tra sơ đồ
                                   </Button>
                                 </header>
-                                <LayoutPreview
-                                  overview={checked?.overview_svg ?? overview}
-                                  detailNames={
-                                    checked?.detail_svg
-                                      ? ['Layout đã hợp nhất']
-                                      : sources
-                                          .filter((file) => file.sanitized_svg)
-                                          .map((file) => file.original_filename || 'File chi tiết')
-                                  }
-                                  details={
-                                    checked?.detail_svg
-                                      ? [checked.detail_svg]
-                                      : sources.flatMap((file) => (file.sanitized_svg ? [file.sanitized_svg] : []))
-                                  }
-                                  label={layoutNames[type]}
-                                />
+                                {checkingLayout && !checked ? (
+                                  <div className="venue-layout-preview grid place-items-center bg-canvas px-4 text-center text-sm text-ink-secondary">
+                                    Bản xem trước sẽ hiện sau khi kiểm tra.
+                                  </div>
+                                ) : (
+                                  <LayoutPreview
+                                    overview={checked?.overview_svg ?? overview}
+                                    detailNames={
+                                      checked?.detail_svg
+                                        ? ['Layout đã hợp nhất']
+                                        : sources
+                                            .filter((file) => file.sanitized_svg)
+                                            .map((file) => file.original_filename || 'File chi tiết')
+                                    }
+                                    details={
+                                      checked?.detail_svg
+                                        ? [checked.detail_svg]
+                                        : sources.flatMap((file) => (file.sanitized_svg ? [file.sanitized_svg] : []))
+                                    }
+                                    label={layoutNames[type]}
+                                  />
+                                )}
                                 {checked && (
                                   <div className="venue-svg-check space-y-2">
                                     <p>
@@ -693,108 +939,42 @@ function ImportWizard({ venueId }: { venueId?: string }) {
                       (venueId ? (
                         <p>Layout thuộc sân hiện tại. Chỉnh thông tin sân tại màn quản lý sân.</p>
                       ) : (
-                        <div className="venue-setup-fields">
-                          <Field label="Tên sân *">
-                            <input
-                              required
-                              maxLength={200}
-                              value={draft.venue?.name ?? ''}
-                              onChange={(e) => venueField('name', e.target.value)}
-                            />
-                          </Field>
-                          <div className="venue-setup-full-width">
-                            <VenueSetupFields draft={draft} onChange={change} pending={action.isPending} />
+                        <div className="grid gap-5">
+                          <div className="grid gap-4 rounded-xl border border-line p-4 sm:p-5">
+                            <div className="flex items-center gap-3">
+                              <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-canvas text-ink">
+                                <Building2 className="size-5" aria-hidden />
+                              </span>
+                              <h3 className="text-lg font-semibold">Thông tin cơ bản</h3>
+                            </div>
+                            <div className="max-w-xl">
+                              <Field label="Tên sân *">
+                                <input
+                                  required
+                                  maxLength={200}
+                                  placeholder="Ví dụ: Sân vận động Mỹ Đình"
+                                  value={draft.venue?.name ?? ''}
+                                  onChange={(e) => venueField('name', e.target.value)}
+                                />
+                              </Field>
+                            </div>
                           </div>
+                          <VenueSetupFields draft={draft} onChange={change} pending={action.isPending} />
                         </div>
                       ))}
                     {index === 1 && (
                       <p className="venue-svg-hint">
-                        Đọc được SVG chưa xác nhận hình học hợp lệ. Khi lưu, hệ thống kiểm tra toàn bộ sân và sơ đồ; chỉ
-                        tạo sân khi mọi điều kiện đều đạt. Sơ đồ được lưu và khóa hình học ngay khi hoàn tất.
+                        Khi lưu, hệ thống kiểm tra hình học của sơ đồ. Hình học được khóa sau khi lưu thành công.
                       </p>
                     )}
                   </Panel>
-                  {index === 1 && saveBlockers.length > 0 && (
-                    <section
-                      id="venue-save-blockers"
-                      className="venue-svg-section space-y-2"
-                      aria-label="Lý do chưa thể lưu"
-                    >
-                      <h3 className="font-semibold">Chưa thể lưu sân & layout</h3>
-                      <ul className="list-disc space-y-1 pl-5">
-                        {saveBlockers.map((reason) => (
-                          <li key={reason}>{reason}</li>
-                        ))}
-                      </ul>
-                      <p className="venue-svg-hint">
-                        Nếu tải bản SVG đã sửa, hãy bỏ bản cũ rồi tải bản mới để tránh trùng ID zone/ghế.
-                      </p>
-                    </section>
-                  )}
-                  <div className="venue-inline-actions">
-                    {index > 0 && (
-                      <Button
-                        variant="outline"
-                        onClick={() =>
-                          run(async () => {
-                            await save('DETAILS')
-                          })
-                        }
-                      >
-                        Quay lại
-                      </Button>
-                    )}
-                    <Button
-                      variant="outline"
-                      onClick={() =>
-                        run(async () => {
-                          await save()
-                        })
-                      }
-                    >
-                      Lưu nháp
-                    </Button>
-                    {index === 0 ? (
-                      <Button
-                        disabled={!venueReady}
-                        onClick={() =>
-                          run(async () => {
-                            await save('OVERVIEW')
-                          })
-                        }
-                      >
-                        Tiếp tục
-                      </Button>
-                    ) : (
-                      <Button
-                        disabled={!canNext}
-                        aria-describedby={saveBlockers.length ? 'venue-save-blockers' : undefined}
-                        onClick={() => run(finish)}
-                      >
-                        {finishPhase === 'checking'
-                          ? 'Đang kiểm tra…'
-                          : finishPhase === 'saving'
-                            ? 'Đang lưu…'
-                            : 'Lưu sân & layout'}
-                      </Button>
-                    )}
-                    <Button
-                      variant="outline"
-                      onClick={() =>
-                        run(async () => {
-                          accept(await cancelVenueImport(session.id!, { revision: session.revision! }))
-                        })
-                      }
-                    >
-                      Hủy phiên nháp
-                    </Button>
-                  </div>
+                  {renderActions(session)}
                 </fieldset>
               </>
             )}
           </>
         )}
-        <ErrorNotice error={action.error} />
+        {(venueId || sessionId) && <ErrorNotice error={action.error} />}
         {action.error instanceof ApiError && action.error.status === 409 && session?.id && (
           <Button
             variant="outline"

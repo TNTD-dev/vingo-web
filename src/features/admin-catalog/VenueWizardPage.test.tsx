@@ -160,13 +160,15 @@ describe('wizard sân v2', () => {
   it('mở layout đã hoàn tất khi bấm lưu lại, không gửi complete lần nữa', async () => {
     const router = setup()
     await userEvent.selectOptions(await screen.findByLabelText('Loại layout — football.svg'), 'CONCERT')
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Lưu sân & layout' })).toBeEnabled())
+    const updatesBeforeSave = api.update.mock.calls.length
     session.status = 'COMPLETED'
     session.result = { venue_id: 'v1', overview_id: 'o1', layout_id: 'l1' }
     await userEvent.click(screen.getByRole('button', { name: 'Lưu sân & layout' }))
     expect(await screen.findByText('Quản lý sân')).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/admin/venues/v1/setup')
     expect(api.complete).not.toHaveBeenCalled()
-    expect(api.update).not.toHaveBeenCalled()
+    expect(api.update).toHaveBeenCalledTimes(updatesBeforeSave)
     expect(screen.queryByText('Có thay đổi chưa lưu')).not.toBeInTheDocument()
   })
   it('tạo layout mới dùng overview đã công bố và giữ loại layout đã chọn', async () => {
@@ -207,6 +209,7 @@ describe('wizard sân v2', () => {
     })
     expect(api.create).toHaveBeenCalledWith({ target_venue_id: 'v1' })
     expect(api.update.mock.calls[0][1].draft_data).not.toHaveProperty('venue')
+    await waitFor(() => expect(screen.getByRole('button', { name: /^Lưu nháp$/ })).toBeEnabled())
     await userEvent.click(screen.getByRole('button', { name: /^Lưu nháp$/ }))
     await waitFor(() => expect(api.update).toHaveBeenCalledTimes(2))
     expect(api.update.mock.calls[1][1].draft_data).not.toHaveProperty('venue')
@@ -219,10 +222,10 @@ describe('wizard sân v2', () => {
     expect(screen.getByRole('button', { name: 'Tạo phiên nháp' })).toBeEnabled()
     expect(api.create).not.toHaveBeenCalled()
   })
-  it('tạo phiên nháp, hiện SVG tổng quát trước thông tin sân', async () => {
+  it('tự tạo phiên nháp và mở bước thông tin sân', async () => {
+    session.draft_data = {}
     setup('/admin/venues/new')
-    await userEvent.click(screen.getByRole('button', { name: 'Tạo phiên nháp' }))
-    expect(api.create).toHaveBeenCalledWith({})
+    await waitFor(() => expect(api.create).toHaveBeenCalledExactlyOnceWith({}))
     await waitFor(() => {
       expect(api.get).toHaveBeenCalledWith('s1')
       expect(screen.getByLabelText('Tên sân *')).toBeInTheDocument()
@@ -236,6 +239,14 @@ describe('wizard sân v2', () => {
     const layoutType = await screen.findByLabelText('Loại layout — football.svg')
     const user = userEvent.setup()
     await user.selectOptions(layoutType, 'CONCERT')
+    await waitFor(() => expect(api.preview).toHaveBeenCalledTimes(1))
+    const uploadRevision = session.revision!
+    let finishCheck!: (result: { valid: boolean }) => void
+    api.preview.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishCheck = resolve
+      }),
+    )
     await user.upload(screen.getByLabelText(/Tệp SVG zone/), [
       new File([detail], 'one.svg', { type: 'image/svg+xml' }),
       new File([detail], 'two.svg', { type: 'image/svg+xml' }),
@@ -243,9 +254,13 @@ describe('wizard sân v2', () => {
     await waitFor(() =>
       expect(api.upload).toHaveBeenCalledWith(
         's1',
-        expect.objectContaining({ revision: 10, files: expect.any(Array) }),
+        expect.objectContaining({ revision: uploadRevision, files: expect.any(Array) }),
       ),
     )
+    expect(await screen.findByRole('progressbar', { name: 'Kiểm tra sơ đồ ghế' })).toBeInTheDocument()
+    await waitFor(() => expect(api.preview).toHaveBeenCalledTimes(2))
+    expect(screen.queryByRole('region', { name: 'Xem trước layout Concert' })).not.toBeInTheDocument()
+    finishCheck({ valid: true })
     await waitFor(() => expect(screen.getByRole('button', { name: 'Lưu nháp' })).toBeEnabled())
     expect(screen.getByLabelText('Loại layout — football.svg')).toHaveValue('CONCERT')
     api.update.mockImplementationOnce(async (_id: string, patch: VenueImportPatch) => {
@@ -349,7 +364,10 @@ describe('wizard sân v2', () => {
     const recover = await screen.findByRole('button', { name: /Tải bản mới nhất/ })
     session.revision = 40
     await userEvent.click(recover)
-    expect(await screen.findByText(/revision 40/)).toBeInTheDocument()
+    await waitFor(() => expect(recover).not.toBeInTheDocument())
+    expect(screen.queryByText(/revision 40/)).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Lưu nháp' }))
+    await waitFor(() => expect(api.update).toHaveBeenLastCalledWith('s1', expect.objectContaining({ revision: 40 })))
   })
   it('kéo thả SVG nền lấy tên file và hiển thị hai tab', async () => {
     session.files = []

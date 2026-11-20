@@ -351,9 +351,11 @@ export function VenueMapView({
   useEffect(() => {
     const host = frameRef.current
     if (!host) return
-    const observer = new ResizeObserver(([entry]) =>
-      setSize({ width: entry.contentRect.width, height: entry.contentRect.height }),
-    )
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect
+      if (width <= 0 || height <= 0) return
+      setSize((previous) => (previous.width === width && previous.height === height ? previous : { width, height }))
+    })
     observer.observe(host)
     return () => observer.disconnect()
   }, [])

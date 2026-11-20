@@ -1,0 +1,117 @@
+.venue-directory-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.venue-directory-search {
+  position: relative;
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+.venue-directory-search > svg {
+  position: absolute;
+  top: 50%;
+  left: 16px;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.venue-directory-toolbar > select {
+  border: 1px solid var(--vg-border-subtle);
+  max-width: 100%;
+  font-size: 14px;
+}
+
+.venue-directory-panel .admin-table {
+  min-width: 0;
+  letter-spacing: 0;
+}
+
+.venue-directory-panel .admin-table td {
+  padding-block: 16px;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.venue-directory-panel .admin-table td:first-child {
+  width: 38%;
+}
+
+.venue-directory-panel .admin-table th:last-child,
+.venue-directory-panel .admin-table td:last-child {
+  width: 1%;
+  text-align: right;
+}
+
+.venue-directory-name {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.venue-directory-name:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.venue-directory-layouts,
+.venue-directory-location {
+  display: flex;
+  gap: 8px;
+}
+
+.venue-directory-layouts {
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 6px;
+  color: var(--vg-text-secondary);
+  font-size: 12px;
+}
+
+.venue-directory-layouts:empty {
+  display: none;
+}
+
+.venue-directory-location {
+  align-items: flex-start;
+  padding-right: 12px;
+}
+
+.venue-directory-location > svg {
+  margin-top: 2px;
+}
+
+.venue-directory-location p + p {
+  margin-top: 2px;
+}
+
+.venue-directory-mobile-location {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .venue-directory-panel .admin-table :is(th, td):nth-child(2) {
+    display: none;
+  }
+
+  .venue-directory-panel .admin-table td:first-child {
+    width: auto;
+  }
+
+  .venue-directory-panel .admin-table td:last-child {
+    vertical-align: top;
+  }
+
+  .venue-directory-mobile-location {
+    display: block;
+    margin-block: 6px 8px;
+  }
+
+  .venue-directory-location {
+    padding-right: 0;
+    font-size: 12px;
+  }
+}

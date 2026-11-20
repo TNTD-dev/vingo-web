@@ -1,11 +1,33 @@
 import { useQuery } from '@tanstack/react-query'
 import { listVenues, listSeatLayouts, getSeatLayoutSvg } from '@/api/generated/endpoints/admin-catalog/admin-catalog'
-import type { Venue, SeatLayout, LayoutType } from '@/api/generated/model'
+import { listVenueImports } from '@/api/generated/endpoints/venue-imports/venue-imports'
+import type { Venue, SeatLayout, LayoutType, VenueImportSession } from '@/api/generated/model'
 import { sanitizeSvg } from '@/seatmap/svg'
 
 export const categories = { FOOTBALL: 'Bóng đá', CONCERT: 'Âm nhạc' } as const
 export const cities = { HCM: 'TP. Hồ Chí Minh', HN: 'Hà Nội', DN: 'Đà Nẵng' } as const
 export { useEventDirectory } from '@/design/admin/data'
+
+export const venueDraftsKey = ['venue-import-drafts'] as const
+
+export function useVenueDrafts() {
+  return useQuery({
+    queryKey: venueDraftsKey,
+    queryFn: async ({ signal }) => {
+      const drafts: VenueImportSession[] = []
+      const seen = new Set<string>()
+      let cursor: string | undefined
+      do {
+        const page = await listVenueImports({ limit: 100, cursor }, { signal })
+        drafts.push(...(page.data ?? []))
+        cursor = page.next_cursor ?? undefined
+        if (cursor && seen.has(cursor)) throw new Error('CURSOR_LOOP')
+        if (cursor) seen.add(cursor)
+      } while (cursor)
+      return drafts.filter((item) => item.id && item.status === 'DRAFT')
+    },
+  })
+}
 
 export function useVenueDirectory() {
   return useQuery({
