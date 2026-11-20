@@ -205,7 +205,7 @@ function ImportWizard({ venueId }: { venueId?: string }) {
     return body
   }
   const saveBlockers = [
-    ...(!venueReady ? ['Chưa đủ tên sân và vị trí trên bản đồ. Quay lại bước Thông tin sân để bổ sung.'] : []),
+    ...(!venueReady ? ['Chưa đủ tên sân, địa chỉ và tỉnh/thành. Quay lại bước Thông tin sân để bổ sung.'] : []),
     ...(!overviewReady ? ['Chưa có SVG tổng quan hợp lệ.'] : []),
     ...(!detailFiles.length ? ['Chưa có tệp SVG zone/ghế.'] : []),
     ...files
@@ -343,7 +343,7 @@ function ImportWizard({ venueId }: { venueId?: string }) {
                 )}
                 <p className="venue-setup-hint">
                   {selectedBase
-                    ? 'Giữ nền và cổng đã công bố; chỉ cần nhập SVG layout ghế mới.'
+                    ? 'Giữ nền và cổng đã lưu; chỉ cần nhập SVG layout ghế mới.'
                     : 'Nhập SVG nền mới và layout ghế tương ứng. Phiên bản đang dùng vẫn được giữ lại.'}
                 </p>
               </>
@@ -472,7 +472,7 @@ function ImportWizard({ venueId }: { venueId?: string }) {
                                 </header>
                                 {isOverview && draft.overview_id && (
                                   <p className="venue-svg-hint">
-                                    Đang dùng overview đã công bố. Nền và cổng được giữ nguyên cho phiên bản mới.
+                                    Đang dùng overview đã lưu. Nền và cổng được giữ nguyên cho phiên bản mới.
                                   </p>
                                 )}
                                 {canUpload && (
@@ -702,7 +702,7 @@ function ImportWizard({ venueId }: { venueId?: string }) {
                     {index === 1 && (
                       <p className="venue-svg-hint">
                         Đọc được SVG chưa xác nhận hình học hợp lệ. Khi lưu, hệ thống kiểm tra toàn bộ sân và sơ đồ; chỉ
-                        tạo sân khi mọi điều kiện đều đạt. Layout được lưu dưới dạng nháp để phát hành sau.
+                        tạo sân khi mọi điều kiện đều đạt. Sơ đồ được lưu và khóa hình học ngay khi hoàn tất.
                       </p>
                     )}
                   </Panel>
