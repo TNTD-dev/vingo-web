@@ -18,7 +18,6 @@ function currentUser(): User {
     email: role === 'ADMIN' ? 'admin@vingo.test' : 'buyer@vingo.test',
     full_name: role === 'ADMIN' ? 'Admin Mock' : 'Người mua Mock',
     role,
-    status: 'ACTIVE',
     ...(role === 'BUYER' ? { phone: '+84912345678', phone_verified: phoneVerified } : {}),
   }
 }

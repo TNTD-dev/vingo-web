@@ -128,7 +128,7 @@ export const venueImportHandlers = [
         layout_name: '',
         layout_type: 'FOOTBALL',
         zone_areas: {},
-        venue: { name: '', type: 'STADIUM', address: '', city: 'HN' },
+        venue: { name: '', address: '', city: 'HN' },
       },
     }
     sessions.set(s.id!, s)

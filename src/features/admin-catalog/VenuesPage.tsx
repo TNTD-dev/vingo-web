@@ -4,14 +4,14 @@ import { Building2, ChevronLeft, ChevronRight, Plus, Search } from 'lucide-react
 import type { Venue } from '@/api/generated/model'
 import { AdminPage, Panel, QueryState, Table } from '@/design/admin/AdminUi'
 import { Button } from '@/design/ui/button'
-import { useVenueDirectory, venueTypes } from './catalog'
+import { useVenueDirectory } from './catalog'
 import './venue-admin-alignment.css'
 
 type Readiness = 'READY' | 'DRAFT_ONLY' | 'NO_LAYOUT'
 function readiness(venue: Venue): Readiness | undefined {
   if (venue.layout_count === undefined) return undefined
   if ((venue.published_layout_count ?? 0) > 0) return 'READY'
-  return venue.layout_count > 0 ? 'DRAFT_ONLY' : 'NO_LAYOUT'
+  return (venue.draft_layout_count ?? 0) > 0 ? 'DRAFT_ONLY' : 'NO_LAYOUT'
 }
 const stateNames = { READY: 'Sẵn sàng', DRAFT_ONLY: 'Chỉ có nháp', NO_LAYOUT: 'Chưa có sơ đồ' }
 const pageSize = 10
@@ -19,7 +19,6 @@ const pageSize = 10
 export default function VenuesPage() {
   const query = useVenueDirectory()
   const [city, setCity] = useState('')
-  const [type, setType] = useState('')
   const [status, setStatus] = useState('')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -31,10 +30,9 @@ export default function VenuesPage() {
   const shown = venues.filter(
     (venue) =>
       (!city || venue.city === city) &&
-      (!type || venue.type === type) &&
       (!status || readiness(venue) === status) &&
       (!needle ||
-        [venue.name, venue.location?.display_address, venue.address, venue.city_name, venue.district].some((value) =>
+        [venue.name, venue.address, venue.city_name, venue.district].some((value) =>
           value?.toLocaleLowerCase('vi-VN').includes(needle),
         )),
   )
@@ -83,21 +81,6 @@ export default function VenuesPage() {
             ))}
           </select>
           <select
-            aria-label="Loại sân"
-            value={type}
-            onChange={(event) => {
-              setType(event.target.value)
-              setPage(1)
-            }}
-          >
-            <option value="">Tất cả loại hình</option>
-            {Object.entries(venueTypes).map(([code, name]) => (
-              <option key={code} value={code}>
-                {name}
-              </option>
-            ))}
-          </select>
-          <select
             aria-label="Tình trạng sơ đồ"
             value={status}
             onChange={(event) => {
@@ -114,10 +97,7 @@ export default function VenuesPage() {
           </select>
         </div>
         <QueryState query={query} empty={!shown.length} emptyText="Không có sân phù hợp với bộ lọc.">
-          <Table
-            label="Danh sách sân"
-            headings={['Sân / địa điểm', 'Tỉnh / thành phố', 'Loại hình', 'Địa chỉ', 'Thao tác']}
-          >
+          <Table label="Danh sách sân" headings={['Sân / địa điểm', 'Tỉnh / thành phố', 'Địa chỉ', 'Thao tác']}>
             {shown.slice(offset, offset + pageSize).map((venue) => {
               const state = readiness(venue)
               return (
@@ -143,10 +123,7 @@ export default function VenuesPage() {
                     {venue.city_name || venue.city || 'Chưa xác định'}
                     {venue.district && <small>{venue.district}</small>}
                   </td>
-                  <td>{venue.type ? venueTypes[venue.type] : '—'}</td>
-                  <td className="venue-directory-address">
-                    {venue.location?.display_address || venue.address || 'Chưa chọn vị trí'}
-                  </td>
+                  <td className="venue-directory-address">{venue.address || 'Chưa chọn vị trí'}</td>
                   <td>
                     <Link className="venue-manage-link" to={`/admin/venues/${venue.id}`}>
                       Quản lý

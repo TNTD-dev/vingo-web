@@ -1,4 +1,3 @@
-import { OpeningHoursFields } from './OpeningHoursFields'
 import { useEffect, useRef, useState } from 'react'
 import { FileCode2, Upload } from 'lucide-react'
 import { Link, useBlocker, useNavigate, useParams, useSearchParams } from 'react-router'
@@ -26,7 +25,6 @@ import type {
 import { AdminPage, ErrorNotice, Field, Panel, QueryState } from '@/design/admin/AdminUi'
 import { Button } from '@/design/ui/button'
 import { ApiError } from '@/api/problem'
-import { venueInfoText, venueTypes } from './catalog'
 import { VenueSetupFields } from './VenueSetupFields'
 import { LayoutPreview } from './LayoutPreview'
 import { VenueWorkspace } from './VenueWorkspace'
@@ -40,10 +38,14 @@ const blank: VenueImportDraft = {
   layout_name: '',
   layout_type: 'FOOTBALL',
   zone_areas: {},
-  venue: { name: '', type: 'STADIUM' },
+  venue: { name: '', address: '', city: 'HN' },
 }
 
 const layoutNames = { FOOTBALL: 'Bóng đá', CONCERT: 'Concert' } as const
+
+function hasVenueDetails(venue?: VenueInput) {
+  return !!(venue?.name?.trim() && venue.address?.trim() && venue.city?.trim())
+}
 
 function importIssueText(issue: VenueImportIssue) {
   const ids = [...new Set([issue.layer_id, issue.zone_id, issue.gate_id].filter(Boolean))]
@@ -92,7 +94,7 @@ function ImportWizard({ venueId }: { venueId?: string }) {
   const sessionId = params.get('session')
   const overviews = useVenueOverviews(venueId, !sessionId)
   const [overviewChoice, setOverviewChoice] = useState(params.get('overview') ?? '')
-  const reusableOverviews = overviews.data?.filter((item) => item.status === 'PUBLISHED') ?? []
+  const reusableOverviews = overviews.data ?? []
   const selectedBase = reusableOverviews.find((item) => item.id === overviewChoice)
   const requestedType = params.get('type') === 'CONCERT' ? 'CONCERT' : 'FOOTBALL'
   const load = useQuery({
@@ -109,7 +111,10 @@ function ImportWizard({ venueId }: { venueId?: string }) {
     setSession(s)
     setDraft(s.draft_data ?? blank)
     setBaseline(JSON.stringify(s.draft_data ?? blank))
-    setStep(s.step ?? 'OVERVIEW')
+    // Schema v2 chỉ lưu dữ liệu nháp. Chuyển bước trên web không phụ thuộc step trong response.
+    if (!session) {
+      setStep(!venueId && !hasVenueDetails(s.draft_data?.venue) ? 'DETAILS' : (s.step ?? 'OVERVIEW'))
+    }
     if (!keepPreview) setPreview(undefined)
     setResult(s.result)
   }
@@ -160,6 +165,7 @@ function ImportWizard({ venueId }: { venueId?: string }) {
       draft_data: withFileTypes(nextDraft),
     })
     accept(s, keepPreview)
+    setStep(next)
     return s
   }
   function change(next: VenueImportDraft) {
@@ -172,7 +178,7 @@ function ImportWizard({ venueId }: { venueId?: string }) {
   const files = session?.files ?? []
   const overview = files.find((f) => f.role === 'OVERVIEW')?.sanitized_svg
   const index = step === 'DETAILS' ? 0 : 1
-  const venueReady = !!venueId || !!(draft.venue?.name?.trim() && draft.venue?.location?.display_address?.trim())
+  const venueReady = !!venueId || hasVenueDetails(draft.venue)
   const overviewReady = !!overview || !!session?.draft_data?.overview_id
   const detailFiles = files.filter((file) => file.role === 'SEAT_LAYOUT')
   const typeFor = (fileId?: string) =>
@@ -207,7 +213,7 @@ function ImportWizard({ venueId }: { venueId?: string }) {
     return body
   }
   const saveBlockers = [
-    ...(!venueReady ? ['Chưa đủ tên sân và vị trí trên bản đồ. Quay lại bước Thông tin sân để bổ sung.'] : []),
+    ...(!venueReady ? ['Chưa đủ tên sân, địa chỉ và tỉnh/thành. Quay lại bước Thông tin sân để bổ sung.'] : []),
     ...(!overviewReady ? ['Chưa có SVG tổng quan hợp lệ.'] : []),
     ...(!detailFiles.length ? ['Chưa có tệp SVG zone/ghế.'] : []),
     ...files
@@ -334,7 +340,7 @@ function ImportWizard({ venueId }: { venueId?: string }) {
                     <option value="">Nhập overview mới từ SVG</option>
                     {reusableOverviews.map((item) => (
                       <option key={item.id} value={item.id}>
-                        {item.name} · v{item.version}
+                        Nền v{item.version}
                       </option>
                     ))}
                   </select>
@@ -345,7 +351,7 @@ function ImportWizard({ venueId }: { venueId?: string }) {
                 )}
                 <p className="venue-setup-hint">
                   {selectedBase
-                    ? 'Giữ nền và cổng đã công bố; chỉ cần nhập SVG layout ghế mới.'
+                    ? 'Giữ nền và cổng đã lưu; chỉ cần nhập SVG layout ghế mới.'
                     : 'Nhập SVG nền mới và layout ghế tương ứng. Phiên bản đang dùng vẫn được giữ lại.'}
                 </p>
               </>
@@ -474,7 +480,7 @@ function ImportWizard({ venueId }: { venueId?: string }) {
                                 </header>
                                 {isOverview && draft.overview_id && (
                                   <p className="venue-svg-hint">
-                                    Đang dùng overview đã công bố. Nền và cổng được giữ nguyên cho phiên bản mới.
+                                    Đang dùng overview đã lưu. Nền và cổng được giữ nguyên cho phiên bản mới.
                                   </p>
                                 )}
                                 {canUpload && (
@@ -696,40 +702,15 @@ function ImportWizard({ venueId }: { venueId?: string }) {
                               onChange={(e) => venueField('name', e.target.value)}
                             />
                           </Field>
-                          <Field label="Loại địa điểm">
-                            <select
-                              value={draft.venue?.type}
-                              onChange={(e) => venueField('type', e.target.value as VenueInput['type'])}
-                            >
-                              {Object.entries(venueTypes).map(([k, v]) => (
-                                <option value={k} key={k}>
-                                  {v}
-                                </option>
-                              ))}
-                            </select>
-                          </Field>
-                          <OpeningHoursFields
-                            label="Giờ hoạt động sân"
-                            value={venueInfoText(draft.venue?.info, 'opening_hours')}
-                            onChange={(hours) => venueField('info', { ...draft.venue?.info, opening_hours: hours })}
-                          />
                           <div className="venue-setup-full-width">
-                            <VenueSetupFields
-                              draft={draft}
-                              sessionId={session.id!}
-                              onChange={change}
-                              save={save}
-                              accept={accept}
-                              run={run}
-                              pending={action.isPending}
-                            />
+                            <VenueSetupFields draft={draft} onChange={change} pending={action.isPending} />
                           </div>
                         </div>
                       ))}
                     {index === 1 && (
                       <p className="venue-svg-hint">
                         Đọc được SVG chưa xác nhận hình học hợp lệ. Khi lưu, hệ thống kiểm tra toàn bộ sân và sơ đồ; chỉ
-                        tạo sân khi mọi điều kiện đều đạt. Layout được lưu dưới dạng nháp để phát hành sau.
+                        tạo sân khi mọi điều kiện đều đạt. Sơ đồ được lưu và khóa hình học ngay khi hoàn tất.
                       </p>
                     )}
                   </Panel>

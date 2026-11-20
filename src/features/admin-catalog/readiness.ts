@@ -63,8 +63,8 @@ export type Check = { id: string; status: CheckStatus; title: string; hint: stri
 
 export type EventReadinessInput = {
   event: EventDetail
-  /** Trạng thái sơ đồ theo id; thiếu = chưa tải xong. */
-  layouts: Record<string, Pick<SeatLayoutOverview, 'status' | 'name' | 'version' | 'seat_count' | 'zones'>>
+  /** Sơ đồ theo id; thiếu = chưa tải xong. */
+  layouts: Record<string, Pick<SeatLayoutOverview, 'name' | 'version' | 'seat_count' | 'zones'>>
   /** Gán hạng theo khu; `null` = không đọc được (sự kiện nháp mở lại trên máy khác). */
   assignments: Record<string, string> | null
 }
@@ -88,7 +88,6 @@ export function eventChecklist({ event, layouts, assignments }: EventReadinessIn
     ? [event.seat_layout_id]
     : [...new Set(shows.flatMap((s) => (s.seat_layout_id ? [s.seat_layout_id] : [])))]
   const known = layoutIds.filter((id) => layouts[id])
-  const unpublished = known.filter((id) => layouts[id].status !== 'PUBLISHED')
   const zones = known.flatMap((id) => layouts[id].zones ?? [])
   const zoneIds = [...new Set(zones.map((z) => z.id))]
   const tierIds = new Set(event.price_tiers?.map((t) => t.id))
@@ -118,15 +117,13 @@ export function eventChecklist({ event, layouts, assignments }: EventReadinessIn
   }
   const layout: Check = {
     id: 'layout',
-    status: !layoutIds.length ? 'todo' : unpublished.length ? 'todo' : known.length < layoutIds.length ? 'warn' : 'ok',
-    title: 'Sơ đồ ghế đã phát hành',
+    status: !layoutIds.length ? 'todo' : known.length < layoutIds.length ? 'warn' : 'ok',
+    title: 'Sơ đồ ghế',
     hint: !layoutIds.length
-      ? 'Suất diễn cần gắn một sơ đồ đã phát hành'
-      : unpublished.length
-        ? `${unpublished.length} sơ đồ còn là bản nháp`
-        : first
-          ? `${first.name} · v${first.version} · ${seats.toLocaleString('vi-VN')} ghế`
-          : 'Đang kiểm tra sơ đồ…',
+      ? 'Suất diễn cần gắn một sơ đồ ghế'
+      : first
+        ? `${first.name} · v${first.version} · ${seats.toLocaleString('vi-VN')} ghế`
+        : 'Đang kiểm tra sơ đồ…',
     step: 2,
     blocking: true,
   }
@@ -177,16 +174,15 @@ export function readinessSummary(checks: Check[]) {
   return { ok, total: checks.length, canPublish: !blocked }
 }
 
-export type VenueLayoutInfo = { status?: string; seat_count?: number; zone_count?: number; version?: number }
+export type VenueLayoutInfo = { seat_count?: number; zone_count?: number; version?: number }
 export type VenueState = 'READY' | 'DRAFT_ONLY' | 'NO_LAYOUT'
-/** Sân dùng được cho suất diễn khi có ít nhất một layout đã phát hành. */
+/** Sân dùng được cho suất diễn khi có ít nhất một layout. */
 export function venueState(layoutGroups: VenueLayoutInfo[][]): VenueState {
   const all = layoutGroups.flat()
-  if (all.some((l) => l.status === 'PUBLISHED')) return 'READY'
-  return all.length ? 'DRAFT_ONLY' : 'NO_LAYOUT'
+  return all.length ? 'READY' : 'NO_LAYOUT'
 }
 export function latestPublished<T extends VenueLayoutInfo>(layouts: T[]): T | undefined {
-  return layouts.filter((l) => l.status === 'PUBLISHED').sort((a, b) => (b.version ?? 0) - (a.version ?? 0))[0]
+  return [...layouts].sort((a, b) => (b.version ?? 0) - (a.version ?? 0))[0]
 }
 
 /** Phát hiện sự kiện có thể trùng: cùng tên (bỏ khoảng trắng, không phân biệt hoa thường) và cùng thể loại. */
@@ -202,7 +198,7 @@ export function duplicateIds<T extends { id: string; title: string; category: st
 /** Trạng thái bán của một sự kiện đã công bố, suy ra từ giờ mở/đóng bán của các suất chưa hủy. */
 export type SaleState = 'ON_SALE' | 'UPCOMING' | 'CLOSED' | 'NONE'
 export function saleState(shows: Showtime[] | undefined, now: number): SaleState {
-  const list = (shows ?? []).filter(active).filter((s) => s.status !== 'DRAFT')
+  const list = (shows ?? []).filter(active)
   if (!list.length) return 'NONE'
   const open = (s: Showtime) =>
     s.sale_opens_at && s.sale_closes_at && Date.parse(s.sale_opens_at) <= now && now < Date.parse(s.sale_closes_at)

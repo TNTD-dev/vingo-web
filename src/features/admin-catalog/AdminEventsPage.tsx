@@ -97,7 +97,7 @@ export default function AdminEventsPage() {
 function EventRow({ event: e, duplicate, now }: { event: AdminEventSummary; duplicate: boolean; now: number }) {
   // Mỗi dòng đọc chi tiết sự kiện (tối đa 20 dòng/trang) vì danh sách chưa trả suất diễn, doanh thu, giá.
   const detail = useGetAdminEvent(e.id),
-    live = e.status === 'PUBLISHED' || e.status === 'ENDED',
+    live = e.status === 'PUBLISHED',
     fill = useQueryMetric({ metric: 'fill_rate', event_id: e.id, group_by: 'none' }, { query: { enabled: live } }),
     revenue = useQueryMetric({ metric: 'revenue', event_id: e.id, group_by: 'none' }, { query: { enabled: live } })
   const shows = detail.data?.showtimes
@@ -166,8 +166,6 @@ function EventRow({ event: e, duplicate, now }: { event: AdminEventSummary; dupl
           </>
         ) : e.status === 'CANCELLED' ? (
           <StateBadge value="CANCELLED" />
-        ) : e.status === 'ENDED' ? (
-          <StateBadge value="ENDED" />
         ) : detail.data ? (
           <span className="wz-chip" data-tone={saleChip[sale].tone}>
             {saleChip[sale].text}

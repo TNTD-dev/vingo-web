@@ -122,7 +122,7 @@ export default function EventShowtimesStep({
             eventId={event.id!}
             initial={editorMode.kind === 'edit' ? editorMode.show : undefined}
             template={editorMode.kind === 'new' ? editorMode.template : undefined}
-            venueHint={event.venue_id ?? lastVenue}
+            venueHint={event.venue?.id ?? lastVenue}
             requiredLayout={event.seat_layout_id}
             category={event.category}
             onSaved={() => setMode({ kind: 'new' })}

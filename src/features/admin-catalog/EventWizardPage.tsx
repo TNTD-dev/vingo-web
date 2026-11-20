@@ -13,7 +13,7 @@ import type { EventCreateInput, EventDetail, SeatLayoutOverview } from '@/api/ge
 import { AdminAction } from '@/design/admin/AdminAction'
 import { ConfirmDialog, ErrorNotice, Field, Panel, QueryState } from '@/design/admin/AdminUi'
 import { dateText } from '@/design/admin/data'
-import { ChecklistRow, ChoiceCard, ChoiceGroup, LightButton, Segmented } from '@/design/admin/wizard'
+import { ChecklistRow, ChoiceCard, ChoiceGroup, LightButton } from '@/design/admin/wizard'
 import { formatVnd } from '@/lib/money'
 import { toast } from 'sonner'
 import { categories, useLayoutSvg, vnParts } from './catalog'
@@ -70,15 +70,7 @@ export default function EventWizardPage() {
 const categoryHints: Record<keyof typeof categories, string> = {
   FOOTBALL: 'Có đội nhà / đội khách',
   CONCERT: 'Concert, liveshow',
-  THEATER: 'Kịch, nhạc kịch',
-  OTHER: 'Hội chợ, stand-up…',
 }
-const ages = [
-  { value: 0, label: 'Mọi lứa tuổi' },
-  { value: 13, label: '13+' },
-  { value: 16, label: '16+' },
-  { value: 18, label: '18+' },
-]
 const isUrl = (v?: string) => !v || /^https?:\/\/\S+$/i.test(v)
 const footballFields = [
   ['home_team', 'Đội nhà'],
@@ -96,9 +88,11 @@ function EventInfoStep({ event, goStep }: { event?: EventDetail; goStep: (n: num
     description: event?.description ?? '',
     poster_mobile_url: event?.poster_mobile_url ?? '',
     poster_desktop_url: event?.poster_desktop_url ?? '',
-    age_limit: event?.age_limit ?? 0,
     max_tickets_per_order: event?.max_tickets_per_order ?? 6,
-    attributes: event?.attributes,
+    home_team: event?.home_team ?? undefined,
+    away_team: event?.away_team ?? undefined,
+    league: event?.league ?? undefined,
+    round: event?.round ?? undefined,
   })
   const valid = !!data.title.trim() && isUrl(data.poster_mobile_url) && isUrl(data.poster_desktop_url)
   const save = useMutation({
@@ -108,7 +102,9 @@ function EventInfoStep({ event, goStep }: { event?: EventDetail; goStep: (n: num
         title: data.title.trim(),
         poster_mobile_url: data.poster_mobile_url || undefined,
         poster_desktop_url: data.poster_desktop_url || undefined,
-        attributes: data.category === 'FOOTBALL' ? data.attributes : event ? {} : undefined,
+        ...(data.category !== 'FOOTBALL'
+          ? { home_team: undefined, away_team: undefined, league: undefined, round: undefined }
+          : {}),
       }
       const saved = event?.id ? await updateEvent(event.id, body) : await createEvent(body)
       return { id: saved.id ?? event?.id, then }
@@ -194,10 +190,7 @@ function EventInfoStep({ event, goStep }: { event?: EventDetail; goStep: (n: num
                 </h3>
                 {footballFields.map(([key, label]) => (
                   <Field key={key} label={label}>
-                    <input
-                      value={String(data.attributes?.[key] ?? '')}
-                      onChange={(e) => setData({ ...data, attributes: { ...data.attributes, [key]: e.target.value } })}
-                    />
+                    <input value={data[key] ?? ''} onChange={(e) => setData({ ...data, [key]: e.target.value })} />
                   </Field>
                 ))}
               </section>
@@ -224,16 +217,6 @@ function EventInfoStep({ event, goStep }: { event?: EventDetail; goStep: (n: num
                     <Plus size={14} aria-hidden />
                   </button>
                 </div>
-              </div>
-              <div>
-                <p className="admin-caption mb-2">Độ tuổi tối thiểu</p>
-                <Segmented
-                  variant="pills"
-                  label="Độ tuổi tối thiểu"
-                  options={ages}
-                  value={data.age_limit ?? 0}
-                  onChange={(age_limit) => setData({ ...data, age_limit })}
-                />
               </div>
             </div>
           </fieldset>
@@ -312,7 +295,6 @@ function EventReviewStep({ event, goStep }: { event: EventDetail; goStep: (n: nu
     .map((s) => s.sale_opens_at)
     .filter((v): v is string => !!v)
     .sort()[0]
-  const fb = event.attributes
   const selectedLayout = event.seat_layout_id ? layouts.data?.[event.seat_layout_id] : undefined
   return (
     <WizardShell
@@ -347,11 +329,10 @@ function EventReviewStep({ event, goStep }: { event: EventDetail; goStep: (n: nu
                       {categories[event.category]}
                     </span>
                   )}
-                  <span className="wz-chip">{event.age_limit ? `${event.age_limit}+` : 'Mọi lứa tuổi'}</span>
                   <span className="wz-chip">Tối đa {event.max_tickets_per_order ?? 6} vé/đơn</span>
                 </div>
                 <p className="text-sm text-ink-secondary">
-                  {[fb?.league, fb?.round].filter(Boolean).join(' · ')} {event.description}
+                  {[event.league, event.round].filter(Boolean).join(' · ')} {event.description}
                 </p>
               </div>
             </div>

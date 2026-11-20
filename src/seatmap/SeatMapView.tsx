@@ -54,7 +54,7 @@ type Props = {
   selected: ReadonlySet<string>
   selectedZones?: ReadonlySet<string>
   /** Chỉ sáng các khu thuộc hạng này (số) hoặc khu đứng; null = tất cả. */
-  tierFilter?: number | 'standing' | null
+  tierFilter?: number | null
   onZoneClick: (code: string) => void
   onSeatClick?: (svgSeatId: string) => void
   /** Bấm vào chỗ trống (không phải khu/ghế): thường dùng để thoát về toàn cảnh. */
@@ -349,15 +349,16 @@ export function SeatMapView({
       const zone = zones[code]
       const standing = els.some((el) => el.getAttribute('data-kind') === 'STANDING')
       const soldOut = !zone || zone.soldOut
-      const matchesFilter =
-        tierFilter === null || (tierFilter === 'standing' ? standing : !standing && zone?.tier === tierFilter)
+      const matchesFilter = tierFilter === null || zone?.tier === tierFilter
       const dim = focus ? code !== focus : !matchesFilter
       for (const el of els) {
         const isContent = el.id.startsWith('CONTENT__')
         const isZone = el.id.startsWith('ZONE__')
         ;(el as SVGElement).style.setProperty(
           '--zone-fill',
-          soldOut ? tierColor(zone?.tier, true) : (zone?.color ?? tierColor(zone?.tier, false)),
+          soldOut
+            ? tierColor(zone?.tier, true)
+            : (zone?.color ?? (standing ? 'var(--vg-bg-surface)' : tierColor(zone?.tier, false))),
         )
         toggle(el, 'data-zone-picked', isZone && !!selectedZones?.has(code))
         toggle(el, 'data-soldout', soldOut)

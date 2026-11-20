@@ -3,7 +3,6 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import {
   adminListUsers,
   adminUserStatistics,
-  adminUserLoginHistory,
   adminUpdateUser,
   exportAdminUsers,
 } from '@/api/generated/endpoints/admin-accounts/admin-accounts'
@@ -171,19 +170,12 @@ function UserDetails({
       await cache.invalidateQueries({ queryKey: ['user-admin-history', user.id] })
     },
   })
-  const logins = useInfiniteQuery({
-    queryKey: ['user-login-history', user.id],
-    enabled: tab === 'logins',
-    initialPageParam: undefined as string | undefined,
-    queryFn: ({ pageParam, signal }) => adminUserLoginHistory(user.id, { cursor: pageParam, limit: 20 }, { signal }),
-    getNextPageParam: (p) => p.next_cursor ?? undefined,
-  })
   const history = useInfiniteQuery({
     queryKey: ['user-admin-history', user.id],
     enabled: tab === 'history',
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam, signal }) =>
-      listAuditLogs({ entity: 'users', entity_id: user.id, cursor: pageParam, limit: 20 }, { signal }),
+      listAuditLogs({ entity: 'user_account', entity_id: user.id, cursor: pageParam, limit: 20 }, { signal }),
     getNextPageParam: (p) => p.next_cursor ?? undefined,
   })
   return (
@@ -197,7 +189,6 @@ function UserDetails({
       <nav className="flex flex-wrap gap-2" aria-label="Chi tiết người dùng">
         {[
           ['account', 'Thông tin & quyền'],
-          ['logins', 'Lịch sử đăng nhập'],
           ['history', 'Lịch sử quản trị'],
         ].map(([key, label]) => (
           <Button key={key} variant={tab === key ? 'default' : 'outline'} onClick={() => setTab(key)}>
@@ -234,25 +225,6 @@ function UserDetails({
             Lưu thay đổi
           </Button>
         </>
-      )}
-      {tab === 'logins' && (
-        <QueryState query={logins} empty={!logins.data?.pages.some((p) => p.data.length)}>
-          <Table label="Đăng nhập" headings={['Thời gian Việt Nam', 'Kết quả']}>
-            {logins.data?.pages
-              .flatMap((p) => p.data)
-              .map((row) => (
-                <tr key={row.id}>
-                  <td>{dateText(row.at)}</td>
-                  <td>{row.success ? 'Thành công' : 'Thất bại'}</td>
-                </tr>
-              ))}
-          </Table>
-          {logins.hasNextPage && (
-            <Button onClick={() => void logins.fetchNextPage()} disabled={logins.isFetchingNextPage}>
-              Tải thêm
-            </Button>
-          )}
-        </QueryState>
       )}
       {tab === 'history' && (
         <QueryState query={history} empty={!history.data?.pages.some((p) => p.data?.length)}>

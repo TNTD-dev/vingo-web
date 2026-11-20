@@ -50,7 +50,7 @@ export function buildTimeline(order: AdminGetOrder200, now: Date): TimelineNode[
       case 'CANCELLED':
         nodes.push({ at: h.at, label: 'Đơn bị huỷ', tone: 'done' })
         break
-      case 'REFUNDED':
+      case 'REJECTED':
         nodes.push({ at: h.at, label: 'Ghi nhận hoàn tiền thủ công', tone: 'done' })
         break
     }

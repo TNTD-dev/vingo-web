@@ -19,7 +19,7 @@ export default function ShowtimeForm({
       <ShowtimeEditor
         eventId={eventId}
         initial={initial}
-        venueHint={event?.venue_id}
+        venueHint={event?.venue?.id}
         requiredLayout={event?.seat_layout_id}
         category={event?.category}
         onSaved={onClose}

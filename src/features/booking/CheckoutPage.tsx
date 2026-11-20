@@ -5,12 +5,12 @@ import { Link, useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
 
 import { cancelOrder, getGetOrderQueryKey, holdSeats, useGetOrder } from '@/api/generated/endpoints/booking/booking'
-import { putBuyerProfile, useGetBuyerProfile } from '@/api/generated/endpoints/me/me'
 import { createPayment } from '@/api/generated/endpoints/payment/payment'
 import type { Order, PaymentIntent } from '@/api/generated/model'
 import { newIdempotencyKey } from '@/api/idempotency'
 import { profileFieldErrors } from '@/lib/profileErrors'
 import { isApiError } from '@/api/problem'
+import { useAuth } from '@/auth/auth-context'
 import { ArrowButton } from '@/design/ArrowButton'
 import { Mascot } from '@/design/Mascot'
 import vnpayLogo from '@/design/brand/vnpay.png'
@@ -26,11 +26,9 @@ import { useNow } from '@/lib/useNow'
 import { useMeStream } from '@/realtime/useMeStream'
 
 import {
-  EMPTY_PROFILE,
   hasErrors,
   isSafePaymentUrl,
-  needsSave,
-  toProfile,
+  toBuyer,
   validateProfile,
   type ProfileDraft,
   type ProfileErrors,
@@ -85,11 +83,15 @@ function Checkout({ order }: { order: Order }) {
   const expired = order.status === 'EXPIRED' || left === 0
   const items = order.items ?? []
 
-  // ---- hồ sơ người nhận vé ----
-  const profile = useGetBuyerProfile({ query: { retry: false } })
-  const saved = profile.data
+  // ---- người nhận vé của đơn (lưu theo từng đơn, không có hồ sơ người mua) ----
+  const { user } = useAuth()
+  const prefill: ProfileDraft = {
+    full_name: order.buyer?.full_name ?? user?.full_name ?? '',
+    phone: order.buyer?.phone ?? user?.phone ?? '',
+    email: order.buyer?.email ?? user?.email ?? '',
+  }
   const [draft, setDraft] = useState<ProfileDraft>()
-  const values: ProfileDraft = draft ?? saved ?? EMPTY_PROFILE
+  const values: ProfileDraft = draft ?? prefill
   const [errors, setErrors] = useState<ProfileErrors>({})
   const [intent, setIntent] = useState<PaymentIntent>()
   const [open, setOpen] = useState(false)
@@ -103,10 +105,9 @@ function Checkout({ order }: { order: Order }) {
   // ---- thanh toán ----
   const pay = useMutation({
     mutationFn: async () => {
-      if (needsSave(values, saved)) await putBuyerProfile(toProfile(values))
       // Không gửi method: người mua chọn QR / thẻ ATM / thẻ quốc tế ngay trên trang VNPay.
       if (keyRef.current?.sig !== orderId) keyRef.current = { sig: orderId, key: newIdempotencyKey() }
-      return createPayment(orderId, {}, { headers: { 'Idempotency-Key': keyRef.current.key } })
+      return createPayment(orderId, { buyer: toBuyer(values) }, { headers: { 'Idempotency-Key': keyRef.current.key } })
     },
     onSuccess: (data) => {
       setIntent(data)
@@ -218,7 +219,6 @@ function Checkout({ order }: { order: Order }) {
           <section className="flex flex-col gap-5 rounded-lg bg-surface p-5 sm:p-7">
             <div className="flex items-start justify-between gap-4">
               <h2 className="type-h3 text-foreground">Thông tin người nhận vé</h2>
-              {saved && <span className="type-caption text-ink-tertiary">Lấy từ hồ sơ</span>}
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field

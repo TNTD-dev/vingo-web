@@ -6,25 +6,21 @@ import { toast } from 'sonner'
 import {
   exportSeatLayoutSeats,
   exportSeatLayoutZones,
-  publishSeatLayout,
-  renameSeatLayout,
   updateVenue,
   useGetSeatLayout,
   getAdminVenue,
 } from '@/api/generated/endpoints/admin-catalog/admin-catalog'
 import { getAdminLayoutTree } from '@/api/generated/endpoints/admin-workspace/admin-workspace'
 import type { Venue, VenueInput, LayoutType, SeatLayout } from '@/api/generated/model'
-import { AdminPage, ConfirmDialog, ErrorNotice, Field, Panel, QueryState } from '@/design/admin/AdminUi'
+import { AdminPage, ErrorNotice, Field, Panel, QueryState } from '@/design/admin/AdminUi'
 import { Button } from '@/design/ui/button'
 import { dateText, download } from '@/design/admin/data'
-import { venueTypes, venueInfoText } from './catalog'
 import { VenueLayoutWorkspace } from './VenueLayoutWorkspace'
 import { VenueActions } from './VenueActions'
 import { VenueLocationPicker } from './VenueLocationPicker'
 import { venueLayout } from './venueLayoutModel'
 import { useVenueOverviews } from './useVenueOverviews'
 import { VenueOverviewWorkspace } from './VenueOverviewWorkspace'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/design/ui/dialog'
 import './venue-admin-alignment.css'
 
 type VenueTab = 'general' | 'location' | 'layout'
@@ -48,14 +44,7 @@ export function VenueWorkspace({ venueId }: { venueId: string }) {
     queryKey: ['admin-venue', venueId],
     queryFn: ({ signal }) => getAdminVenue(venueId, { signal }),
   })
-  const type: LayoutType =
-    params.get('type') === 'CONCERT'
-      ? 'CONCERT'
-      : params.get('type') === 'FOOTBALL'
-        ? 'FOOTBALL'
-        : venues.data?.type === 'THEATER'
-          ? 'CONCERT'
-          : 'FOOTBALL'
+  const type: LayoutType = params.get('type') === 'CONCERT' ? 'CONCERT' : 'FOOTBALL'
   const layouts = useQuery({
     queryKey: ['admin-layout-tree', venueId, type],
     enabled: tab === 'layout',
@@ -65,7 +54,7 @@ export function VenueWorkspace({ venueId }: { venueId: string }) {
       let cursor: string | undefined
       do {
         const page = await getAdminLayoutTree(venueId, { layout_type: type, cursor, limit: 100 }, { signal })
-        result.push(...page.data.map((layout) => ({ ...layout, layout_type: type, venue_id: venueId, legacy: false })))
+        result.push(...page.data.map((layout) => ({ ...layout, layout_type: type, venue_id: venueId })))
         cursor = page.next_cursor ?? undefined
         if (cursor && seen.has(cursor)) throw new Error('CURSOR_LOOP')
         if (cursor) seen.add(cursor)
@@ -81,23 +70,10 @@ export function VenueWorkspace({ venueId }: { venueId: string }) {
   const selected = venueLayout(layouts.data, params.get('layout'))
   const linkedOverview = overviews.data?.find((item) => item.id === selected?.overview_id)
   const newLayoutParams = new URLSearchParams({ import: 'new', type })
-  if (linkedOverview?.status === 'PUBLISHED' && linkedOverview.id) newLayoutParams.set('overview', linkedOverview.id)
+  if (linkedOverview?.id) newLayoutParams.set('overview', linkedOverview.id)
   const newLayoutLink = `?${newLayoutParams}`
   const detail = useGetSeatLayout(selected?.id ?? '', { query: { enabled: tab === 'layout' && !!selected?.id } })
   const venue = venues.data
-  const [mode, setMode] = useState<'rename' | 'publish' | null>(null)
-  const [name, setName] = useState('')
-  const client = useQueryClient()
-  const action = useMutation({
-    mutationFn: async () => {
-      if (mode === 'publish') await publishSeatLayout(selected!.id!)
-      else await renameSeatLayout(selected!.id!, { name: name.trim() })
-    },
-    onSuccess: async () => {
-      setMode(null)
-      await client.invalidateQueries()
-    },
-  })
   const csv = useMutation({
     mutationFn: async (kind: 'zones' | 'seats') => {
       const content = await (kind === 'zones' ? exportSeatLayoutZones : exportSeatLayoutSeats)(selected!.id!)
@@ -160,7 +136,7 @@ export function VenueWorkspace({ venueId }: { venueId: string }) {
                 </option>
                 {layouts.data?.map((item) => (
                   <option key={item.id} value={item.id}>
-                    {item.name} · v{item.version} · {item.status === 'PUBLISHED' ? 'Đã công bố' : 'Bản nháp'}
+                    {item.name} · v{item.version}
                   </option>
                 ))}
               </select>
@@ -178,7 +154,7 @@ export function VenueWorkspace({ venueId }: { venueId: string }) {
               </option>
               {overviews.data?.map((item) => (
                 <option key={item.id} value={item.id}>
-                  {item.name} · v{item.version} · {item.status === 'PUBLISHED' ? 'Đã công bố' : 'Bản nháp'}
+                  Nền v{item.version}
                 </option>
               ))}
             </select>
@@ -222,7 +198,7 @@ export function VenueWorkspace({ venueId }: { venueId: string }) {
                 <h2>{venue.name}</h2>
                 <p>
                   {venue.city_name || venue.city || 'Chưa xác định địa phương'} ·{' '}
-                  {venue.type ? venueTypes[venue.type] : 'Địa điểm'}
+                  {venue.city_name || venue.city || 'Địa điểm'}
                 </p>
               </div>
               <dl className="venue-summary-counts">
@@ -286,19 +262,8 @@ export function VenueWorkspace({ venueId }: { venueId: string }) {
                             onViewOverview={
                               selected.overview_id ? () => selectView('overview', selected.overview_id!) : undefined
                             }
-                            overviewName={
-                              linkedOverview ? `${linkedOverview.name} · v${linkedOverview.version}` : undefined
-                            }
+                            overviewName={linkedOverview ? `Nền v${linkedOverview.version}` : undefined}
                             layout={detail.data}
-                            onRename={() => {
-                              action.reset()
-                              setName(selected.name)
-                              setMode('rename')
-                            }}
-                            onPublish={() => {
-                              action.reset()
-                              setMode('publish')
-                            }}
                             onExport={(kind) => csv.mutate(kind)}
                             exportPending={csv.isPending}
                             exportError={csv.error}
@@ -326,64 +291,20 @@ export function VenueWorkspace({ venueId }: { venueId: string }) {
           </>
         )}
       </QueryState>
-      {mode === 'publish' && (
-        <ConfirmDialog
-          open
-          title="Công bố sơ đồ?"
-          description="Nền và sơ đồ sẽ được khóa hình học. Sau khi công bố, sơ đồ có thể được dùng cho suất diễn mới."
-          requireReason={false}
-          label="Công bố"
-          pending={action.isPending}
-          error={action.error}
-          onClose={() => setMode(null)}
-          onConfirm={() => action.mutate()}
-        />
-      )}
-      <Dialog
-        open={mode === 'rename'}
-        onOpenChange={(open) => {
-          if (!open && !action.isPending) setMode(null)
-        }}
-      >
-        <DialogContent showCloseButton={!action.isPending}>
-          <DialogHeader>
-            <DialogTitle>Đổi tên layout nháp</DialogTitle>
-            <DialogDescription>Đặt tên dễ nhận biết cho phiên bản đang chọn.</DialogDescription>
-          </DialogHeader>
-          <form
-            onSubmit={(event) => {
-              event.preventDefault()
-              if (name.trim() && !action.isPending) action.mutate()
-            }}
-          >
-            <Field label="Tên sơ đồ nháp">
-              <input
-                required
-                maxLength={200}
-                value={name}
-                disabled={action.isPending}
-                onChange={(event) => setName(event.target.value)}
-                className="venue-rename-input"
-              />
-            </Field>
-            <ErrorNotice error={action.error} />
-            <DialogFooter className="mt-5">
-              <Button type="button" variant="outline" disabled={action.isPending} onClick={() => setMode(null)}>
-                Hủy
-              </Button>
-              <Button type="submit" disabled={!name.trim() || action.isPending}>
-                {action.isPending ? 'Đang lưu…' : 'Lưu tên'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
     </AdminPage>
   )
 }
 
 function VenueMetadata({ venue, tab }: { venue: Venue; tab: VenueTab }) {
-  const initial: VenueInput = { name: venue.name, type: venue.type, info: venue.info, location: venue.location }
+  const initial: VenueInput = {
+    name: venue.name,
+    address: venue.address,
+    city: venue.city,
+    district: venue.district,
+    lat: venue.lat,
+    lng: venue.lng,
+    rules: venue.rules,
+  }
   const [body, setBody] = useState<VenueInput>(initial)
   const client = useQueryClient()
   const save = useMutation({
@@ -421,24 +342,11 @@ function VenueMetadata({ venue, tab }: { venue: Venue; tab: VenueTab }) {
                 onChange={(event) => setBody({ ...body, name: event.target.value })}
               />
             </Field>
-            <Field label="Loại hình">
-              <select
-                value={body.type}
-                disabled={save.isPending}
-                onChange={(event) => setBody({ ...body, type: event.target.value as VenueInput['type'] })}
-              >
-                {Object.entries(venueTypes).map(([code, label]) => (
-                  <option key={code} value={code}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </Field>
             <Field label="Mã định danh">
               <input readOnly value={venue.id ?? ''} />
             </Field>
             <Field label="Địa chỉ">
-              <input readOnly value={body.location?.display_address || venue.address || 'Chưa chọn vị trí'} />
+              <input readOnly value={body.address || venue.address || 'Chưa chọn vị trí'} />
             </Field>
             <p className="venue-form-hint">
               Sức chứa được quản lý theo từng phiên bản sơ đồ. Đổi vị trí tại mục Địa chỉ & Tiện ích.
@@ -448,22 +356,24 @@ function VenueMetadata({ venue, tab }: { venue: Venue; tab: VenueTab }) {
           <div className="venue-location-editor">
             <VenueLocationPicker
               label="Tìm vị trí sân"
-              value={body.location}
+              value={body}
               disabled={save.isPending}
-              onChange={(location) => setBody({ ...body, location })}
+              onChange={({ address, city, district, lat, lng }) =>
+                setBody({ ...body, address, city: city ?? '', district: district ?? '', lat, lng })
+              }
             />
             <dl className="venue-location-values">
               <div>
                 <dt>Địa chỉ đã chọn</dt>
-                <dd>{body.location?.display_address || 'Chưa chọn vị trí'}</dd>
+                <dd>{body.address || 'Chưa chọn vị trí'}</dd>
               </div>
               <div>
                 <dt>Vĩ độ</dt>
-                <dd>{body.location?.latitude ?? '—'}</dd>
+                <dd>{body.lat ?? '—'}</dd>
               </div>
               <div>
                 <dt>Kinh độ</dt>
-                <dd>{body.location?.longitude ?? '—'}</dd>
+                <dd>{body.lng ?? '—'}</dd>
               </div>
             </dl>
           </div>
@@ -485,7 +395,7 @@ function VenueMetadata({ venue, tab }: { venue: Venue; tab: VenueTab }) {
           <Button
             type="submit"
             className="venue-save-button"
-            disabled={!body.name?.trim() || !body.location || save.isPending}
+            disabled={!body.name?.trim() || !body.address?.trim() || save.isPending}
           >
             {save.isPending ? 'Đang lưu…' : 'Lưu thông tin'}
           </Button>
@@ -496,20 +406,12 @@ function VenueMetadata({ venue, tab }: { venue: Venue; tab: VenueTab }) {
           <Panel>
             <h2>Tiện ích & Nội quy</h2>
             <div className="venue-aside-fields">
-              <Field label="Giờ hoạt động">
-                <input
-                  value={venueInfoText(body.info, 'opening_hours') ?? ''}
-                  disabled={save.isPending}
-                  placeholder="Ví dụ: 08:00–22:00 hằng ngày"
-                  onChange={(event) => setBody({ ...body, info: { ...body.info, opening_hours: event.target.value } })}
-                />
-              </Field>
               <Field label="Nội quy">
                 <textarea
                   rows={7}
-                  value={venueInfoText(body.info, 'rules') ?? ''}
+                  value={body.rules ?? ''}
                   disabled={save.isPending}
-                  onChange={(event) => setBody({ ...body, info: { ...body.info, rules: event.target.value } })}
+                  onChange={(event) => setBody({ ...body, rules: event.target.value })}
                 />
               </Field>
             </div>
@@ -525,10 +427,6 @@ function VenueMetadata({ venue, tab }: { venue: Venue; tab: VenueTab }) {
             <div>
               <dt>Cập nhật lần cuối</dt>
               <dd>{dateText(venue.updated_at)}</dd>
-            </div>
-            <div>
-              <dt>Người cập nhật</dt>
-              <dd>{venue.updated_by_name || 'Chưa ghi nhận'}</dd>
             </div>
             <div>
               <dt>Sơ đồ đã công bố</dt>

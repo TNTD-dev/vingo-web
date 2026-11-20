@@ -1,4 +1,4 @@
-import type { BuyerProfile } from '@/api/generated/model'
+import type { Buyer } from '@/api/generated/model'
 
 export type ProfileDraft = { full_name: string; phone: string; email: string }
 export type ProfileErrors = Partial<Record<keyof ProfileDraft, string>>
@@ -11,6 +11,12 @@ export function normalizePhone(value: string): string {
   return digits.startsWith('+84') ? `0${digits.slice(3)}` : digits
 }
 
+/** Đưa số điện thoại về dạng E.164 (+84...) để gửi vào trường buyer của API thanh toán. */
+export function toE164Phone(value: string): string {
+  const local = normalizePhone(value)
+  return local.startsWith('0') ? `+84${local.slice(1)}` : value.replace(/[\s.\-()]/g, '')
+}
+
 export function validateProfile(draft: ProfileDraft): ProfileErrors {
   const errors: ProfileErrors = {}
   if (draft.full_name.trim().length < 2) errors.full_name = 'Nhập họ và tên người nhận vé'
@@ -21,16 +27,9 @@ export function validateProfile(draft: ProfileDraft): ProfileErrors {
 
 export const hasErrors = (e: ProfileErrors) => Object.keys(e).length > 0
 
-/** Dạng gửi lên API (đã chuẩn hoá). */
-export function toProfile(draft: ProfileDraft): BuyerProfile {
-  return { full_name: draft.full_name.trim(), phone: normalizePhone(draft.phone), email: draft.email.trim() }
-}
-
-/** Có khác hồ sơ đã lưu không (hoặc chưa có hồ sơ) → cần lưu trước khi thanh toán. */
-export function needsSave(draft: ProfileDraft, saved: BuyerProfile | undefined): boolean {
-  if (!saved) return true
-  const next = toProfile(draft)
-  return next.full_name !== saved.full_name || next.phone !== normalizePhone(saved.phone) || next.email !== saved.email
+/** Dạng gửi lên API tạo thanh toán (E.164). */
+export function toBuyer(draft: ProfileDraft): Buyer {
+  return { full_name: draft.full_name.trim(), phone: toE164Phone(draft.phone), email: draft.email.trim() }
 }
 
 /** Che số điện thoại để hiển thị/ghi log: "0901234821" → "090 *** 4821". */

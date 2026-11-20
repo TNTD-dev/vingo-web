@@ -48,14 +48,13 @@ export function minPrice(event: EventDetail): number | undefined {
  * và dòng "V.League 2026 · Vòng 12" (Figma); còn lại dùng nguyên tên sự kiện.
  */
 export function bannerText(event: EventDetail): { title: string; subtitle?: string } {
-  const a = event.attributes ?? {}
-  const str = (k: string) => (typeof a[k] === 'string' && a[k] ? (a[k] as string) : undefined)
-  const home = str('home_team')
-  const away = str('away_team')
+  const str = (v: string | null | undefined) => (typeof v === 'string' && v.trim() ? v.trim() : undefined)
+  const home = str(event.home_team)
+  const away = str(event.away_team)
   if (event.category === 'FOOTBALL' && home && away) {
     return {
       title: `${home} vs ${away}`,
-      subtitle: [str('league'), str('round')].filter(Boolean).join(' · ') || undefined,
+      subtitle: [str(event.league), str(event.round)].filter(Boolean).join(' · ') || undefined,
     }
   }
   return { title: event.title ?? '' }

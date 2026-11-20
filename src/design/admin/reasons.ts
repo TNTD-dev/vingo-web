@@ -45,7 +45,7 @@ export function orderHeadline(status?: string): string {
       return 'Đơn đã hết hạn giữ ghế'
     case 'CANCELLED':
       return 'Đơn đã huỷ'
-    case 'REFUNDED':
+    case 'REJECTED':
       return 'Đơn đã ghi nhận hoàn tiền thủ công'
     default:
       return 'Chi tiết đơn hàng'

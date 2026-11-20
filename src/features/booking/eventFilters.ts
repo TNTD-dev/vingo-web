@@ -11,8 +11,6 @@ import { parseYmd, rangeToIso, type Ymd } from './dateRange'
 export const CATEGORY_LABEL: Record<EventCategory, string> = {
   FOOTBALL: 'Bóng đá',
   CONCERT: 'Concert',
-  THEATER: 'Sân khấu',
-  OTHER: 'Khác',
 }
 
 export const CITY_LABEL: Record<string, string> = { HCM: 'TP. HCM', HN: 'Hà Nội', DN: 'Đà Nẵng' }

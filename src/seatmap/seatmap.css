@@ -70,17 +70,16 @@
 .seatmap [id^='ZONE__'] {
   transition: opacity 0.25s;
 }
-.seatmap [id^='ZONE__'] > path:first-child,
-.seatmap path[id^='ZONE__'] {
+/* Figma có thể xuất khu thành shape trực tiếp hoặc nhiều lớp group/use. Giữ nguyên hình học mask. */
+.seatmap
+  [id^='ZONE__']
+  :is(path, rect, polygon, circle, ellipse, use):not(:where(defs *, mask *, clipPath *, [fill='none'])),
+.seatmap [id^='ZONE__']:is(path, rect, polygon, circle, ellipse, use):not([fill='none']) {
   fill: var(--zone-fill, var(--vg-map-sold));
 }
 .seatmap [id^='ZONE__'] g[mask] path {
   stroke: rgb(26 26 26 / 22%);
   stroke-width: 1.5;
-}
-.seatmap [data-kind='STANDING'] > path:first-child,
-.seatmap path[data-kind='STANDING'] {
-  fill: var(--vg-bg-surface);
 }
 .seatmap [data-kind='STANDING'] g[mask] path,
 .seatmap path[data-kind='STANDING'] {

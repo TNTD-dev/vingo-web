@@ -46,7 +46,7 @@ export const adminOperationsHandlers = [
     if (!o) return problem()
     if (o.status !== 'NEEDS_REVIEW') return problem(409, 'ORDER_STATE_INVALID')
     const before = o.status
-    o.status = body.action === 'ISSUE_TICKETS' ? 'PAID' : 'REFUNDED'
+    o.status = body.action === 'ISSUE_TICKETS' ? 'PAID' : 'REJECTED'
     o.history?.push({ status: o.status, at: stamp() })
     if (body.action === 'ISSUE_TICKETS')
       tickets.unshift({

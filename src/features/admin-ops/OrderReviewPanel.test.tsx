@@ -54,7 +54,7 @@ describe('Xử lý đơn cần duyệt', () => {
     expect(calls[0][1]).toEqual({ action: 'ISSUE_TICKETS', reason: 'Đã đối chiếu, ghế còn trống' })
   })
   it('chỉ ghi nhận REFUND sau khi xác nhận đã hoàn tiền thủ công', async () => {
-    vi.mocked(resolveReview).mockResolvedValue({ id: 'order', status: 'REFUNDED' })
+    vi.mocked(resolveReview).mockResolvedValue({ id: 'order', status: 'REJECTED' })
     setup()
     fireEvent.click(screen.getByRole('button', { name: 'Ghi nhận đã hoàn tiền thủ công' }))
     expect(resolveReview).not.toHaveBeenCalled()

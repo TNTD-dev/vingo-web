@@ -1,4 +1,4 @@
-import type { ChatBlock, ChatMessage } from '@/api/generated/model'
+import type { ChatBlock, ChatMessage } from '@/features/chat/chatApi'
 import { parseConfirmAction } from '@/blocks/payloads'
 import type { ActionState } from '@/blocks/types'
 

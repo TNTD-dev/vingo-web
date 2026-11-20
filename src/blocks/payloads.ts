@@ -1,4 +1,4 @@
-import type { ChatBlock } from '@/api/generated/model'
+import type { ChatBlock } from '@/features/chat/chatApi'
 
 /**
  * Contract chỉ khai `payload: object` cho mọi block, nên phía web tự định nghĩa dạng payload mong đợi ở đây

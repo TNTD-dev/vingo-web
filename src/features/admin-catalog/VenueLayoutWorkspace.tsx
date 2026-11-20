@@ -24,8 +24,6 @@ import { mergeLayers } from './LayoutPreview'
 
 export function VenueLayoutWorkspace({
   layout,
-  onRename,
-  onPublish,
   onExport,
   exportPending,
   exportError,
@@ -34,8 +32,6 @@ export function VenueLayoutWorkspace({
   overviewName,
 }: {
   layout: SeatLayoutOverview
-  onRename: () => void
-  onPublish: () => void
   onExport: (kind: 'zones' | 'seats') => void
   exportPending: boolean
   exportError: unknown
@@ -211,13 +207,7 @@ export function VenueLayoutWorkspace({
           <div>
             <strong>Sơ đồ sân</strong>
             <span className="venue-chip">
-              {layout.status === 'PUBLISHED' ? (
-                <>
-                  <LockKeyhole size={12} /> Đã công bố
-                </>
-              ) : (
-                'Bản nháp'
-              )}
+              <LockKeyhole size={12} /> Đã khóa
             </span>
           </div>
           <div className="venue-inline-actions">
@@ -246,14 +236,6 @@ export function VenueLayoutWorkspace({
                 </button>
               </div>
             </details>
-            {layout.status === 'DRAFT' && !layout.legacy && (
-              <>
-                <Button variant="outline" onClick={onRename}>
-                  Đổi tên
-                </Button>
-                <Button onClick={onPublish}>Công bố layout</Button>
-              </>
-            )}
           </div>
         </div>
         <div className="venue-map-heading">
@@ -334,9 +316,7 @@ export function VenueLayoutWorkspace({
         <footer className="venue-map-help">
           Lăn chuột để zoom · Dùng bản đồ nhỏ để di chuyển nhanh · Bấm khu để xem ghế.
           <br />
-          {layout.status === 'PUBLISHED'
-            ? 'Sơ đồ đã phát hành được khóa. Nhập SVG xuất từ Figma để tạo cấu hình mới.'
-            : 'Đây là bản nháp, chưa dùng được cho suất diễn cho tới khi phát hành.'}
+          Sơ đồ sau khi nhập được khóa hình học. Nhập SVG xuất từ Figma để tạo phiên bản mới.
         </footer>
       </section>
       <aside className="venue-card venue-zone-panel" aria-label="Danh sách khu và thông tin chi tiết">
@@ -346,16 +326,14 @@ export function VenueLayoutWorkspace({
             {onViewOverview && (
               <div className="venue-linked-overview">
                 <span>Nền đang sử dụng</span>
-                <strong>{overviewName || overview.data?.name || 'Overview sân'}</strong>
+                <strong>{overviewName || 'Overview sân'}</strong>
                 <button type="button" onClick={onViewOverview}>
                   Xem overview →
                 </button>
               </div>
             )}
             <p className="venue-setup-hint">
-              {layout.status === 'PUBLISHED'
-                ? 'Phiên bản này đã khóa. Để thay đổi cấu trúc ghế, chỉnh SVG và tạo phiên bản mới.'
-                : 'Bạn có thể đổi tên và công bố bản nháp. Để thay cấu trúc ghế, nhập SVG thành phiên bản mới.'}
+              Phiên bản này đã khóa. Để thay đổi cấu trúc ghế, chỉnh SVG và tạo phiên bản mới.
             </p>
             <dl className="venue-configuration-values">
               <div>
@@ -364,7 +342,7 @@ export function VenueLayoutWorkspace({
               </div>
               <div>
                 <dt>Trạng thái</dt>
-                <dd>{layout.status === 'PUBLISHED' ? 'Đã công bố' : 'Bản nháp'}</dd>
+                <dd>Đã khóa</dd>
               </div>
               <div>
                 <dt>Số khu</dt>

@@ -18,10 +18,10 @@ export function VenueOverviewWorkspace({ overviewId }: { overviewId: string }) {
           <section className="venue-card venue-canvas-card" aria-label="Overview sân">
             <div className="venue-map-heading">
               <div>
-                <h2>{overview.data.name}</h2>
+                <h2>Nền v{overview.data.version}</h2>
                 <p>Nền tổng thể và cổng của sân.</p>
               </div>
-              <span className="venue-chip">{overview.data.status === 'PUBLISHED' ? 'Đã công bố' : 'Bản nháp'}</span>
+              <span className="venue-chip">Đã khóa</span>
             </div>
             <div className="venue-map-area">
               {overview.data.svg_content ? (
@@ -60,11 +60,9 @@ export function VenueOverviewWorkspace({ overviewId }: { overviewId: string }) {
             <p className="venue-setup-hint">
               Để thay đổi nền hoặc cổng, chỉnh SVG và nhập overview mới cùng layout tương ứng.
             </p>
-            {overview.data.status === 'PUBLISHED' && (
-              <Link className="venue-primary-link" to={`?import=new&overview=${overviewId}`}>
-                Thêm layout trên nền này
-              </Link>
-            )}
+            <Link className="venue-primary-link" to={`?import=new&overview=${overviewId}`}>
+              Thêm layout trên nền này
+            </Link>
             {gate && (
               <div className="venue-selection" role="status">
                 <strong>Cổng {gate.number}</strong>

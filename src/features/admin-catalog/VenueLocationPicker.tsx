@@ -1,25 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import type { LocationSuggestion, VenueLocationInput } from '@/api/generated/model'
+import type { LocationSuggestion, VenueInput } from '@/api/generated/model'
 import { reverseGeocodeVenueLocation, suggestVenueLocations } from '@/api/generated/endpoints/venue-setup/venue-setup'
 import { ErrorNotice, Field } from '@/design/admin/AdminUi'
 import { Button } from '@/design/ui/button'
 
 type Props = {
   label: string
-  value?: VenueLocationInput
-  venue?: VenueLocationInput
-  onChange: (location: VenueLocationInput) => void
+  value?: VenueInput
+  onChange: (location: LocationSuggestion) => void
   disabled?: boolean
 }
 
-export function VenueLocationPicker({ label, value, venue, onChange, disabled }: Props) {
+export function VenueLocationPicker({ label, value, onChange, disabled }: Props) {
   const host = useRef<HTMLDivElement>(null)
   const map = useRef<L.Map | null>(null)
   const layers = useRef<L.LayerGroup | null>(null)
-  const latest = useRef({ value, venue, onChange, disabled })
-  latest.current = { value, venue, onChange, disabled }
+  const latest = useRef({ value, onChange, disabled })
+  latest.current = { value, onChange, disabled }
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<LocationSuggestion[]>([])
   const [loading, setLoading] = useState(false)
@@ -37,7 +36,7 @@ export function VenueLocationPicker({ label, value, venue, onChange, disabled }:
     setError(undefined)
     try {
       const location = await reverseGeocodeVenueLocation({ lat, lng }, { signal: controller.signal })
-      if (!controller.signal.aborted) latest.current.onChange({ ...location, source: 'MANUAL_MAP_PIN' })
+      if (!controller.signal.aborted) latest.current.onChange(location)
     } catch (cause) {
       if (!controller.signal.aborted) setError(cause)
     } finally {
@@ -47,9 +46,9 @@ export function VenueLocationPicker({ label, value, venue, onChange, disabled }:
 
   useEffect(() => {
     if (!host.current) return
-    const initial = latest.current.value ?? latest.current.venue
+    const initial = latest.current.value
     const instance = L.map(host.current).setView(
-      initial ? [initial.latitude, initial.longitude] : [21.0207, 105.7649],
+      initial?.lat != null && initial.lng != null ? [initial.lat, initial.lng] : [21.0207, 105.7649],
       15,
     )
     const key = import.meta.env.VITE_GEOAPIFY_TILE_KEY
@@ -82,39 +81,23 @@ export function VenueLocationPicker({ label, value, venue, onChange, disabled }:
     if (!map.current || !layers.current) return
     const group = layers.current
     group.clearLayers()
-    function marker(location: VenueLocationInput, isVenue: boolean, draggable: boolean) {
-      const icon = L.divIcon({
-        className: 'venue-geographic-marker',
-        html: `<span class="${isVenue ? 'venue-pin' : 'parking-pin'}">${isVenue ? 'S' : 'P'}</span>`,
-        iconSize: [32, 32],
-        iconAnchor: [16, 32],
-      })
-      const pin = L.marker([location.latitude, location.longitude], { icon, draggable: draggable && !disabled }).addTo(
-        group,
-      )
-      // Tooltip text is supplied as a DOM text node, never interpolated as HTML.
-      const text = document.createElement('span')
-      text.textContent = location.display_address
-      pin.bindTooltip(text)
-      pin.on('dragend', () => {
-        const point = pin.getLatLng()
-        void selectPin(point.lat, point.lng)
-      })
-    }
-    if (venue) marker(venue, true, false)
-    if (value) {
-      marker(value, !venue, true)
-      if (venue)
-        map.current.fitBounds(
-          [
-            [venue.latitude, venue.longitude],
-            [value.latitude, value.longitude],
-          ],
-          { padding: [40, 40], maxZoom: 16 },
-        )
-      else map.current.setView([value.latitude, value.longitude], 16)
-    } else if (venue) map.current.setView([venue.latitude, venue.longitude], 15)
-  }, [value, venue, disabled])
+    if (value?.lat == null || value.lng == null) return
+    const icon = L.divIcon({
+      className: 'venue-geographic-marker',
+      html: '<span class="venue-pin">S</span>',
+      iconSize: [32, 32],
+      iconAnchor: [16, 32],
+    })
+    const pin = L.marker([value.lat, value.lng], { icon, draggable: !disabled }).addTo(group)
+    const text = document.createElement('span')
+    text.textContent = value.address ?? ''
+    pin.bindTooltip(text)
+    pin.on('dragend', () => {
+      const point = pin.getLatLng()
+      void selectPin(point.lat, point.lng)
+    })
+    map.current.setView([value.lat, value.lng], 16)
+  }, [value, disabled])
 
   useEffect(() => {
     setResults([])
@@ -167,7 +150,7 @@ export function VenueLocationPicker({ label, value, venue, onChange, disabled }:
       {results.length > 0 && (
         <ul className="venue-location-results" aria-label="Địa chỉ gợi ý">
           {results.map((result) => (
-            <li key={result.source_place_id ?? `${result.latitude},${result.longitude}`}>
+            <li key={`${result.lat},${result.lng}:${result.label}`}>
               <button
                 type="button"
                 disabled={disabled}
@@ -186,11 +169,11 @@ export function VenueLocationPicker({ label, value, venue, onChange, disabled }:
         </ul>
       )}
       <div ref={host} className="venue-geographic-map" aria-label={`${label} trên bản đồ`} />
-      <p>Bấm bản đồ hoặc kéo ghim để chọn vị trí. {venue && 'S: sân · P: bãi gửi xe.'}</p>
+      <p>Bấm bản đồ hoặc kéo ghim để chọn vị trí.</p>
       {pinLoading && <p role="status">Đang lấy địa chỉ của vị trí đã chọn…</p>}
-      {value && (
+      {value?.address && (
         <p className="venue-selected-address">
-          <strong>Đã chọn:</strong> {value.display_address}
+          <strong>Đã chọn:</strong> {value.address}
         </p>
       )}
       <ErrorNotice error={error} />

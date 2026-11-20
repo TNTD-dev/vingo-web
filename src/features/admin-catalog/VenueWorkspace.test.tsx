@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryRouter, RouterProvider } from 'react-router'
@@ -7,11 +7,7 @@ import { getGetSeatLayoutQueryKey } from '@/api/generated/endpoints/admin-catalo
 import type { SeatLayoutOverview } from '@/api/generated/model'
 import { VenueWorkspace } from './VenueWorkspace'
 
-const api = vi.hoisted(() => ({ rename: vi.fn(), overview: vi.fn() }))
-vi.mock('@/api/generated/endpoints/admin-catalog/admin-catalog', async (load) => ({
-  ...(await load<typeof import('@/api/generated/endpoints/admin-catalog/admin-catalog')>()),
-  renameSeatLayout: api.rename,
-}))
+const api = vi.hoisted(() => ({ overview: vi.fn() }))
 vi.mock('@/api/generated/endpoints/venue-imports/venue-imports', async (load) => ({
   ...(await load<typeof import('@/api/generated/endpoints/venue-imports/venue-imports')>()),
   getVenueOverview: api.overview,
@@ -31,20 +27,19 @@ const seats =
 const layout: SeatLayoutOverview = {
   id: 'l1',
   name: 'Layout bóng đá',
-  status: 'DRAFT',
   overview_id: 'o1',
   version: 2,
   zones: [],
 }
-function setup(status: 'DRAFT' | 'PUBLISHED' = 'DRAFT', search = '?tab=layout') {
+function setup(search = '?tab=layout') {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity }, mutations: { retry: false } },
   })
   client.setQueryData(['admin-venue', 'v1'], { id: 'v1', name: 'Sân thử', type: 'STADIUM' })
   const previous = { ...layout, id: 'l0', version: 1, status: 'PUBLISHED' }
-  client.setQueryData(['admin-layout-tree', 'v1', 'FOOTBALL'], [{ ...layout, status }, previous])
+  client.setQueryData(['admin-layout-tree', 'v1', 'FOOTBALL'], [layout, previous])
   client.setQueryData(['admin-layout-tree', 'v1', 'CONCERT'], [])
-  client.setQueryData(getGetSeatLayoutQueryKey('l1'), { ...layout, status })
+  client.setQueryData(getGetSeatLayoutQueryKey('l1'), layout)
   client.setQueryData(getGetSeatLayoutQueryKey('l0'), previous)
   client.setQueryData(['admin-layout-svg', 'l0'], seats)
   client.setQueryData(['admin-layout-svg', 'l1'], seats)
@@ -70,13 +65,12 @@ beforeEach(() => {
     areas: [],
     gates: [],
   })
-  api.rename.mockResolvedValue(undefined)
 })
 afterEach(cleanup)
 
 describe('quản lý overview và layout đã tạo', () => {
   it('giữ phiên bản cũ đang chọn khi chuyển qua overview rồi quay lại layout', async () => {
-    setup('DRAFT', '?tab=layout&layout=l0')
+    setup('?tab=layout&layout=l0')
     await userEvent.click(await screen.findByRole('button', { name: 'Xem overview →' }))
     await screen.findByRole('complementary', { name: 'Thông tin overview' })
     await userEvent.click(screen.getByRole('button', { name: /^Layout ghế$/ }))
@@ -96,19 +90,12 @@ describe('quản lý overview và layout đã tạo', () => {
       '/admin/venues/v1?import=new&overview=o1',
     )
   })
-  it('đổi tên trong dialog và gửi tên đã bỏ khoảng trắng', async () => {
+  it('hiển thị sơ đồ đã lưu là bất biến', async () => {
     setup()
-    await userEvent.click(await screen.findByRole('button', { name: 'Đổi tên' }))
-    const dialog = screen.getByRole('dialog', { name: 'Đổi tên layout nháp' })
-    const input = within(dialog).getByLabelText('Tên sơ đồ nháp')
-    await userEvent.clear(input)
-    await userEvent.type(input, '  Bóng đá mới  ')
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Lưu tên' }))
-    await waitFor(() => expect(api.rename).toHaveBeenCalledWith('l1', { name: 'Bóng đá mới' }))
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(await screen.findByText(/Phiên bản này đã khóa/)).toBeInTheDocument()
   })
   it('layout công bố chỉ cho tạo phiên bản mới và đổi loại vẫn giữ bộ chọn', async () => {
-    setup('PUBLISHED')
+    setup()
     await screen.findByRole('group', { name: 'Lớp hiển thị sơ đồ' })
     expect(screen.queryByRole('button', { name: 'Đổi tên' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Công bố layout' })).not.toBeInTheDocument()
