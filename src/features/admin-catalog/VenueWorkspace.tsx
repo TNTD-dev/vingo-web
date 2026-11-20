@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Building2, ChevronRight, Layers3, Plus } from 'lucide-react'
+import { ArrowLeft, Layers3 } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -12,6 +12,7 @@ import {
 } from '@/api/generated/endpoints/admin-catalog/admin-catalog'
 import { getAdminLayoutTree } from '@/api/generated/endpoints/admin-workspace/admin-workspace'
 import type { Venue, VenueInput, LayoutType, SeatLayout } from '@/api/generated/model'
+import { AdminLinkAction } from '@/design/admin/AdminAction'
 import { AdminPage, ErrorNotice, Field, Panel, QueryState } from '@/design/admin/AdminUi'
 import { Button } from '@/design/ui/button'
 import { dateText, download } from '@/design/admin/data'
@@ -40,6 +41,12 @@ export function VenueWorkspace({ venueId }: { venueId: string }) {
         : params.get('tab') === 'layout' || params.has('layout')
           ? 'layout'
           : 'general'
+  const view = params.get('view') === 'overview' ? 'overview' : 'layout'
+  const [openedViews, setOpenedViews] = useState({ overview: false, layout: false })
+  if (tab === 'layout' && !openedViews[view]) {
+    setOpenedViews({ ...openedViews, [view]: true })
+  }
+  const layoutOpened = tab === 'layout' || openedViews.overview || openedViews.layout
   const venues = useQuery({
     queryKey: ['admin-venue', venueId],
     queryFn: ({ signal }) => getAdminVenue(venueId, { signal }),
@@ -47,7 +54,7 @@ export function VenueWorkspace({ venueId }: { venueId: string }) {
   const type: LayoutType = params.get('type') === 'CONCERT' ? 'CONCERT' : 'FOOTBALL'
   const layouts = useQuery({
     queryKey: ['admin-layout-tree', venueId, type],
-    enabled: tab === 'layout',
+    enabled: layoutOpened,
     queryFn: async ({ signal }) => {
       const result: SeatLayout[] = []
       const seen = new Set<string>()
@@ -62,8 +69,7 @@ export function VenueWorkspace({ venueId }: { venueId: string }) {
       return result
     },
   })
-  const view = params.get('view') === 'overview' ? 'overview' : 'layout'
-  const overviews = useVenueOverviews(venueId, tab === 'layout')
+  const overviews = useVenueOverviews(venueId, layoutOpened)
   const selectedOverview = params.has('overview')
     ? overviews.data?.find((item) => item.id === params.get('overview'))
     : overviews.data?.[0]
@@ -72,7 +78,9 @@ export function VenueWorkspace({ venueId }: { venueId: string }) {
   const newLayoutParams = new URLSearchParams({ import: 'new', type })
   if (linkedOverview?.id) newLayoutParams.set('overview', linkedOverview.id)
   const newLayoutLink = `?${newLayoutParams}`
-  const detail = useGetSeatLayout(selected?.id ?? '', { query: { enabled: tab === 'layout' && !!selected?.id } })
+  const detail = useGetSeatLayout(selected?.id ?? '', {
+    query: { enabled: ((view === 'layout' && tab === 'layout') || openedViews.layout) && !!selected?.id },
+  })
   const venue = venues.data
   const csv = useMutation({
     mutationFn: async (kind: 'zones' | 'seats') => {
@@ -160,62 +168,40 @@ export function VenueWorkspace({ venueId }: { venueId: string }) {
             </select>
           </Field>
         )}
-        <Link className="venue-primary-link" to={view === 'overview' ? '?import=new' : newLayoutLink}>
-          <Plus size={16} aria-hidden />
+        <AdminLinkAction to={view === 'overview' ? '?import=new' : newLayoutLink}>
           {view === 'overview' ? 'Nhập overview mới' : 'Tạo phiên bản mới'}
-        </Link>
+        </AdminLinkAction>
       </div>
     </section>
   )
 
   return (
     <AdminPage
-      title="Quản lý sân & sơ đồ ghế"
+      title={venue?.name?.trim() || 'Chi tiết sân'}
       caption={
-        <span className="venue-breadcrumb">
-          <Link to="/admin/venues">Sân & địa điểm</Link>
-          <ChevronRight size={13} aria-hidden />
-          {venue?.name || 'Chi tiết sân'}
-        </span>
+        <Link className="venue-breadcrumb" to="/admin/venues">
+          <ArrowLeft size={14} aria-hidden />
+          Sân & địa điểm
+        </Link>
       }
-      actions={
-        <div className="venue-detail-header-actions">
-          <Button variant="outline" onClick={() => selectTab('layout')}>
-            Xem sơ đồ
-          </Button>
-          {venue && <VenueActions venue={venue} />}
-        </div>
-      }
+      actions={venue && <VenueActions venue={venue} />}
     >
       <QueryState query={venues} empty={!venue} emptyText="Không tìm thấy sân.">
         {venue && (
           <>
-            <Panel className="venue-detail-summary">
-              <span className="venue-summary-icon">
-                <Building2 size={28} aria-hidden />
-              </span>
-              <div className="venue-summary-name">
-                <h2>{venue.name}</h2>
-                <p>
-                  {venue.city_name || venue.city || 'Chưa xác định địa phương'} ·{' '}
-                  {venue.city_name || venue.city || 'Địa điểm'}
-                </p>
-              </div>
-              <dl className="venue-summary-counts">
-                <div>
-                  <dt>Cấu hình sơ đồ</dt>
-                  <dd>{venue.layout_count ?? 0}</dd>
-                </div>
-                <div>
-                  <dt>Đã công bố</dt>
-                  <dd className="venue-published-number">{venue.published_layout_count ?? 0}</dd>
-                </div>
-                <div>
-                  <dt>Bản nháp</dt>
-                  <dd>{venue.draft_layout_count ?? 0}</dd>
-                </div>
-              </dl>
-            </Panel>
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 pb-3 text-sm text-ink-secondary">
+              <p>
+                {[...new Set([venue.district, venue.city_name || venue.city].filter(Boolean))].join(' · ') ||
+                  'Chưa xác định địa phương'}
+              </p>
+              <p>
+                <strong className="font-semibold text-ink">{venue.layout_count ?? 0} sơ đồ</strong>
+                {' · '}
+                {venue.published_layout_count ?? 0} công bố
+                {' · '}
+                {venue.draft_layout_count ?? 0} nháp
+              </p>
+            </div>
             <nav className="venue-detail-tabs" aria-label="Nội dung quản lý sân">
               {tabs.map((item) => (
                 <button
@@ -229,63 +215,65 @@ export function VenueWorkspace({ venueId }: { venueId: string }) {
               ))}
             </nav>
             <VenueMetadata key={`${venue.id}:${venue.updated_at}`} venue={venue} tab={tab} />
-            {tab === 'layout' && (
-              <div className="venue-layout-tab">
-                {layoutControls}
-                {view === 'layout' && layouts.isError && <ErrorNotice error={layouts.error} />}
-                {view === 'layout' && layouts.isPending && <p role="status">Đang tải danh sách layout…</p>}
-                {view === 'overview' ? (
-                  <QueryState
-                    query={overviews}
-                    empty={!overviews.data?.length}
-                    emptyText="Sân chưa có overview. Nhập SVG để tạo nền sân và layout đầu tiên."
-                  >
-                    {selectedOverview?.id ? (
-                      <VenueOverviewWorkspace key={selectedOverview.id} overviewId={selectedOverview.id} />
-                    ) : overviews.data?.length ? (
-                      <p role="alert">Overview không thuộc sân này hoặc không còn tồn tại. Chọn phiên bản khác.</p>
-                    ) : null}
-                  </QueryState>
-                ) : (
-                  <>
-                    {params.has('layout') && layouts.data && !selected && (
-                      <p role="alert">
-                        Sơ đồ không thuộc sân này hoặc không còn tồn tại. Chọn một phiên bản trong danh sách.
-                      </p>
-                    )}
-                    {selected ? (
-                      <QueryState query={detail}>
-                        {detail.data && (
-                          <VenueLayoutWorkspace
-                            key={selected.id}
-                            catalogOnly
-                            onViewOverview={
-                              selected.overview_id ? () => selectView('overview', selected.overview_id!) : undefined
-                            }
-                            overviewName={linkedOverview ? `Nền v${linkedOverview.version}` : undefined}
-                            layout={detail.data}
-                            onExport={(kind) => csv.mutate(kind)}
-                            exportPending={csv.isPending}
-                            exportError={csv.error}
-                          />
-                        )}
+            {layoutOpened && (
+              <div hidden={tab !== 'layout'}>
+                <div className="venue-layout-tab">
+                  {layoutControls}
+                  {view === 'layout' && layouts.isError && <ErrorNotice error={layouts.error} />}
+                  {view === 'layout' && layouts.isPending && <p role="status">Đang tải danh sách layout…</p>}
+                  {(view === 'overview' || openedViews.overview) && (
+                    <div hidden={view !== 'overview'}>
+                      <QueryState
+                        query={overviews}
+                        empty={!overviews.data?.length}
+                        emptyText="Sân chưa có overview. Nhập SVG để tạo nền sân và layout đầu tiên."
+                      >
+                        {selectedOverview?.id ? (
+                          <VenueOverviewWorkspace key={selectedOverview.id} overviewId={selectedOverview.id} />
+                        ) : overviews.data?.length ? (
+                          <p role="alert">Overview không thuộc sân này hoặc không còn tồn tại. Chọn phiên bản khác.</p>
+                        ) : null}
                       </QueryState>
-                    ) : (
-                      !layouts.isPending &&
-                      !layouts.isError && (
-                        <Panel className="venue-layout-empty">
-                          <Layers3 size={36} aria-hidden />
-                          <h2>Thiết lập sơ đồ sân</h2>
-                          <p>Chưa có layout phù hợp. Chọn loại sơ đồ khác hoặc nhập SVG để tạo phiên bản mới.</p>
-                          <Link className="venue-primary-link" to={newLayoutLink}>
-                            <Plus size={16} aria-hidden />
-                            Thêm sơ đồ
-                          </Link>
-                        </Panel>
-                      )
-                    )}
-                  </>
-                )}
+                    </div>
+                  )}
+                  {(view === 'layout' || openedViews.layout) && (
+                    <div hidden={view !== 'layout'}>
+                      {params.has('layout') && layouts.data && !selected && (
+                        <p role="alert">
+                          Sơ đồ không thuộc sân này hoặc không còn tồn tại. Chọn một phiên bản trong danh sách.
+                        </p>
+                      )}
+                      {selected ? (
+                        <QueryState query={detail}>
+                          {detail.data && (
+                            <VenueLayoutWorkspace
+                              key={selected.id}
+                              catalogOnly
+                              onViewOverview={
+                                selected.overview_id ? () => selectView('overview', selected.overview_id!) : undefined
+                              }
+                              overviewName={linkedOverview ? `Nền v${linkedOverview.version}` : undefined}
+                              layout={detail.data}
+                              onExport={(kind) => csv.mutate(kind)}
+                              exportPending={csv.isPending}
+                              exportError={csv.error}
+                            />
+                          )}
+                        </QueryState>
+                      ) : (
+                        !layouts.isPending &&
+                        !layouts.isError && (
+                          <Panel className="venue-layout-empty">
+                            <Layers3 size={36} aria-hidden />
+                            <h2>Thiết lập sơ đồ sân</h2>
+                            <p>Chưa có layout phù hợp. Chọn loại sơ đồ khác hoặc nhập SVG để tạo phiên bản mới.</p>
+                            <AdminLinkAction to={newLayoutLink}>Thêm sơ đồ</AdminLinkAction>
+                          </Panel>
+                        )
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </>

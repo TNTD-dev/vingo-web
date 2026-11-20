@@ -5,6 +5,7 @@ import { LockKeyhole, Search, Shuffle } from 'lucide-react'
 import { useGetSeatLayoutZone } from '@/api/generated/endpoints/admin-catalog/admin-catalog'
 import { getVenueOverview } from '@/api/generated/endpoints/venue-imports/venue-imports'
 import type { SeatLayoutOverview } from '@/api/generated/model'
+import { StatusBadge } from '@/design/StatusBadge'
 import { Button } from '@/design/ui/button'
 import { ErrorNotice, QueryState, Table } from '@/design/admin/AdminUi'
 import { formatVnd } from '@/lib/money'
@@ -204,12 +205,20 @@ export function VenueLayoutWorkspace({
       )}
       <section className="venue-card venue-canvas-card" aria-label="Sơ đồ sân">
         <div className="venue-map-toolbar">
-          <div>
-            <strong>Sơ đồ sân</strong>
-            <span className="venue-chip">
-              <LockKeyhole size={12} /> Đã khóa
-            </span>
-          </div>
+          {catalogOnly ? (
+            <div className="min-w-0 flex-wrap gap-y-2">
+              <h2 className="text-base font-semibold wrap-anywhere">{layout.name}</h2>
+              <StatusBadge>Đã khóa</StatusBadge>
+              {focus && <span className="venue-chip">{zone?.label ?? focus}</span>}
+            </div>
+          ) : (
+            <div>
+              <strong>Sơ đồ sân</strong>
+              <span className="venue-chip">
+                <LockKeyhole size={12} /> Đã khóa
+              </span>
+            </div>
+          )}
           <div className="venue-inline-actions">
             <details className="venue-export">
               <summary>Xuất CSV</summary>
@@ -238,17 +247,15 @@ export function VenueLayoutWorkspace({
             </details>
           </div>
         </div>
-        <div className="venue-map-heading">
-          <div>
-            <h2>{layout.name}</h2>
-            <p>
-              {catalogOnly
-                ? `v${layout.version} · ${layout.zones.length} khu · Chọn khu để xem chi tiết`
-                : 'Màu, hình học và cổng từ SVG xuất từ Figma'}
-            </p>
+        {!catalogOnly && (
+          <div className="venue-map-heading">
+            <div>
+              <h2>{layout.name}</h2>
+              <p>Màu, hình học và cổng từ SVG xuất từ Figma</p>
+            </div>
+            {focus && <span className="venue-chip">{zone?.label ?? focus}</span>}
           </div>
-          {focus && <span className="venue-chip">{zone?.label ?? focus}</span>}
-        </div>
+        )}
         {catalogOnly && (
           <div className="venue-layer-controls" role="group" aria-label="Lớp hiển thị sơ đồ">
             <span>Hiển thị</span>
@@ -314,35 +321,20 @@ export function VenueLayoutWorkspace({
         <ErrorNotice error={exportError} />
         <footer className="venue-map-help">
           Lăn chuột để zoom · Kéo để di chuyển · Bấm khu để xem ghế.
-          <br />
-          Sơ đồ sau khi nhập được khóa hình học. Nhập SVG xuất từ Figma để tạo phiên bản mới.
+          {!catalogOnly && (
+            <>
+              <br />
+              Sơ đồ sau khi nhập được khóa hình học. Nhập SVG xuất từ Figma để tạo phiên bản mới.
+            </>
+          )}
         </footer>
       </section>
       <aside className="venue-card venue-zone-panel" aria-label="Danh sách khu và thông tin chi tiết">
         <h2>{catalogOnly ? 'Thông tin cấu hình' : `Danh sách khu (${layout.zones.length})`}</h2>
         {catalogOnly ? (
           <>
-            {onViewOverview && (
-              <div className="venue-linked-overview">
-                <span>Nền đang sử dụng</span>
-                <strong>{overviewName || 'Overview sân'}</strong>
-                <button type="button" onClick={onViewOverview}>
-                  Xem overview →
-                </button>
-              </div>
-            )}
-            <p className="venue-setup-hint">
-              Phiên bản này đã khóa. Để thay đổi cấu trúc ghế, chỉnh SVG và tạo phiên bản mới.
-            </p>
+            <p className="text-sm text-ink-secondary">Phiên bản v{layout.version}</p>
             <dl className="venue-configuration-values">
-              <div>
-                <dt>Phiên bản</dt>
-                <dd>v{layout.version}</dd>
-              </div>
-              <div>
-                <dt>Trạng thái</dt>
-                <dd>Đã khóa</dd>
-              </div>
               <div>
                 <dt>Số khu</dt>
                 <dd>{layout.zones.length}</dd>
@@ -366,6 +358,11 @@ export function VenueLayoutWorkspace({
                 </dd>
               </div>
             </dl>
+            {onViewOverview && (
+              <Button type="button" variant="outline" className="mt-3 rounded-pill" onClick={onViewOverview}>
+                Xem {overviewName?.toLocaleLowerCase('vi-VN') || 'nền sân'}
+              </Button>
+            )}
           </>
         ) : (
           <section className="venue-pricing-box" aria-label="Cấu hình giá vé theo khu">
@@ -523,52 +520,54 @@ export function VenueLayoutWorkspace({
             </p>
           </>
         )}
-        <section className="venue-zone-detail" aria-label="Thông tin khu đang chọn">
-          <h3>{zone ? `Khu ${zone.label || zone.code}` : 'Chọn một khu'}</h3>
-          {zone ? (
-            <>
-              <p>
-                {zone.capacity.toLocaleString('vi-VN')} {zone.kind === 'SEATED' ? 'ghế ngồi' : 'chỗ đứng'}
-                {!catalogOnly && selectedZonePrice !== undefined ? ` · ${formatVnd(selectedZonePrice)}` : ''}
-              </p>
-              {!catalogOnly && <p className="venue-svg-id">{zone.svg_id}</p>}
-              {zone.kind === 'SEATED' && (
-                <QueryState query={detail}>
-                  <p>{detail.data?.rows?.length ?? 0} hàng ghế</p>
-                  {seat && (
-                    <div className="venue-selection">
-                      <strong>
-                        Hàng {seat.row} · Ghế {seat.number}
-                      </strong>
-                      <p>{seatData ? `Mã ghế: ${seatData.id}` : 'Chưa tìm thấy dữ liệu ghế tương ứng trong API.'}</p>
-                      <small>Chỉ xem cấu hình, không thay đổi trạng thái vé.</small>
-                    </div>
-                  )}
-                </QueryState>
-              )}
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setFocus(undefined)
-                  setSeatId(undefined)
-                  setGate(undefined)
-                }}
-              >
-                Về toàn cảnh
-              </Button>
-            </>
-          ) : (
-            <p>Bấm một khu trên sơ đồ hoặc trong bảng để xem chi tiết.</p>
-          )}
-          {gate && (
-            <div className="venue-selection">
-              <strong>Cổng {gate.number}</strong>
-              <p className="venue-svg-id">{gate.id}</p>
-              {gate.zone && <p>Khu {gate.zone}</p>}
-              <small>Định danh từ SVG; không suy đoán hướng hoặc tình trạng mở cổng.</small>
-            </div>
-          )}
-        </section>
+        {(!catalogOnly || zone || gate) && (
+          <section className="venue-zone-detail" aria-label="Thông tin khu đang chọn">
+            <h3>{zone ? `Khu ${zone.label || zone.code}` : 'Chọn một khu'}</h3>
+            {zone ? (
+              <>
+                <p>
+                  {zone.capacity.toLocaleString('vi-VN')} {zone.kind === 'SEATED' ? 'ghế ngồi' : 'chỗ đứng'}
+                  {!catalogOnly && selectedZonePrice !== undefined ? ` · ${formatVnd(selectedZonePrice)}` : ''}
+                </p>
+                {!catalogOnly && <p className="venue-svg-id">{zone.svg_id}</p>}
+                {zone.kind === 'SEATED' && (
+                  <QueryState query={detail}>
+                    <p>{detail.data?.rows?.length ?? 0} hàng ghế</p>
+                    {seat && (
+                      <div className="venue-selection">
+                        <strong>
+                          Hàng {seat.row} · Ghế {seat.number}
+                        </strong>
+                        <p>{seatData ? `Mã ghế: ${seatData.id}` : 'Chưa tìm thấy dữ liệu ghế tương ứng trong API.'}</p>
+                        <small>Chỉ xem cấu hình, không thay đổi trạng thái vé.</small>
+                      </div>
+                    )}
+                  </QueryState>
+                )}
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setFocus(undefined)
+                    setSeatId(undefined)
+                    setGate(undefined)
+                  }}
+                >
+                  Về toàn cảnh
+                </Button>
+              </>
+            ) : (
+              <p>Bấm một khu trên sơ đồ hoặc trong bảng để xem chi tiết.</p>
+            )}
+            {gate && (
+              <div className="venue-selection">
+                <strong>Cổng {gate.number}</strong>
+                <p className="venue-svg-id">{gate.id}</p>
+                {gate.zone && <p>Khu {gate.zone}</p>}
+                <small>Định danh từ SVG; không suy đoán hướng hoặc tình trạng mở cổng.</small>
+              </div>
+            )}
+          </section>
+        )}
       </aside>
     </div>
   )

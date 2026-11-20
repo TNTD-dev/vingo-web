@@ -12,6 +12,7 @@ export function WizardShell({
   onSelectStep,
   actions,
   search,
+  wide = false,
   children,
 }: {
   title: string
@@ -20,11 +21,12 @@ export function WizardShell({
   onSelectStep?: (index: number) => void
   actions?: ReactNode
   search?: SearchScope
+  wide?: boolean
   children: ReactNode
 }) {
   return (
     <AdminPage title={title} caption={caption} actions={actions} search={search}>
-      <div className="event-wizard">
+      <div className={wide ? 'event-wizard event-wizard-wide' : 'event-wizard'}>
         <div className="event-wizard-content">{children}</div>
         <nav className="event-wizard-steps" aria-label="Tiến trình tạo sự kiện">
           <p className="event-wizard-progress">

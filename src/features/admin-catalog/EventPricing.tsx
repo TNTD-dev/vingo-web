@@ -1,6 +1,6 @@
 import { useId, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, X } from 'lucide-react'
+import { AlertTriangle, Maximize2, Minimize2, X } from 'lucide-react'
 import { getAdminEvent, putPriceTiers, putZonePrices } from '@/api/generated/endpoints/admin-catalog/admin-catalog'
 import type { EventDetail, PriceTierInput } from '@/api/generated/model'
 import { AdminAction } from '@/design/admin/AdminAction'
@@ -39,6 +39,7 @@ export default function EventPricing({ event, goStep }: { event: EventDetail; go
   return (
     <WizardShell
       title="Giá theo khu"
+      wide
       caption={`// ${event.title?.toUpperCase()} · BƯỚC ${ordered ? '2/5' : '3/4'}`}
       steps={stepItems(stepLabels(event), ordered ? 1 : 2)}
       onSelectStep={(i) => goStep(i + 1)}
@@ -109,6 +110,7 @@ function PricingBody({
   )
   const [picked, setPicked] = useState<string[]>([])
   const [bulk, setBulk] = useState(true)
+  const [expandedMap, setExpandedMap] = useState(false)
   const colorOf = (tier: Tier) => tier.color ?? fallbackColor(tier.price)
   const overview = useQuery({
     queryKey: ['venue-overview', layout?.overview_id],
@@ -187,6 +189,7 @@ function PricingBody({
   return (
     <WizardShell
       title="Giá theo khu"
+      wide
       caption={`// ${event.title?.toUpperCase()} · BƯỚC ${ordered ? '2/5' : '3/4'}`}
       steps={stepItems(stepLabels(event), ordered ? 1 : 2)}
       onSelectStep={(i) => goStep(i + 1)}
@@ -201,7 +204,7 @@ function PricingBody({
         </>
       }
     >
-      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,440px)]">
+      <div className="pricing-workspace" data-expanded={expandedMap}>
         <Panel className="wz-panel order-2 min-w-0">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -379,33 +382,59 @@ function PricingBody({
           {!tiersValid && <p className="admin-notice mt-3">Mỗi hạng cần tên không trùng nhau và giá không âm.</p>}
         </Panel>
         <Panel className="wz-panel order-1 min-w-0">
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2>Gán khu trên sơ đồ</h2>
               <p className="wz-panel-hint">
-                Bấm khu để gán vào hạng đang chọn
-                {tiers[activeIndex]?.name ? ` (${tiers[activeIndex].name})` : ''}. Bấm lại để bỏ gán.
+                {locked
+                  ? 'Di chuột qua khu để xem mức giá.'
+                  : bulk
+                    ? 'Chọn các khu trên bản đồ, sau đó bấm Gán hạng.'
+                    : `Bấm khu để gán vào ${tiers[activeIndex]?.name || 'hạng đang chọn'}. Bấm lại để bỏ gán.`}
               </p>
             </div>
-            {layoutList.length > 1 ? (
-              <select
-                aria-label="Sơ đồ"
-                className="wz-select"
-                value={layout?.id}
-                onChange={(e) => setLayoutId(e.target.value)}
+            <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+              <Button
+                variant="outline"
+                className="h-10 rounded-pill"
+                aria-expanded={expandedMap}
+                onClick={() => setExpandedMap((current) => !current)}
               >
-                {layoutList.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.name} · v{l.version}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <span className="wz-chip">Sơ đồ v{layout?.version}</span>
-            )}
+                {expandedMap ? <Minimize2 aria-hidden /> : <Maximize2 aria-hidden />}
+                {expandedMap ? 'Thu gọn sơ đồ' : 'Mở rộng sơ đồ'}
+              </Button>
+              {layoutList.length > 1 ? (
+                <select
+                  aria-label="Sơ đồ"
+                  className="wz-select"
+                  value={layout?.id}
+                  onChange={(e) => setLayoutId(e.target.value)}
+                >
+                  {layoutList.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.name} · v{l.version}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <span className="wz-chip">Sơ đồ v{layout?.version}</span>
+              )}
+            </div>
           </div>
           {!locked && (
             <div className="mt-3 flex flex-wrap gap-2">
+              <select
+                aria-label="Hạng giá đang gán trên sơ đồ"
+                className="wz-select"
+                value={active}
+                onChange={(event) => setActive(event.target.value)}
+              >
+                {tiers.map((tier, index) => (
+                  <option key={tier.key} value={tier.key}>
+                    {tier.name || `Hạng ${index + 1} chưa đặt tên`}
+                  </option>
+                ))}
+              </select>
               <Button
                 variant="outline"
                 aria-pressed={bulk}
@@ -446,10 +475,11 @@ function PricingBody({
             </div>
           )}
           {overview.isError && <ErrorNotice error={overview.error} />}
-          <div className="mt-4 h-[380px] overflow-hidden rounded-xl bg-canvas">
+          <div className="pricing-map-frame mt-4 overflow-hidden rounded-xl bg-canvas">
             {mapSvg && (!layout?.overview_id || !overview.isPending) ? (
               <SeatMapView
                 svg={mapSvg}
+                fitToCanvas
                 zones={Object.fromEntries(
                   layoutZones.map((z) => {
                     const key = assigned(z.id),
@@ -470,7 +500,7 @@ function PricingBody({
               />
             ) : (
               <p className="grid h-full place-items-center text-ink-tertiary">
-                {svg.isError ? 'Không tải được sơ đồ. Dùng danh sách khu bên phải.' : 'Đang tải sơ đồ…'}
+                {svg.isError ? 'Không tải được sơ đồ. Bạn có thể gán theo danh sách khu.' : 'Đang tải sơ đồ…'}
               </p>
             )}
           </div>

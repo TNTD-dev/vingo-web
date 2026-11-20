@@ -69,18 +69,26 @@ afterEach(cleanup)
 describe('quản lý overview và layout đã tạo', () => {
   it('giữ phiên bản cũ đang chọn khi chuyển qua overview rồi quay lại layout', async () => {
     setup('?tab=layout&layout=l0')
-    await userEvent.click(await screen.findByRole('button', { name: 'Xem overview →' }))
+    const map = await screen.findByTestId('map')
+    await userEvent.click(await screen.findByRole('button', { name: /^Xem nền/ }))
     await screen.findByRole('complementary', { name: 'Thông tin overview' })
+    expect(map).not.toBeVisible()
     await userEvent.click(screen.getByRole('button', { name: /^Layout ghế$/ }))
     expect(await screen.findByLabelText('Phiên bản layout')).toHaveValue('l0')
+    expect(map).toBeVisible()
+    await userEvent.click(screen.getByRole('button', { name: 'Thông tin chung' }))
+    expect(map).not.toBeVisible()
+    await userEvent.click(screen.getByRole('button', { name: 'Sơ đồ sân' }))
+    expect(map).toBeVisible()
   })
   it('chuyển sang overview chỉ hiện nền và giữ đúng liên kết tạo layout trên nền đó', async () => {
     setup()
     await waitFor(() => expect(screen.getByTestId('map').querySelector('[id^="SEAT__"]')).not.toBeNull())
-    await userEvent.click(screen.getByRole('button', { name: 'Xem overview →' }))
+    await userEvent.click(screen.getByRole('button', { name: /^Xem nền/ }))
     expect(await screen.findByRole('complementary', { name: 'Thông tin overview' })).toBeInTheDocument()
-    expect(screen.getByTestId('map').querySelector('#PITCH')).not.toBeNull()
-    expect(screen.getByTestId('map').querySelector('[id^="SEAT__"]')).toBeNull()
+    const overviewMap = screen.getAllByTestId('map').find((item) => !item.closest('[hidden]'))
+    expect(overviewMap?.querySelector('#PITCH')).not.toBeNull()
+    expect(overviewMap?.querySelector('[id^="SEAT__"]')).toBeNull()
     expect(screen.getByRole('link', { name: 'Thêm layout trên nền này' })).toHaveAttribute(
       'href',
       '/admin/venues/v1?import=new&overview=o1',
@@ -88,7 +96,7 @@ describe('quản lý overview và layout đã tạo', () => {
   })
   it('hiển thị sơ đồ đã lưu là bất biến', async () => {
     setup()
-    expect(await screen.findByText(/Phiên bản này đã khóa/)).toBeInTheDocument()
+    expect(await screen.findByText('Đã khóa')).toBeInTheDocument()
   })
   it('layout công bố chỉ cho tạo phiên bản mới và đổi loại vẫn giữ bộ chọn', async () => {
     setup()
