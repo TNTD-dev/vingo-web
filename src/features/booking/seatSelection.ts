@@ -15,6 +15,7 @@ export type TierSummary = {
   key: number | 'standing'
   label: string
   price: number
+  color?: string
   /** Mã khu viết gọn, vd. "A3–A6, B1, C3". */
   zones: string
   seatsLeft: number
@@ -34,22 +35,24 @@ export function buildMapModel(svgZones: ZoneRef[], availability: GetAvailability
     const match = availability.find((a) => sameZone(z.code, a.code ?? a.name))
     if (match) byCode[z.code] = match
   }
-  const seatedPrices = [
-    ...new Set(
-      svgZones.filter((z) => z.kind === 'SEATED' && byCode[z.code]?.tier).map((z) => byCode[z.code].tier!.price),
-    ),
-  ].sort((a, b) => b - a)
+  const seatedTiers = new Map<string | number, number>()
+  for (const z of svgZones) {
+    const tier = byCode[z.code]?.tier
+    if (z.kind === 'SEATED' && tier) seatedTiers.set(tier.id ?? tier.price, tier.price)
+  }
+  const ranks = new Map([...seatedTiers].sort(([, a], [, b]) => b - a).map(([id], index) => [id, index + 1]))
 
   const zones: Record<string, MapZone> = {}
-  const grouped = new Map<number | 'standing', { price: number; codes: string[]; left: number }>()
+  const grouped = new Map<number | 'standing', { price: number; color?: string; codes: string[]; left: number }>()
   for (const z of svgZones) {
     const a = byCode[z.code]
-    const price = a?.tier?.price
+    const tier = a?.tier
     const left = a?.seats_left ?? 0
-    const key = z.kind === 'STANDING' ? 'standing' : price === undefined ? undefined : seatedPrices.indexOf(price) + 1
-    zones[z.code] = { tier: typeof key === 'number' ? key : undefined, color: a?.tier?.color, soldOut: !a || left <= 0 }
-    if (key === undefined || price === undefined) continue
-    const g = grouped.get(key) ?? { price, codes: [], left: 0 }
+    const key = z.kind === 'STANDING' ? 'standing' : tier && ranks.get(tier.id ?? tier.price)
+    zones[z.code] = { tier: typeof key === 'number' ? key : undefined, color: tier?.color, soldOut: !a || left <= 0 }
+    if (key === undefined || !tier) continue
+    const g = grouped.get(key) ?? { price: tier.price, color: tier.color, codes: [], left: 0 }
+    if (g.color !== tier.color) g.color = undefined
     g.codes.push(z.code)
     g.left += left
     grouped.set(key, g)
@@ -60,6 +63,7 @@ export function buildMapModel(svgZones: ZoneRef[], availability: GetAvailability
       key,
       label: key === 'standing' ? 'Khu đứng' : `Hạng ${key}`,
       price: g.price,
+      color: g.color,
       zones: compressZoneCodes(g.codes),
       seatsLeft: g.left,
     }))

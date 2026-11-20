@@ -651,9 +651,12 @@ function ZoneTooltip({
 }
 
 function Legend({ focused, tiers }: { focused: boolean; tiers: TierSummary[] }) {
-  const dot = (cls: string, label: string, dashed = false) => (
+  const dot = (cls: string, label: string, color?: string, dashed = false) => (
     <li key={label} className="flex items-center gap-2">
-      <span className={cn('size-3.5 rounded-[4px]', cls, dashed && 'border border-dashed border-ink-tertiary')} />
+      <span
+        className={cn('size-3.5 rounded-[4px]', cls, dashed && 'border border-dashed border-ink-tertiary')}
+        style={{ backgroundColor: color }}
+      />
       <span className="type-caption text-ink-secondary">{label}</span>
     </li>
   )
@@ -682,8 +685,8 @@ function Legend({ focused, tiers }: { focused: boolean; tiers: TierSummary[] }) 
         <>
           {tiers
             .filter((t) => t.key !== 'standing')
-            .map((t) => dot(TIER_SWATCH[Math.min(Number(t.key), 4) - 1], t.label))}
-          {tiers.some((t) => t.key === 'standing') && dot('bg-surface', 'Khu đứng', true)}
+            .map((t) => dot(TIER_SWATCH[Math.min(Number(t.key), 4) - 1], t.label, t.color))}
+          {tiers.filter((t) => t.key === 'standing').map((t) => dot('bg-surface', t.label, t.color, true))}
           {dot('bg-map-sold', 'Hết vé')}
         </>
       )}
@@ -726,6 +729,7 @@ function TierList({
                     ? 'border border-dashed border-ink-tertiary bg-surface'
                     : TIER_SWATCH[Math.min(Number(t.key), 4) - 1],
                 )}
+                style={{ backgroundColor: t.color }}
               />
               <span className="flex min-w-0 flex-col gap-0.5">
                 <span className="type-body-m-strong text-foreground">

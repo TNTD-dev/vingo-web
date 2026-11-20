@@ -70,6 +70,20 @@ describe('buildMapModel', () => {
     expect(map.zones['A1-T1']).toMatchObject({ color: '#86BDF6', soldOut: false })
   })
 
+  it('giữ màu riêng của hai hạng cùng giá', () => {
+    const map = buildMapModel(zones, [
+      { ...avail[0], tier: { id: 'vip-a', name: 'VIP A', price: 500_000, color: '#F78888' } },
+      { ...avail[1], tier: { id: 'vip-b', name: 'VIP B', price: 500_000, color: '#F5BF70' } },
+    ])
+
+    expect(map.tiers.map(({ key, color }) => [key, color])).toEqual([
+      [1, '#F78888'],
+      [2, '#F5BF70'],
+    ])
+    expect(map.zones['A1-T1']).toMatchObject({ tier: 1, color: '#F78888' })
+    expect(map.zones['B1-T1']).toMatchObject({ tier: 2, color: '#F5BF70' })
+  })
+
   it('danh sách hạng: khu ngồi theo giá giảm, khu đứng cuối', () => {
     expect(m.tiers.map((t) => [t.key, t.label, t.price, t.zones])).toEqual([
       [1, 'Hạng 1', 1_200_000, 'A1'],

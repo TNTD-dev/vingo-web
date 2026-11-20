@@ -236,7 +236,9 @@ export function SeatMapView({
         const isZone = el.id.startsWith('ZONE__')
         ;(el as SVGElement).style.setProperty(
           '--zone-fill',
-          soldOut ? tierColor(zone?.tier, true) : (zone?.color ?? tierColor(zone?.tier, false)),
+          soldOut
+            ? tierColor(zone?.tier, true)
+            : (zone?.color ?? (standing ? 'var(--vg-bg-surface)' : tierColor(zone?.tier, false))),
         )
         toggle(el, 'data-zone-picked', isZone && !!selectedZones?.has(code))
         toggle(el, 'data-soldout', soldOut)
