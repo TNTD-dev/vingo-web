@@ -56,6 +56,7 @@ type Props = {
   tooltip?: (code: string) => ReactNode
   /** Hiện bản đồ thu nhỏ khi đang xem gần. */
   minimap?: boolean
+  fitToCanvas?: boolean
   className?: string
 }
 
@@ -80,6 +81,7 @@ export function SeatMapView({
   selectableStatuses = ['AVAILABLE'],
   tooltip,
   minimap = true,
+  fitToCanvas = false,
   className,
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
@@ -197,8 +199,10 @@ export function SeatMapView({
     if (!full) return null
     const box = focus ? zoneBox(focus) : null
     // Toàn cảnh: bỏ chừa trắng quanh sân để bản đồ to hơn.
-    return box ? fitView(box, aspect, 0.1) : fitView({ x: 120, y: 24, w: 1360, h: 1152 }, aspect, 0.04)
-  }, [full, focus, aspect, zoneBox])
+    return box
+      ? fitView(box, aspect, 0.1)
+      : fitView(fitToCanvas ? full : { x: 120, y: 24, w: 1360, h: 1152 }, aspect, 0.04)
+  }, [full, focus, aspect, zoneBox, fitToCanvas])
 
   useEffect(() => {
     if (!ready) return

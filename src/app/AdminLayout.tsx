@@ -12,6 +12,7 @@ import { Button } from '@/design/ui/button'
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/design/ui/sheet'
 import { initials } from '@/lib/initials'
 import '@/design/admin/admin.css'
+import '@/design/admin/admin-console-alignment.css'
 
 import { useCopilotShortcut } from './copilotShortcut'
 import home from '@/design/admin/icons/home.svg'
@@ -35,6 +36,7 @@ const groups = [
   {
     label: 'Catalog',
     links: [
+      { to: '/admin/users', label: 'Quản lý người dùng', icon: audit },
       { to: '/admin/venues', label: 'Sân & sơ đồ ghế', icon: venue },
       { to: '/admin/events', label: 'Sự kiện & suất diễn', icon: calendar },
     ],
@@ -47,7 +49,7 @@ const groups = [
       { to: '/admin/checkin', label: 'Check-in', icon: scan },
     ],
   },
-  { label: 'Hệ thống', links: [{ to: '/admin/audit-logs', label: 'Nhật ký audit', icon: audit }] },
+  { label: 'Hệ thống', links: [{ to: '/admin/audit-logs', label: 'Lịch sử hoạt động / Logs', icon: audit }] },
 ]
 
 /** Nút mở Copilot ở góc màn quản trị (Figma `copilot-launcher`): mascot + "Mở Copilot ⌘J". */
@@ -169,7 +171,7 @@ export function AdminLayout() {
         <aside className="admin-sidebar" data-collapsed={collapsed || undefined}>
           <div className="admin-sidebar-top">
             <Link to="/admin" className="admin-sidebar-brand" aria-label="Vingo Admin · Tổng quan">
-              {collapsed ? <img src={logoMark.dark} alt="" className="h-[30px] w-auto" /> : <Logo theme="dark" />}
+              {collapsed ? <img src={logoMark.light} alt="" className="h-[30px] w-auto" /> : <Logo theme="light" />}
               {!collapsed && <StatusBadge tone="dark">Admin</StatusBadge>}
             </Link>
             <NavTip label="Mở rộng (⌘B)" show={collapsed}>

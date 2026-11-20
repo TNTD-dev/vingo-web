@@ -181,11 +181,13 @@ function EventEditor({ event }: { event: EventDetail }) {
                     disabled={!!event.seat_layout_id}
                     onChange={(e) => set('category', e.target.value as EventInput['category'] & string)}
                   >
-                    {Object.entries(categories).map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
+                    {Object.entries(categories)
+                      .filter(([value]) => value === 'FOOTBALL' || value === 'CONCERT' || value === event.category)
+                      .map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
                   </select>
                 </Field>
               </div>

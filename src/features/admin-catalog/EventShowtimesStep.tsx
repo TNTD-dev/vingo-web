@@ -62,7 +62,7 @@ export default function EventShowtimesStep({
         </>
       }
     >
-      <div className="wz-grid wz-grid-side-left" style={{ gridTemplateColumns: 'minmax(260px, 360px) minmax(0, 1fr)' }}>
+      <div className="wz-grid wz-grid-side-left">
         <Panel className="wz-panel">
           <div className="mb-4 flex items-center justify-between gap-3">
             <h2>{shows.length} suất diễn</h2>

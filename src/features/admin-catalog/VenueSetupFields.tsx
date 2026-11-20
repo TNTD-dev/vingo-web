@@ -1,7 +1,7 @@
 import type { VenueImportDraft, VenueInput } from '@/api/generated/model'
 import { Field } from '@/design/admin/AdminUi'
 
-import { cities } from './catalog'
+import { VenueLocationPicker } from './VenueLocationPicker'
 
 type Props = {
   draft: VenueImportDraft
@@ -9,7 +9,7 @@ type Props = {
   pending: boolean
 }
 
-/** Thông tin sân theo schema v2: địa chỉ, thành phố, quận, toạ độ và nội quy. Không còn bãi xe hay tra cứu địa điểm. */
+/** Thông tin sân theo schema v2: địa chỉ, thành phố, quận, toạ độ và nội quy. */
 export function VenueSetupFields({ draft, onChange, pending }: Props) {
   const venue: VenueInput = draft.venue ?? {}
   const set = (patch: Partial<VenueInput>) => onChange({ ...draft, venue: { ...venue, ...patch } })
@@ -18,6 +18,14 @@ export function VenueSetupFields({ draft, onChange, pending }: Props) {
     <div className="venue-setup-sections">
       <section className="venue-setup-section">
         <h3>Vị trí sân</h3>
+        <VenueLocationPicker
+          label="Tìm vị trí sân"
+          value={venue}
+          disabled={pending}
+          onChange={({ address, city, district, lat, lng }) =>
+            set({ address, city: city ?? '', district: district ?? '', lat, lng })
+          }
+        />
         <div className="venue-setup-fields">
           <Field label="Địa chỉ *">
             <input
@@ -29,18 +37,13 @@ export function VenueSetupFields({ draft, onChange, pending }: Props) {
             />
           </Field>
           <Field label="Thành phố *">
-            <select
+            <input
+              required
+              maxLength={100}
               disabled={pending}
               value={venue.city ?? ''}
-              onChange={(e) => set({ city: e.target.value as VenueInput['city'] })}
-            >
-              <option value="">Chọn thành phố</option>
-              {Object.entries(cities).map(([k, v]) => (
-                <option value={k} key={k}>
-                  {v}
-                </option>
-              ))}
-            </select>
+              onChange={(e) => set({ city: e.target.value })}
+            />
           </Field>
           <Field label="Quận/huyện">
             <input

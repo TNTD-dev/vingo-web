@@ -108,9 +108,8 @@ function PricingBody({
     Object.fromEntries((event.zone_prices ?? []).map((zone) => [zone.zone_id, zone.display_name ?? ''])),
   )
   const [picked, setPicked] = useState<string[]>([])
-  const [bulk, setBulk] = useState(false)
-  const colorOf = (tier: Tier) =>
-    event.price_tiers?.find((saved) => saved.price === tier.price && saved.color)?.color ?? fallbackColor(tier.price)
+  const [bulk, setBulk] = useState(true)
+  const colorOf = (tier: Tier) => tier.color ?? fallbackColor(tier.price)
   const overview = useQuery({
     queryKey: ['venue-overview', layout?.overview_id],
     queryFn: ({ signal }) => getVenueOverview(layout!.overview_id!, { signal }),
@@ -127,10 +126,6 @@ function PricingBody({
     tiers.every((t) => t.name.trim() && Number.isSafeInteger(t.price) && t.price >= 0) &&
     new Set(names).size === names.length
 
-  const stats = (key: string) => {
-    const mine = zones.filter((z) => assigned(z.id) === key)
-    return { zones: mine, seats: mine.reduce((sum, z) => sum + z.capacity, 0) }
-  }
   const layoutZones = layout?.zones ?? []
   const pickedPrices = new Set(picked.map((id) => tiers.find((tier) => tier.key === assigned(id))?.price))
   const estimate = layoutZones.reduce(
@@ -206,8 +201,8 @@ function PricingBody({
         </>
       }
     >
-      <div className="wz-grid wz-grid-wide-side">
-        <Panel className="wz-panel">
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,440px)]">
+        <Panel className="wz-panel order-2 min-w-0">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2>Hạng giá</h2>
@@ -219,19 +214,27 @@ function PricingBody({
           </div>
           <fieldset disabled={locked || save.isPending} className="mt-4">
             {tiers.map((t, i) => {
-              const s = stats(t.key)
               return (
                 <div
                   key={t.key}
                   role="group"
                   aria-label={`Hạng giá ${i + 1}`}
-                  className="wz-tier"
+                  className="wz-tier pricing-tier"
                   aria-current={t.key === active}
                   onClick={() => setActive(t.key)}
                 >
                   <div>
                     <div className="wz-tier-name">
-                      <span className="wz-tier-swatch" style={{ background: colorOf(t) }} />
+                      <input
+                        type="color"
+                        aria-label={`Màu hạng ${i + 1}`}
+                        value={colorOf(t)}
+                        onChange={(e) =>
+                          setTiers((current) =>
+                            current.map((tier) => (tier.key === t.key ? { ...tier, color: e.target.value } : tier)),
+                          )
+                        }
+                      />
                       <input
                         aria-label={`Tên hạng ${i + 1}`}
                         required
@@ -244,15 +247,6 @@ function PricingBody({
                         }
                       />
                     </div>
-                    <small className="wz-sub">
-                      {s.zones.length
-                        ? `${s.zones
-                            .map((z) => z.code)
-                            .slice(0, 4)
-                            .join(', ')}${s.zones.length > 4 ? '…' : ''} · `
-                        : ''}
-                      {s.seats.toLocaleString('vi-VN')} ghế
-                    </small>
                   </div>
                   <label className="wz-tier-price">
                     <input
@@ -269,10 +263,7 @@ function PricingBody({
                     />
                     <span aria-hidden>₫</span>
                   </label>
-                  <span>
-                    <strong className="font-medium">{s.zones.length} khu</strong>
-                    <small className="wz-sub">{t.key === active ? 'đang chọn trên sơ đồ' : 'bấm để chọn'}</small>
-                  </span>
+
                   <button
                     type="button"
                     aria-label={`Xóa ${t.name || `hạng ${i + 1}`}`}
@@ -337,10 +328,7 @@ function PricingBody({
             <div className="mt-3 grid max-h-72 gap-2 overflow-auto">
               {zones.map((z) => (
                 <div key={z.id} className="flex flex-wrap items-center justify-between gap-3">
-                  <span>
-                    {z.label || z.code}
-                    <small className="wz-sub">{z.capacity.toLocaleString('vi-VN')} ghế</small>
-                  </span>
+                  <span>{z.label || z.code}</span>
                   <input
                     className="admin-input w-48"
                     value={displayNames[z.id] ?? ''}
@@ -390,7 +378,7 @@ function PricingBody({
           <ErrorNotice error={save.error} />
           {!tiersValid && <p className="admin-notice mt-3">Mỗi hạng cần tên không trùng nhau và giá không âm.</p>}
         </Panel>
-        <Panel className="wz-panel wz-sticky">
+        <Panel className="wz-panel order-1 min-w-0">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2>Gán khu trên sơ đồ</h2>
@@ -478,18 +466,27 @@ function PricingBody({
                   return `${displayNames[zone.id] || zone.label || code} · ${tier ? formatVnd(tier.price) : 'Chưa có giá'}`
                 }}
                 onZoneClick={toggleZone}
-                className="h-full"
+                className="pricing-zone-map h-full"
               />
             ) : (
               <p className="grid h-full place-items-center text-ink-tertiary">
-                {svg.isError ? 'Không tải được sơ đồ. Dùng danh sách khu bên trái.' : 'Đang tải sơ đồ…'}
+                {svg.isError ? 'Không tải được sơ đồ. Dùng danh sách khu bên phải.' : 'Đang tải sơ đồ…'}
               </p>
             )}
           </div>
           <div className="wz-legend">
             {tiers.map((t) => (
               <p key={t.key}>
-                <span className="wz-tier-swatch" style={{ background: colorOf(t) }} />
+                <input
+                  type="color"
+                  aria-label={`Màu hạng ${t.name || 'chưa đặt tên'}`}
+                  value={colorOf(t)}
+                  onChange={(e) =>
+                    setTiers((current) =>
+                      current.map((tier) => (tier.key === t.key ? { ...tier, color: e.target.value } : tier)),
+                    )
+                  }
+                />
                 <span>{t.name || 'Hạng chưa đặt tên'}</span>
                 <span>{formatVnd(t.price)}</span>
               </p>

@@ -1,8 +1,14 @@
-import { useId, useMemo, useState } from 'react'
+import { memo, useId, useMemo, useState } from 'react'
 import { parseSeatId, sanitizeSvg } from '@/seatmap/svg'
 import { VenueMapView, type VenueGate } from './VenueMapView'
 
 const semanticId = /^(?:ZONE|LABEL|CONTENT|SEAT|GATE|GATE_LABEL|AREA)__|^BACKGROUND$/
+
+type MergeIssue = {
+  detailIndex: number
+  message: string
+  previewSvg?: string
+}
 
 function readLayer(source: string) {
   const safe = sanitizeSvg(source)
@@ -19,22 +25,39 @@ function readLayer(source: string) {
 }
 
 export function mergeLayers(overview: string, details: string[], prefix: string) {
+  const issues: MergeIssue[] = []
   const base = readLayer(overview)
-  if (!base) return { svg: '', skipped: 0 }
+  if (!base) return { svg: '', skipped: 0, issues }
 
   const businessIds = new Set<string>()
   let skipped = 0
   for (const [index, source] of [overview, ...details].entries()) {
     const layer = index === 0 ? base : readLayer(source)
-    if (!layer || !layer.bounds.every((value, position) => value === base.bounds[position])) {
+    if (!layer) {
       skipped++
+      issues.push({ detailIndex: index - 1, message: 'SVG không có viewBox hợp lệ hoặc không đọc được nội dung.' })
+      continue
+    }
+    if (!layer.bounds.every((value, position) => value === base.bounds[position])) {
+      skipped++
+      issues.push({
+        detailIndex: index - 1,
+        message: `viewBox của file là "${layer.bounds.join(' ')}", khác SVG tổng quan "${base.bounds.join(' ')}".`,
+        previewSvg: new XMLSerializer().serializeToString(layer.root),
+      })
       continue
     }
     const elements = [layer.root, ...Array.from(layer.root.querySelectorAll('*'))]
     const ids = elements.filter((element) => element.id)
     const business = ids.filter((element) => semanticId.test(element.id))
-    if (index > 0 && business.some((element) => businessIds.has(element.id))) {
+    const duplicateIds = business.filter((element) => businessIds.has(element.id)).map((element) => element.id)
+    if (index > 0 && duplicateIds.length) {
       skipped++
+      issues.push({
+        detailIndex: index - 1,
+        message: `Trùng ID với lớp đã ghép: ${duplicateIds.slice(0, 3).join(', ')}${duplicateIds.length > 3 ? '…' : ''}.`,
+        previewSvg: new XMLSerializer().serializeToString(layer.root),
+      })
       continue
     }
     business.forEach((element) => businessIds.add(element.id))
@@ -69,19 +92,85 @@ export function mergeLayers(overview: string, details: string[], prefix: string)
     for (const child of Array.from(layer.root.children)) group.appendChild(base.doc.importNode(child, true))
     base.root.appendChild(group)
   }
-  return { svg: sanitizeSvg(new XMLSerializer().serializeToString(base.root)) ?? '', skipped }
+  return { svg: sanitizeSvg(new XMLSerializer().serializeToString(base.root)) ?? '', skipped, issues }
 }
 
-export function LayoutPreview({ overview, details, label }: { overview: string; details: string[]; label: string }) {
-  const id = useId().replace(/[^a-zA-Z0-9_-]/g, '')
-  const { svg, skipped } = useMemo(() => mergeLayers(overview, details, `preview-${id}`), [overview, details, id])
-  if (!svg) return <p>SVG tổng quan chưa có vùng hiển thị hợp lệ.</p>
+type LayoutPreviewProps = {
+  overview: string
+  details: string[]
+  detailNames?: string[]
+  label: string
+}
 
+export const LayoutPreview = memo(
+  function LayoutPreview({ overview, details, detailNames, label }: LayoutPreviewProps) {
+    const id = useId().replace(/[^a-zA-Z0-9_-]/g, '')
+    const { svg, skipped, issues } = useMemo(
+      () => mergeLayers(overview, details, `preview-${id}`),
+      [overview, details, id],
+    )
+    if (!svg) return <p>SVG tổng quan chưa có vùng hiển thị hợp lệ.</p>
+
+    return (
+      <>
+        {skipped > 0 && (
+          <div className="venue-preview-merge-warning">
+            <div role="alert">
+              <strong>{skipped} file zone/ghế chưa ghép được vào tổng quan</strong>
+              <ul>
+                {issues.map((issue) => (
+                  <li key={issue.detailIndex}>
+                    <strong>{detailNames?.[issue.detailIndex] || `File chi tiết ${issue.detailIndex + 1}`}</strong>:{' '}
+                    {issue.message}
+                  </li>
+                ))}
+              </ul>
+              <p>
+                Xuất các lớp từ cùng một frame, giữ nguyên tọa độ và kích thước. Chỉ sửa con số viewBox chưa đủ để đặt
+                đúng vị trí zone/ghế.
+              </p>
+            </div>
+            {issues
+              .filter((issue) => issue.previewSvg)
+              .map((issue) => (
+                <SeparateLayer
+                  key={issue.detailIndex}
+                  svg={issue.previewSvg!}
+                  name={detailNames?.[issue.detailIndex] || `File chi tiết ${issue.detailIndex + 1}`}
+                />
+              ))}
+          </div>
+        )}
+        <InteractiveLayout key={svg} svg={svg} label={label} />
+      </>
+    )
+  },
+  (previous, next) =>
+    previous.overview === next.overview &&
+    previous.label === next.label &&
+    sameLayers(previous.details, next.details) &&
+    sameLayers(previous.detailNames, next.detailNames),
+)
+
+function sameLayers(previous?: string[], next?: string[]) {
   return (
-    <>
-      <InteractiveLayout key={svg} svg={svg} label={label} />
-      {skipped > 0 && <p>Có tệp zone/ghế bị trùng ID hoặc khác viewBox. Hãy kiểm tra sơ đồ để xem lỗi.</p>}
-    </>
+    previous === next ||
+    (!!previous && !!next && previous.length === next.length && previous.every((value, index) => value === next[index]))
+  )
+}
+
+function SeparateLayer({ svg, name }: { svg: string; name: string }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <details className="venue-preview-separate" onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary>Xem riêng {name}</summary>
+      {open && (
+        <div>
+          <p>File chi tiết riêng · Chưa ghép vào SVG tổng quan. Bấm khu hoặc phóng to để xem ghế.</p>
+          <LayoutPreview overview={svg} details={[]} label={name} />
+        </div>
+      )}
+    </details>
   )
 }
 
@@ -96,6 +185,7 @@ function InteractiveLayout({ svg, label }: { svg: string; label: string }) {
       <div className="venue-layout-preview" role="region" aria-label={`Xem trước layout ${label}`}>
         <VenueMapView
           svg={svg}
+          minimap
           focus={zone}
           selectedSeat={seatId}
           onZoneClick={(code) => {
@@ -126,7 +216,7 @@ function InteractiveLayout({ svg, label }: { svg: string; label: string }) {
             ? `Khu ${seat.zone} · Hàng ${seat.row} · Ghế ${seat.number}`
             : zone
               ? `Khu ${zone}`
-              : 'Cuộn để zoom, kéo để di chuyển. Bấm khu để xem ghế hoặc bấm cổng để xem mã.'}
+              : 'Cuộn để zoom, kéo để di chuyển. Dùng bản đồ nhỏ để định vị; bấm khu để xem ghế hoặc bấm cổng để xem mã.'}
       </p>
     </>
   )
