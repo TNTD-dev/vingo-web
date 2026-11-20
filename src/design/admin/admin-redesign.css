@@ -544,6 +544,22 @@
     display: none;
   }
 }
+/* Điện thoại: ô trạng thái không xuống dòng nên nếu nằm trên hai cột auto sẽ ép cột tên về 0.
+   Cho trạng thái một hàng riêng, trải hết chiều ngang. */
+@media (max-width: 599px) {
+  .admin-orderrow {
+    grid-template-areas:
+      'avatar name amount go'
+      'avatar meta meta meta'
+      'avatar event event event'
+      'avatar state state state';
+  }
+  .admin-orderrow-state {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    min-width: 0;
+  }
+}
 @media (max-width: 767px) {
   .admin-attention {
     flex-wrap: wrap;
@@ -683,6 +699,24 @@
   background: var(--vg-bg-canvas);
   font: 11px var(--font-mono);
 }
+.admin-check-count {
+  margin-left: 4px;
+  font: 11px var(--font-mono);
+  color: var(--vg-text-secondary);
+}
+/* Danh sách dài cuộn trong khung, giữ ba thẻ ngang bằng nhau. */
+.admin-check-scroll {
+  max-height: 360px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--vg-text-tertiary) transparent;
+}
+.admin-check-scroll:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+  border-radius: 8px;
+}
 .admin-check dl > div {
   display: flex;
   justify-content: space-between;
@@ -803,18 +837,49 @@
 }
 .admin-more-tools {
   margin-bottom: 16px;
-  font-size: 13px;
+  border: 1px solid var(--vg-border-subtle);
+  border-radius: 16px;
+  padding: 0 20px;
 }
 .admin-more-tools summary {
+  display: flex;
+  align-items: center;
+  padding: 16px 0;
   cursor: pointer;
+  list-style: none;
+  font: 10px/1.5 var(--font-mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: var(--vg-text-secondary);
+}
+.admin-more-tools summary::-webkit-details-marker {
+  display: none;
+}
+.admin-more-tools summary::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  margin-left: auto;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 0.15s;
+}
+.admin-more-tools[open] summary::after {
+  transform: rotate(-135deg);
+}
+.admin-more-tools summary:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+  border-radius: 8px;
 }
 .admin-more-tools > div {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 16px;
-  margin-top: 12px;
+  gap: 10px;
+  padding: 16px 0 20px;
+  border-top: 1px solid var(--vg-border-subtle);
 }
 @media (max-width: 899px) {
   .admin-decision {
@@ -857,6 +922,63 @@
 }
 .admin-tickets-panel .admin-table td {
   vertical-align: middle;
+}
+/* Điện thoại: bảng 6 cột không vừa nên mỗi vé thành một thẻ, trạng thái và nút thao tác luôn thấy được. */
+@media (max-width: 599px) {
+  .admin-tickets-panel .admin-table {
+    min-width: 0;
+  }
+  .admin-tickets-panel .admin-table,
+  .admin-tickets-panel .admin-table tbody {
+    display: block;
+  }
+  .admin-tickets-panel .admin-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .admin-tickets-panel .admin-table tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'code state'
+      'event event'
+      'seat seat'
+      'order actions';
+    gap: 6px 12px;
+    align-items: center;
+    padding: 14px 0;
+    border-top: 1px solid var(--vg-border-subtle);
+  }
+  .admin-tickets-panel .admin-table td {
+    display: block;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+  }
+  .admin-tickets-panel .admin-table td:nth-child(1) {
+    grid-area: code;
+  }
+  .admin-tickets-panel .admin-table td:nth-child(2) {
+    grid-area: event;
+  }
+  .admin-tickets-panel .admin-table td:nth-child(3) {
+    grid-area: seat;
+  }
+  .admin-tickets-panel .admin-table td:nth-child(4) {
+    grid-area: order;
+  }
+  .admin-tickets-panel .admin-table td:nth-child(5) {
+    grid-area: state;
+    justify-self: end;
+    text-align: right;
+  }
+  .admin-tickets-panel .admin-table td:nth-child(6) {
+    grid-area: actions;
+    justify-self: end;
+  }
 }
 
 /* Bộ chọn ngày/giờ (DateTimePicker) thay cho popup mặc định của trình duyệt */
@@ -1104,6 +1226,7 @@
   display: flex;
   flex-direction: column;
   gap: 24px;
+  min-width: 0; /* fieldset mặc định min-width: min-content nên làm hộp thoại tràn ngang */
 }
 .admin-showtime-step {
   padding: 20px;

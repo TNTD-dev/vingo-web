@@ -8,7 +8,7 @@ import '@/design/admin/admin.css'
  */
 export default function CheckinPage() {
   return (
-    <div className="admin">
+    <div className="admin admin-standalone">
       <div className="min-w-0 flex-1">
         <CheckinConsole
           header={({ title, caption, actions }) => (

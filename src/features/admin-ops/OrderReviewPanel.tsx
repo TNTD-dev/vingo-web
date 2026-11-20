@@ -139,9 +139,13 @@ export default function OrderReviewPanel({ orderId }: { orderId: string }) {
                 <header>
                   <h3>
                     <b>2</b> Ghế trong đơn
+                    <small className="admin-check-count">
+                      {order.items.reduce((sum, v) => sum + (v.quantity ?? 1), 0)} chỗ
+                    </small>
                   </h3>
                 </header>
-                <dl>
+                {/* Đơn nhiều ghế (vài chục) không được kéo dài cả trang: danh sách cuộn trong khung cao cố định. */}
+                <dl className="admin-check-scroll" tabIndex={0} aria-label="Danh sách ghế trong đơn">
                   {order.items.map((v, i) => (
                     <div key={v.id ?? i}>
                       <dt>{v.row ? `${v.zone} · Hàng ${v.row} · Ghế ${v.number}` : `${v.zone} · Khu đứng`}</dt>
@@ -235,7 +239,10 @@ export default function OrderReviewPanel({ orderId }: { orderId: string }) {
                   className="w-full justify-start"
                   disabled={locked}
                   aria-describedby={lockReason ? LOCK_ID : undefined}
-                  onClick={() => setRefund(true)}
+                  onClick={() => {
+                    review.reset() // lỗi của lần "Phát hành vé" trước không được hiện trong hộp thoại hoàn tiền
+                    setRefund(true)
+                  }}
                 >
                   Ghi nhận đã hoàn tiền thủ công
                 </AdminAction>
@@ -255,12 +262,12 @@ export default function OrderReviewPanel({ orderId }: { orderId: string }) {
           <details className="admin-more-tools">
             <summary>Công cụ khác</summary>
             <div>
-              <Link to={`/admin/tickets?order_id=${orderId}`} className="underline">
-                Xem vé của đơn
-              </Link>
-              <Link to={`/admin/audit-logs?entity=order&entity_id=${orderId}`} className="underline">
-                Nhật ký thao tác
-              </Link>
+              <Button asChild variant="outline" className="admin-small-button">
+                <Link to={`/admin/tickets?order_id=${orderId}`}>Xem vé của đơn</Link>
+              </Button>
+              <Button asChild variant="outline" className="admin-small-button">
+                <Link to={`/admin/audit-logs?entity=order&entity_id=${orderId}`}>Nhật ký thao tác</Link>
+              </Button>
               <ErrorNotice error={reconcile.error} />
               <Button
                 className="admin-small-button"
@@ -280,7 +287,10 @@ export default function OrderReviewPanel({ orderId }: { orderId: string }) {
               requireReason={false}
               pending={review.isPending}
               error={review.error}
-              onClose={() => setRefund(false)}
+              onClose={() => {
+                review.reset()
+                setRefund(false)
+              }}
               onConfirm={() => review.mutate({ action: 'REFUND', reason: reason.trim() })}
             />
           )}
