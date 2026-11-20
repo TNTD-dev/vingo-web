@@ -189,7 +189,7 @@ describe('wizard sân v2', () => {
     expect(api.update.mock.calls[0][1].draft_data).not.toHaveProperty('venue')
     await waitFor(() => {
       expect(
-        screen.getByText('Đang dùng overview đã công bố. Nền và cổng được giữ nguyên cho phiên bản mới.'),
+        screen.getByText('Đang dùng overview đã lưu. Nền và cổng được giữ nguyên cho phiên bản mới.'),
       ).toBeInTheDocument()
       expect(screen.queryByLabelText('Tệp SVG nền')).not.toBeInTheDocument()
       expect(screen.getByLabelText('Tệp SVG zone/ghế')).toBeInTheDocument()
@@ -248,6 +248,10 @@ describe('wizard sân v2', () => {
     )
     await waitFor(() => expect(screen.getByRole('button', { name: 'Lưu nháp' })).toBeEnabled())
     expect(screen.getByLabelText('Loại layout — football.svg')).toHaveValue('CONCERT')
+    api.update.mockImplementationOnce(async (_id: string, patch: VenueImportPatch) => {
+      session = { ...session, ...patch, step: 'OVERVIEW', revision: session.revision! + 3 }
+      return structuredClone(session)
+    })
     await user.click(screen.getByRole('button', { name: 'Quay lại' }))
     await screen.findByLabelText('Tên sân *')
     await user.click(screen.getByRole('button', { name: 'Tiếp tục' }))

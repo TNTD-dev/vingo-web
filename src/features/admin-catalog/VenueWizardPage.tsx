@@ -43,6 +43,10 @@ const blank: VenueImportDraft = {
 
 const layoutNames = { FOOTBALL: 'Bóng đá', CONCERT: 'Concert' } as const
 
+function hasVenueDetails(venue?: VenueInput) {
+  return !!(venue?.name?.trim() && venue.address?.trim() && venue.city?.trim())
+}
+
 function importIssueText(issue: VenueImportIssue) {
   const ids = [...new Set([issue.layer_id, issue.zone_id, issue.gate_id].filter(Boolean))]
   const measurement =
@@ -107,7 +111,10 @@ function ImportWizard({ venueId }: { venueId?: string }) {
     setSession(s)
     setDraft(s.draft_data ?? blank)
     setBaseline(JSON.stringify(s.draft_data ?? blank))
-    setStep(s.step ?? 'OVERVIEW')
+    // Schema v2 chỉ lưu dữ liệu nháp. Chuyển bước trên web không phụ thuộc step trong response.
+    if (!session) {
+      setStep(!venueId && !hasVenueDetails(s.draft_data?.venue) ? 'DETAILS' : (s.step ?? 'OVERVIEW'))
+    }
     if (!keepPreview) setPreview(undefined)
     setResult(s.result)
   }
@@ -158,6 +165,7 @@ function ImportWizard({ venueId }: { venueId?: string }) {
       draft_data: withFileTypes(nextDraft),
     })
     accept(s, keepPreview)
+    setStep(next)
     return s
   }
   function change(next: VenueImportDraft) {
@@ -170,7 +178,7 @@ function ImportWizard({ venueId }: { venueId?: string }) {
   const files = session?.files ?? []
   const overview = files.find((f) => f.role === 'OVERVIEW')?.sanitized_svg
   const index = step === 'DETAILS' ? 0 : 1
-  const venueReady = !!venueId || !!(draft.venue?.name?.trim() && draft.venue?.address?.trim())
+  const venueReady = !!venueId || hasVenueDetails(draft.venue)
   const overviewReady = !!overview || !!session?.draft_data?.overview_id
   const detailFiles = files.filter((file) => file.role === 'SEAT_LAYOUT')
   const typeFor = (fileId?: string) =>
