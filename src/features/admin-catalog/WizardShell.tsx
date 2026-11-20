@@ -2,8 +2,9 @@ import type { ReactNode } from 'react'
 import { AdminPage } from '@/design/admin/AdminUi'
 import type { SearchScope } from '@/design/admin/AdminSearch'
 import { Stepper, type StepItem } from '@/design/admin/wizard'
+import './event-wizard.css'
 
-/** Khung chung của wizard: tiêu đề, nút ở đầu trang và thanh các bước. */
+/** Khung wizard sự kiện: nội dung chính và thanh bước nhỏ, bám bên phải khi cuộn. */
 export function WizardShell({
   title,
   caption,
@@ -23,8 +24,20 @@ export function WizardShell({
 }) {
   return (
     <AdminPage title={title} caption={caption} actions={actions} search={search}>
-      <Stepper steps={steps} onSelect={onSelectStep} />
-      {children}
+      <div className="event-wizard">
+        <div className="event-wizard-content">{children}</div>
+        <nav className="event-wizard-steps" aria-label="Tiến trình tạo sự kiện">
+          <p className="event-wizard-progress">
+            Bước{' '}
+            {Math.max(
+              0,
+              steps.findIndex((step) => step.state === 'active'),
+            ) + 1}
+            /{steps.length}
+          </p>
+          <Stepper steps={steps} onSelect={onSelectStep} />
+        </nav>
+      </div>
     </AdminPage>
   )
 }

@@ -1,9 +1,10 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { createMemoryRouter, RouterProvider } from 'react-router'
+import { createMemoryRouter } from 'react-router'
+import { RouterProvider } from 'react-router/dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { VenueImportSession, VenueImportPatch } from '@/api/generated/model'
+import type { VenueImportSession, VenueImportPatch, VenueImportResult } from '@/api/generated/model'
 import { ApiError } from '@/api/problem'
 import VenueWizardPage from './VenueWizardPage'
 
@@ -17,6 +18,7 @@ const api = vi.hoisted(() => ({
   preview: vi.fn(),
   complete: vi.fn(),
   cancel: vi.fn(),
+  overviews: vi.fn(),
 }))
 vi.mock('@/api/generated/endpoints/venue-imports/venue-imports', () => ({
   createVenueImport: (...a: unknown[]) => api.create(...a),
@@ -28,6 +30,7 @@ vi.mock('@/api/generated/endpoints/venue-imports/venue-imports', () => ({
   previewVenueImport: (...a: unknown[]) => api.preview(...a),
   completeVenueImport: (...a: unknown[]) => api.complete(...a),
   cancelVenueImport: (...a: unknown[]) => api.cancel(...a),
+  listVenueOverviews: (...a: unknown[]) => api.overviews(...a),
 }))
 vi.mock('./LayoutPreview', () => ({ LayoutPreview: () => null }))
 vi.mock('./VenueSetupFields', () => ({ VenueSetupFields: () => null }))
@@ -58,6 +61,12 @@ function setup(path = '/admin/venues/new?session=s1') {
 }
 beforeEach(() => {
   vi.resetAllMocks()
+  api.overviews.mockResolvedValue({
+    data: [
+      { id: 'o1', name: 'Nền sân', version: 1, status: 'PUBLISHED' },
+      { id: 'o2', name: 'Nền nháp', version: 2, status: 'DRAFT' },
+    ],
+  })
   session = {
     id: 's1',
     revision: 7,
@@ -95,6 +104,14 @@ beforeEach(() => {
   api.list.mockImplementation(async () => ({ data: [structuredClone(session)] }))
   api.create.mockImplementation(async () => structuredClone(session))
   api.update.mockImplementation(async (_id: string, patch: VenueImportPatch) => {
+    if (session.target_venue_id && patch.draft_data?.venue !== undefined) {
+      throw new ApiError(400, {
+        title: 'Dữ liệu không hợp lệ',
+        status: 400,
+        code: 'VALIDATION_ERROR',
+        detail: 'Phiên thêm layout không sửa thông tin sân.',
+      })
+    }
     session = { ...session, ...patch, revision: session.revision! + 3 }
     return structuredClone(session)
   })
@@ -117,6 +134,92 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('wizard sân v2', () => {
+  it('chuyển thẳng sang đúng layout khi lưu xong, dù form vừa thay đổi', async () => {
+    let resolveComplete!: (result: VenueImportResult) => void
+    api.complete.mockReturnValue(
+      new Promise<VenueImportResult>((resolve) => {
+        resolveComplete = resolve
+      }),
+    )
+    const router = setup()
+    await userEvent.selectOptions(await screen.findByLabelText('Loại layout — football.svg'), 'CONCERT')
+    await userEvent.click(screen.getByRole('button', { name: 'Lưu sân & layout' }))
+    await waitFor(() => expect(api.complete).toHaveBeenCalledTimes(1))
+    expect(screen.getByRole('button', { name: 'Đang lưu…' })).toBeDisabled()
+    expect(screen.getByText(/Đang lưu sân & layout…/)).toBeInTheDocument()
+    resolveComplete({ venue_id: 'v1', overview_id: 'o1', layout_id: 'l1' })
+    expect(await screen.findByText('Quản lý sân')).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/admin/venues/v1/setup')
+    expect(Object.fromEntries(new URLSearchParams(router.state.location.search))).toEqual({
+      tab: 'layout',
+      type: 'CONCERT',
+      layout: 'l1',
+    })
+    expect(router.state.historyAction).toBe('REPLACE')
+    expect(screen.queryByText('Có thay đổi chưa lưu')).not.toBeInTheDocument()
+  })
+  it('mở layout đã hoàn tất khi bấm lưu lại, không gửi complete lần nữa', async () => {
+    const router = setup()
+    await userEvent.selectOptions(await screen.findByLabelText('Loại layout — football.svg'), 'CONCERT')
+    session.status = 'COMPLETED'
+    session.result = { venue_id: 'v1', overview_id: 'o1', layout_id: 'l1' }
+    await userEvent.click(screen.getByRole('button', { name: 'Lưu sân & layout' }))
+    expect(await screen.findByText('Quản lý sân')).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/admin/venues/v1/setup')
+    expect(api.complete).not.toHaveBeenCalled()
+    expect(api.update).not.toHaveBeenCalled()
+    expect(screen.queryByText('Có thay đổi chưa lưu')).not.toBeInTheDocument()
+  })
+  it('tạo layout mới dùng overview đã công bố và giữ loại layout đã chọn', async () => {
+    session.target_venue_id = 'v1'
+    session.draft_data = { overview_id: 'o1' }
+    setup('/admin/venues/v1/setup?import=new&overview=o1&type=CONCERT')
+    const choice = await screen.findByLabelText('Nền cho phiên bản mới')
+    await waitFor(() => expect(choice).toBeEnabled())
+    expect(choice).toHaveValue('o1')
+    expect(screen.queryByRole('option', { name: /Nền nháp/ })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Tạo phiên nháp' }))
+    await waitFor(() => expect(api.create).toHaveBeenCalledWith({ target_venue_id: 'v1', overview_id: 'o1' }))
+    expect(api.update).toHaveBeenCalledWith(
+      's1',
+      expect.objectContaining({
+        step: 'OVERVIEW',
+        draft_data: expect.objectContaining({ overview_id: 'o1', layout_type: 'CONCERT' }),
+      }),
+    )
+    expect(api.update.mock.calls[0][1].draft_data).not.toHaveProperty('venue')
+    await waitFor(() => {
+      expect(
+        screen.getByText('Đang dùng overview đã công bố. Nền và cổng được giữ nguyên cho phiên bản mới.'),
+      ).toBeInTheDocument()
+      expect(screen.queryByLabelText('Tệp SVG nền')).not.toBeInTheDocument()
+      expect(screen.getByLabelText('Tệp SVG zone/ghế')).toBeInTheDocument()
+    })
+  })
+  it('thêm layout với nền mới cũng không gửi dữ liệu sân, kể cả khi mở lại và lưu nháp', async () => {
+    session.target_venue_id = 'v1'
+    session.draft_data = {}
+    setup('/admin/venues/v1/setup?import=new')
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Tạo phiên nháp' })).toBeEnabled())
+    await userEvent.click(screen.getByRole('button', { name: 'Tạo phiên nháp' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /^Lưu nháp$/ })).toBeInTheDocument()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+    expect(api.create).toHaveBeenCalledWith({ target_venue_id: 'v1' })
+    expect(api.update.mock.calls[0][1].draft_data).not.toHaveProperty('venue')
+    await userEvent.click(screen.getByRole('button', { name: /^Lưu nháp$/ }))
+    await waitFor(() => expect(api.update).toHaveBeenCalledTimes(2))
+    expect(api.update.mock.calls[1][1].draft_data).not.toHaveProperty('venue')
+  })
+  it('chặn dùng overview không còn thuộc danh sách khả dụng', async () => {
+    setup('/admin/venues/v1/setup?import=new&overview=missing')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Overview đã chọn không còn khả dụng')
+    expect(screen.getByRole('button', { name: 'Tạo phiên nháp' })).toBeDisabled()
+    await userEvent.selectOptions(screen.getByLabelText('Nền cho phiên bản mới'), '')
+    expect(screen.getByRole('button', { name: 'Tạo phiên nháp' })).toBeEnabled()
+    expect(api.create).not.toHaveBeenCalled()
+  })
   it('tạo phiên nháp, hiện SVG tổng quát trước thông tin sân', async () => {
     setup('/admin/venues/new')
     await userEvent.click(screen.getByRole('button', { name: 'Tạo phiên nháp' }))
@@ -182,6 +285,24 @@ describe('wizard sân v2', () => {
       ),
     )
   })
+  it('hiện ID ghế lỗi và lý do chặn lưu khi file chưa hợp lệ', async () => {
+    session.files![1] = {
+      ...session.files![1],
+      validation_status: 'INVALID',
+      issues: [
+        {
+          reason: 'SEAT_OUTSIDE_ZONE',
+          message: 'Tâm ghế nằm ngoài khung bao của khu.',
+          layer_id: 'SEAT__A-T2-Z04__R10__01',
+        },
+      ],
+    }
+    setup()
+    expect(await screen.findByRole('alert')).toHaveTextContent('SEAT__A-T2-Z04__R10__01')
+    expect(screen.getByRole('region', { name: 'Lý do chưa thể lưu' })).toHaveTextContent('football.svg')
+    expect(screen.getByRole('button', { name: 'Lưu sân & layout' })).toBeDisabled()
+    expect(api.complete).not.toHaveBeenCalled()
+  })
   it('phục hồi khi complete đã ghi nhưng phản hồi bị mất, không tạo sân lần hai', async () => {
     session.step = 'REVIEW'
     api.complete.mockImplementation(async () => {
@@ -189,9 +310,15 @@ describe('wizard sân v2', () => {
       session.result = { venue_id: 'v1', overview_id: 'o1', layout_id: 'l1' }
       throw new Error('Response lost')
     })
-    setup()
+    const router = setup()
     await userEvent.click(await screen.findByRole('button', { name: 'Lưu sân & layout' }))
-    expect(await screen.findByText('Đã lưu sân và layout nháp')).toBeInTheDocument()
+    expect(await screen.findByText('Quản lý sân')).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/admin/venues/v1/setup')
+    expect(Object.fromEntries(new URLSearchParams(router.state.location.search))).toEqual({
+      tab: 'layout',
+      type: 'FOOTBALL',
+      layout: 'l1',
+    })
     expect(api.complete).toHaveBeenCalledTimes(1)
     expect(api.create).not.toHaveBeenCalled()
   })
@@ -200,11 +327,13 @@ describe('wizard sân v2', () => {
     api.complete
       .mockRejectedValueOnce(new Error('Network error'))
       .mockResolvedValueOnce({ venue_id: 'v1', overview_id: 'o1', layout_id: 'l1' })
-    setup()
+    const router = setup()
     await userEvent.click(await screen.findByRole('button', { name: 'Lưu sân & layout' }))
     await screen.findByRole('alert')
     await userEvent.click(screen.getByRole('button', { name: 'Lưu sân & layout' }))
-    expect(await screen.findByText('Đã lưu sân và layout nháp')).toBeInTheDocument()
+    expect(await screen.findByText('Quản lý sân')).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/admin/venues/v1/setup')
+    expect(new URLSearchParams(router.state.location.search).get('layout')).toBe('l1')
     expect(api.complete.mock.calls.map((c) => c[0])).toEqual(['s1', 's1'])
     expect(api.create).not.toHaveBeenCalled()
   })

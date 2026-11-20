@@ -16,12 +16,12 @@ import {
 const THURSDAY = new Date('2026-11-12T03:00:00Z')
 
 describe('readFilters', () => {
-  it('bỏ qua giá trị lạ trên URL', () => {
+  it('bỏ giá trị enum lạ nhưng giữ mã địa phương mở trên URL', () => {
     const f = readFilters(new URLSearchParams('category=XYZ&city=SG&when=year&price_max=abc&sort=hot'))
     expect(f).toEqual({
       q: undefined,
       category: undefined,
-      city: undefined,
+      city: 'SG',
       when: undefined,
       priceMax: undefined,
       available: false,
@@ -29,6 +29,16 @@ describe('readFilters', () => {
     })
   })
 
+  it.each(['SG', 'VN-HP', 'Hải Phòng'])('giữ mã địa phương mở %s khi đọc URL và gửi API', (city) => {
+    const filters = readFilters(new URLSearchParams({ city: `  ${city}  ` }))
+    expect(filters.city).toBe(city)
+    expect(toSearchParams(filters, THURSDAY).city).toBe(city)
+    expect(readFilters(writeFilters(filters)).city).toBe(city)
+  })
+
+  it('bỏ bộ lọc địa phương khi giá trị chỉ có khoảng trắng', () => {
+    expect(readFilters(new URLSearchParams({ city: '   ' })).city).toBeUndefined()
+  })
   it('đọc đủ bộ lọc hợp lệ', () => {
     const f = readFilters(
       new URLSearchParams(

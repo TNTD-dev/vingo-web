@@ -1,222 +1,192 @@
-import { Link } from 'react-router'
 import { useState } from 'react'
-import type { QueryMetricMetric } from '@/api/generated/model'
-import { useQueryMetric } from '@/api/generated/endpoints/admin-reports/admin-reports'
-import { useAdminListOrders } from '@/api/generated/endpoints/admin-operations/admin-operations'
-import { AdminPage, Panel, QueryState, StateBadge, Table } from '@/design/admin/AdminUi'
-import { dateBounds, daysAgo, vnToday } from '@/design/admin/data'
-import { elapsedText, vnShortDate, vnTime, WEEKDAY_SHORT } from '@/design/admin/format'
-import { reasonHint } from '@/design/admin/reasons'
-import { Button } from '@/design/ui/button'
-import { StatusBadge } from '@/design/StatusBadge'
-import { vnDate } from '@/lib/time'
+import { Link } from 'react-router'
+import { useQuery } from '@tanstack/react-query'
+import { getAdminDashboard } from '@/api/generated/endpoints/admin-reports/admin-reports'
+import { AdminPage, Panel, Field, QueryState, Table } from '@/design/admin/AdminUi'
+import { ActivityFeed } from '@/design/admin/ActivityFeed'
+import { dateBounds, dateText, daysAgo, vnToday } from '@/design/admin/data'
 import { formatVnd } from '@/lib/money'
-import { ChangeBadge, MetricCard, MetricChart } from './Metrics'
-import { OnSaleShowtimes } from './OnSaleShowtimes'
-import { addDays, changeText, dayKeys, fillDays, metricNames, metricValue, utcDayBounds } from './metricFormat'
+import { OverviewSalesChart } from './OverviewSalesChart'
 
-const CHART_DAYS = 14
-const CHART_METRICS: QueryMetricMetric[] = ['revenue', 'tickets_sold']
-const ddmm = (key: string) => `${key.slice(8)}/${key.slice(5, 7)}`
+function change(current: number, previous: number) {
+  if (!previous) return current ? 'Kỳ trước chưa có số liệu để so sánh' : 'Không thay đổi so với kỳ trước'
+  return `${current >= previous ? '+' : ''}${(((current - previous) / previous) * 100).toFixed(1)}% so với kỳ trước cùng độ dài`
+}
 
-/** Ô "Check-in hôm nay": không có suất hôm nay thì là "—" (không phải 0%). */
-function CheckinCard({ range }: { range: { from: string; to: string } }) {
-  const zones = useQueryMetric({ metric: 'fill_rate', group_by: 'zone', ...range }),
-    checkins = useQueryMetric({ metric: 'checkins', group_by: 'none', ...range }),
-    sold = useQueryMetric({ metric: 'tickets_sold', group_by: 'none', ...range }),
-    hasShowtimes = !!zones.data?.series?.length
+export default function OverviewPage() {
+  const [from, setFrom] = useState(() => daysAgo(29))
+  const [to, setTo] = useState(() => vnToday())
+  const [group, setGroup] = useState<'day' | 'month'>('day')
+  const [showAllTiers, setShowAllTiers] = useState(false)
+  const range = from && to && from <= to ? dateBounds(from, to) : undefined
+  const query = useQuery({
+    queryKey: ['admin-dashboard', range, group],
+    enabled: !!range,
+    queryFn: ({ signal }) => getAdminDashboard({ ...range, group_by: group }, { signal }),
+  })
+  const data = query.data
+  const current = data?.current,
+    previous = data?.previous
+  const revenue = new Map(data?.revenue?.series?.map((p) => [p.key, p.value ?? 0]))
+  const tickets = new Map(data?.tickets?.series?.map((p) => [p.key, p.value ?? 0]))
+  const keys = [...new Set([...revenue.keys(), ...tickets.keys()])].filter((k): k is string => !!k).sort()
+  const tiers = [...(data?.tiers?.series ?? [])].sort((a, b) => (b.value ?? 0) - (a.value ?? 0))
+  const tierTotal = tiers.reduce((sum, tier) => sum + (tier.value ?? 0), 0)
+  const shownTiers = showAllTiers ? tiers : tiers.slice(0, 5)
   return (
-    <Panel className="admin-stat">
-      <p className="admin-caption">Check-in hôm nay</p>
-      <QueryState query={zones}>
-        {hasShowtimes ? (
+    <AdminPage
+      title="Tổng quan"
+      caption="Số liệu theo giờ Việt Nam · Doanh thu và vé theo ngày thanh toán"
+      actions={<Link to="/admin/events/new">Tạo sự kiện</Link>}
+    >
+      <Panel className="mb-4">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Field label="Từ ngày">
+            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+          </Field>
+          <Field label="Đến hết ngày">
+            <input type="date" min={from} value={to} onChange={(e) => setTo(e.target.value)} />
+          </Field>
+          <Field label="Biểu đồ">
+            <select value={group} onChange={(e) => setGroup(e.target.value as 'day' | 'month')}>
+              <option value="day">Theo ngày</option>
+              <option value="month">Theo tháng</option>
+            </select>
+          </Field>
+        </div>
+        {!range && <p role="alert">Chọn khoảng ngày hợp lệ.</p>}
+      </Panel>
+      <QueryState query={query}>
+        {data && (
           <>
-            <p className="admin-stat-value">{metricValue('checkins', checkins.data?.value, true)}</p>
-            <p className="admin-stat-comparison">
-              <StatusBadge tone="neutral">
-                {checkins.data?.value ?? 0}/{sold.data?.value ?? 0} vé
-              </StatusBadge>
-              <span>vé đã quét / vé bán hôm nay</span>
-            </p>
-          </>
-        ) : (
-          <>
-            <p className="admin-stat-value" aria-label="Không có dữ liệu">
-              —
-            </p>
-            <p className="admin-stat-comparison">
-              <StatusBadge tone="neutral">0 suất</StatusBadge>
-              <span>Hôm nay không có suất diễn</span>
+            <div className="admin-grid admin-stats mb-4">
+              {[
+                [
+                  'Tổng doanh thu',
+                  formatVnd(current?.revenue ?? 0),
+                  change(current?.revenue ?? 0, previous?.revenue ?? 0),
+                ],
+                [
+                  'Vé đã bán',
+                  (current?.tickets_sold ?? 0).toLocaleString('vi-VN'),
+                  change(current?.tickets_sold ?? 0, previous?.tickets_sold ?? 0),
+                ],
+                [
+                  'Người dùng mới',
+                  (current?.new_users ?? 0).toLocaleString('vi-VN'),
+                  change(current?.new_users ?? 0, previous?.new_users ?? 0),
+                ],
+                [
+                  'Suất đang mở bán',
+                  String(data.on_sale_showtimes ?? 0),
+                  'Tại thời điểm cập nhật, không theo khoảng lọc',
+                ],
+              ].map(([label, value, note]) => (
+                <Panel key={label}>
+                  <p className="admin-caption">{label}</p>
+                  <p className="admin-stat-value">{value}</p>
+                  <p className="text-xs text-muted">{note}</p>
+                </Panel>
+              ))}
+            </div>
+            <div className="overview-dashboard-grid">
+              <Panel className="overview-wide-panel">
+                <OverviewSalesChart
+                  points={keys.map((key) => ({ key, revenue: revenue.get(key) ?? 0, tickets: tickets.get(key) ?? 0 }))}
+                />
+              </Panel>
+              <Panel>
+                <h2>Cơ cấu hạng vé</h2>
+                <p className="overview-panel-description">
+                  Hạng vé bán nhiều nhất · {tierTotal.toLocaleString('vi-VN')} vé trong kỳ
+                </p>
+                {tiers.length ? (
+                  <>
+                    <div className="overview-tier-list" id="overview-tiers">
+                      {shownTiers.map((tier, index) => (
+                        <div key={tier.key} className="overview-tier-row">
+                          <span className="overview-tier-rank">{index + 1}</span>
+                          <div className="overview-tier-content">
+                            <p title={tier.label || tier.key}>{tier.label || tier.key}</p>
+                            <div className="overview-meter" aria-hidden="true">
+                              <span style={{ width: `${tierTotal ? ((tier.value ?? 0) / tierTotal) * 100 : 0}%` }} />
+                            </div>
+                          </div>
+                          <strong>
+                            {tier.value ?? 0}
+                            <small>vé</small>
+                          </strong>
+                        </div>
+                      ))}
+                    </div>
+                    {tiers.length > 5 && (
+                      <button
+                        type="button"
+                        className="overview-tier-expand"
+                        aria-expanded={showAllTiers}
+                        aria-controls="overview-tiers"
+                        onClick={() => setShowAllTiers((value) => !value)}
+                      >
+                        {showAllTiers ? 'Thu gọn' : `Xem tất cả ${tiers.length} hạng vé`}
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <p>Chưa có vé bán.</p>
+                )}
+              </Panel>
+              <Panel className="overview-wide-panel">
+                <h2>Suất sắp diễn ra</h2>
+                <p className="mb-3 text-xs text-muted">
+                  10 suất công bố gần nhất trong tương lai, không theo khoảng lọc.
+                </p>
+                <Table label="Suất sắp diễn" headings={['Sự kiện', 'Sân', 'Bắt đầu', 'Đã bán']}>
+                  {data.upcoming?.map((s) => (
+                    <tr key={s.id}>
+                      <td>
+                        <Link to={`/admin/events/${s.event_id}`}>{s.title}</Link>
+                      </td>
+                      <td>{s.venue_name}</td>
+                      <td>{dateText(s.starts_at)}</td>
+                      <td>
+                        {s.sold}/{s.capacity}
+                      </td>
+                    </tr>
+                  ))}
+                </Table>
+                {!data.upcoming?.length && <p>Chưa có suất sắp diễn.</p>}
+              </Panel>
+              <Panel>
+                <h2>Tỷ lệ bán theo sân</h2>
+                <p className="mb-3 text-xs text-muted">Các suất bắt đầu trong khoảng lọc; gồm ghế ngồi và chỗ đứng.</p>
+                {data.venues?.map((v) => (
+                  <div key={v.id} className="my-3">
+                    <div className="flex justify-between">
+                      <span>{v.name}</span>
+                      <strong>{v.capacity ? (((v.sold ?? 0) / v.capacity) * 100).toFixed(1) : 0}%</strong>
+                    </div>
+                    <div className="overview-meter my-2" aria-hidden="true">
+                      <span
+                        style={{ width: `${v.capacity ? Math.min(100, ((v.sold ?? 0) / v.capacity) * 100) : 0}%` }}
+                      />
+                    </div>
+                    <p className="text-xs">
+                      {v.sold}/{v.capacity} chỗ
+                    </p>
+                  </div>
+                ))}
+                {!data.venues?.length && <p>Chưa có suất trong kỳ.</p>}
+              </Panel>
+              <Panel className="overview-full-panel">
+                <ActivityFeed />
+              </Panel>
+            </div>
+            <p className="mt-4 text-xs text-muted">
+              Cập nhật {dateText(data.computed_at)} · Doanh thu không phải số dư đối soát ngân hàng.
             </p>
           </>
         )}
       </QueryState>
-    </Panel>
-  )
-}
-
-export default function OverviewPage() {
-  const [viewedAt] = useState(() => new Date())
-  const today = vnToday(),
-    range = dateBounds(today, today)
-  const [metric, setMetric] = useState<QueryMetricMetric>('revenue')
-  const weekday = WEEKDAY_SHORT[vnDate(viewedAt).weekday]
-  const sameDayLastWeek = dateBounds(daysAgo(7), daysAgo(7))
-  // API nhóm ngày theo UTC: dựng đúng 14 ngày UTC liên tục kết thúc ở ngày hôm nay (giờ VN).
-  const firstDay = addDays(today, -(CHART_DAYS - 1)),
-    previousFirstDay = addDays(firstDay, -CHART_DAYS)
-  const chart = useQueryMetric({ metric, group_by: 'day', ...utcDayBounds(firstDay, today) })
-  const chartPrevious = useQueryMetric({
-    metric,
-    group_by: 'day',
-    ...utcDayBounds(previousFirstDay, addDays(firstDay, -1)),
-  })
-  const points = fillDays(chart.data?.series, dayKeys(firstDay, CHART_DAYS)),
-    total = points.reduce((sum, p) => sum + p.value, 0),
-    previousTotal = fillDays(chartPrevious.data?.series, dayKeys(previousFirstDay, CHART_DAYS)).reduce(
-      (sum, p) => sum + p.value,
-      0,
-    ),
-    change = chartPrevious.data ? changeText(metric, total, previousTotal) : null
-  const orders = useAdminListOrders({ status: 'NEEDS_REVIEW', limit: 20 })
-  const pending = orders.data?.data ?? [],
-    shown = pending.slice(0, 5),
-    pendingAmount = pending.reduce((sum, o) => sum + (o.total_amount ?? 0), 0),
-    oldest = pending.reduce<string | undefined>(
-      (min, o) => (o.created_at && (!min || o.created_at < min) ? o.created_at : min),
-      undefined,
-    ),
-    more = orders.data?.next_cursor ? '+' : ''
-  return (
-    <AdminPage
-      title="Tổng quan"
-      caption={`// HÔM NAY · ${new Intl.DateTimeFormat('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' }).format(viewedAt).toLocaleUpperCase('vi-VN')} · CẬP NHẬT ${vnTime(viewedAt.toISOString())}`}
-    >
-      <div className="admin-grid admin-stats mb-4">
-        <MetricCard
-          label="Doanh thu hôm nay"
-          params={{ metric: 'revenue', ...range }}
-          compare={sameDayLastWeek}
-          comparisonLabel={`so với ${weekday} tuần trước`}
-        />
-        <MetricCard
-          label="Vé bán hôm nay"
-          params={{ metric: 'tickets_sold', ...range }}
-          compare={sameDayLastWeek}
-          comparisonLabel={`so với ${weekday} tuần trước`}
-        />
-        <CheckinCard range={range} />
-        <Panel className="admin-stat">
-          <p className="admin-caption">Đơn cần xử lý</p>
-          <QueryState query={orders}>
-            <p className="admin-stat-value">
-              {pending.length}
-              {more}
-            </p>
-            <p className="admin-stat-comparison">
-              {pending.length ? (
-                <>
-                  <StatusBadge tone="warning">{formatVnd(pendingAmount)}</StatusBadge>
-                  <span>đang treo{oldest ? ` · ${elapsedText(oldest, viewedAt)}` : ''}</span>
-                </>
-              ) : (
-                <span>Không có đơn nào đang chờ</span>
-              )}
-            </p>
-          </QueryState>
-        </Panel>
-      </div>
-      <div className="admin-overview-charts mb-4">
-        <Panel>
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="admin-caption">
-                {metricNames[metric]} {CHART_DAYS} ngày · {ddmm(firstDay)} – {ddmm(today)}
-              </p>
-              <div className="admin-chart-headline">
-                <h2 className="admin-chart-total">{metricValue(metric, chart.data ? total : undefined, true)}</h2>
-                {change && <ChangeBadge tone={change.tone} text={change.text} />}
-                {change && <span className="text-xs text-ink-tertiary">so với {CHART_DAYS} ngày trước</span>}
-              </div>
-            </div>
-            <div className="admin-segment">
-              {CHART_METRICS.map((m) => (
-                <button key={m} aria-pressed={metric === m} onClick={() => setMetric(m)}>
-                  {m === 'revenue' ? 'Doanh thu' : 'Vé bán'}
-                </button>
-              ))}
-            </div>
-          </div>
-          <QueryState query={chart}>
-            <MetricChart metric={metric} points={points} todayKey={today} labelFor={(key) => key.slice(8)} />
-          </QueryState>
-          <div className="admin-chart-foot">
-            <span>
-              <i className="admin-legend-dot is-today" /> Hôm nay · chưa hết ngày
-            </span>
-            <Link to="/admin/reports" className="underline underline-offset-4">
-              Ngày tính theo UTC · Mở báo cáo →
-            </Link>
-          </div>
-        </Panel>
-        <OnSaleShowtimes now={viewedAt} />
-      </div>
-      <Panel>
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <h2>Đơn cần xử lý</h2>
-            {!!pending.length && (
-              <StatusBadge tone="warning">
-                {pending.length}
-                {more} đơn
-              </StatusBadge>
-            )}
-          </div>
-          <Link to="/admin/orders?status=NEEDS_REVIEW" className="text-sm underline underline-offset-4">
-            Xem tất cả →
-          </Link>
-        </div>
-        <QueryState query={orders} empty={!pending.length} emptyText="Không có đơn đang chờ xử lý.">
-          <Table label="Đơn cần xử lý" headings={['Mã đơn', 'Sự kiện', 'Lý do', 'Số tiền', 'Tạo lúc · đã chờ', '']}>
-            {shown.map((order) => (
-              <tr key={order.id}>
-                <td className="font-mono text-xs">{order.code}</td>
-                <td>
-                  {order.event?.title ?? '—'}
-                  <span className="text-ink-tertiary">
-                    {' '}
-                    · {order.items?.reduce((sum, v) => sum + (v.quantity ?? 1), 0) ?? 0} vé
-                  </span>
-                </td>
-                <td>
-                  <StateBadge value={order.review_reason} />
-                </td>
-                <td className="whitespace-nowrap">{formatVnd(order.total_amount ?? 0)}</td>
-                <td className="text-xs whitespace-nowrap">
-                  {order.created_at ? `${vnShortDate(order.created_at)} ${vnTime(order.created_at)}` : '—'}
-                  {order.created_at && (
-                    <span
-                      className={
-                        elapsedText(order.created_at, viewedAt).endsWith('ngày') ? 'admin-wait' : 'text-ink-tertiary'
-                      }
-                    >
-                      {' '}
-                      · {elapsedText(order.created_at, viewedAt)}
-                    </span>
-                  )}
-                </td>
-                <td aria-label={`Xử lý đơn ${order.code}`}>
-                  <Button asChild className="rounded-pill">
-                    <Link to={`/admin/orders/${order.id}`}>Xử lý</Link>
-                  </Button>
-                </td>
-              </tr>
-            ))}
-          </Table>
-          {shown[0] && <p className="admin-hint">{reasonHint(shown[0].review_reason)}</p>}
-        </QueryState>
-      </Panel>
-      <div className="admin-page-end" aria-hidden />
     </AdminPage>
   )
 }

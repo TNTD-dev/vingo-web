@@ -89,7 +89,7 @@ describe('bộ xem SVG cấu hình sân', () => {
     const { container } = setup()
     expect(container.querySelector('#PITCH')).toHaveAttribute('fill', '#208040')
     expect(container.querySelector('#pitch_track')).toHaveAttribute('fill', '#ab5b40')
-    expect(container.querySelector('[data-map-seat]')).toHaveAttribute('data-map-hidden')
+    expect(container.querySelector('[data-map-seat]')!.closest('[data-map-hidden]')).not.toBeNull()
     expect(container.querySelector('[data-map-gate]')).not.toHaveAttribute('data-map-hidden')
     expect(container.querySelectorAll('[data-map-gate]')).toHaveLength(1)
     expect(screen.getByText('Tổng quan khu')).toBeInTheDocument()
@@ -97,7 +97,7 @@ describe('bộ xem SVG cấu hình sân', () => {
   it('focus khu hiện ghế và click ghế chỉ gọi callback xem', () => {
     const { container, props } = setup('A1')
     const seat = container.querySelector('[data-map-seat]')!
-    expect(seat).not.toHaveAttribute('data-map-hidden')
+    expect(seat.closest('[data-map-hidden]')).toBeNull()
     fireEvent.click(seat)
     expect(props.onSeatClick).toHaveBeenCalledWith('SEAT__A1__A__01')
     expect(props.onZoneClick).not.toHaveBeenCalled()
@@ -124,7 +124,7 @@ describe('bộ xem SVG cấu hình sân', () => {
     const { container, props } = setup('A1')
     fireEvent.click(screen.getByRole('button', { name: 'Về toàn cảnh' }))
     expect(props.onOverview).toHaveBeenCalled()
-    expect(container.querySelector('[data-map-seat]')).toHaveAttribute('data-map-hidden')
+    expect(container.querySelector('[data-map-seat]')!.closest('[data-map-hidden]')).not.toBeNull()
   })
   it('áp data-map-detail lên path zone và nhãn khi mở chi tiết, click GATE_LABEL vẫn nhận đúng cổng', () => {
     const richSvg = `<svg viewBox="0 0 1000 600">
@@ -230,8 +230,8 @@ describe('bộ xem SVG cấu hình sân', () => {
 
     const seatA1 = container.querySelector('#SEAT__A1__A__01')!
     const seatB1 = container.querySelector('#SEAT__B1__A__01')!
-    expect(seatA1).not.toHaveAttribute('data-map-hidden')
-    expect(seatB1).not.toHaveAttribute('data-map-hidden')
+    expect(seatA1.closest('[data-map-hidden]')).toBeNull()
+    expect(seatB1.closest('[data-map-hidden]')).toBeNull()
 
     const svgEl = container.querySelector('svg')!
     const zoomedBox = svgEl.getAttribute('viewBox')
@@ -239,6 +239,6 @@ describe('bộ xem SVG cấu hình sân', () => {
 
     expect(svgEl.getAttribute('viewBox')).toBe(zoomedBox)
     expect(seatA1).toHaveAttribute('data-map-selected')
-    expect(seatB1).not.toHaveAttribute('data-map-hidden')
+    expect(seatB1.closest('[data-map-hidden]')).toBeNull()
   })
 })

@@ -154,6 +154,9 @@ export function VenueLocationPicker({ label, value, venue, onChange, disabled }:
           disabled={disabled}
           placeholder="Tìm tên địa điểm hoặc địa chỉ (ít nhất 3 ký tự)"
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') event.preventDefault()
+          }}
           autoComplete="off"
         />
       </Field>
@@ -192,7 +195,7 @@ export function VenueLocationPicker({ label, value, venue, onChange, disabled }:
       )}
       <ErrorNotice error={error} />
       {!!error && (
-        <Button variant="outline" onClick={() => setRetry((n) => n + 1)}>
+        <Button type="button" variant="outline" onClick={() => setRetry((n) => n + 1)}>
           Thử tìm lại
         </Button>
       )}

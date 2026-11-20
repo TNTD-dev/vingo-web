@@ -62,6 +62,7 @@ const L = {
   AdminOrders: lazy(() => import('@/features/admin-ops/AdminOrdersPage')),
   AdminOrderDetail: lazy(() => import('@/features/admin-ops/AdminOrderDetailPage')),
   AdminTickets: lazy(() => import('@/features/admin-ops/AdminTicketsPage')),
+  AdminUsers: lazy(() => import('@/features/admin-ops/AdminUsersPage')),
   AuditLogs: lazy(() => import('@/features/admin-ops/AuditLogsPage')),
 }
 
@@ -121,6 +122,7 @@ export const routes: RouteObject[] = [
     ),
     children: [
       { index: true, element: page(L.Overview) },
+      { path: 'users', element: page(L.AdminUsers) },
       { path: 'reports', element: page(L.Reports) },
       { path: 'venues', element: page(L.Venues) },
       { path: 'venues/new', element: page(L.VenueWizard) },

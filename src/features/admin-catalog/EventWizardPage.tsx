@@ -147,15 +147,17 @@ function EventInfoStep({ event, goStep }: { event?: EventDetail; goStep: (n: num
               <>
                 <p className="admin-caption">Thể loại *</p>
                 <ChoiceGroup label="Thể loại" className="!mt-2">
-                  {(Object.keys(categories) as (keyof typeof categories)[]).map((c) => (
-                    <ChoiceCard
-                      key={c}
-                      title={categories[c]}
-                      hint={categoryHints[c]}
-                      selected={data.category === c}
-                      onSelect={() => setData({ ...data, category: c })}
-                    />
-                  ))}
+                  {(Object.keys(categories) as (keyof typeof categories)[])
+                    .filter((c) => c === 'FOOTBALL' || c === 'CONCERT')
+                    .map((c) => (
+                      <ChoiceCard
+                        key={c}
+                        title={categories[c]}
+                        hint={categoryHints[c]}
+                        selected={data.category === c}
+                        onSelect={() => setData({ ...data, category: c })}
+                      />
+                    ))}
                 </ChoiceGroup>
               </>
             )}
@@ -306,9 +308,6 @@ function EventReviewStep({ event, goStep }: { event: EventDetail; goStep: (n: nu
       navigate('/admin/events')
     },
   })
-  const zones = [
-    ...new Map(Object.values(layouts.data ?? {}).flatMap((l) => l.zones.map((z) => [z.id, z] as const))).values(),
-  ]
   const first = shows
     .map((s) => s.sale_opens_at)
     .filter((v): v is string => !!v)
@@ -364,7 +363,7 @@ function EventReviewStep({ event, goStep }: { event: EventDetail; goStep: (n: nu
                 Sửa →
               </button>
             </div>
-            <ul className="mt-3 divide-y">
+            <ul className="event-review-showtimes mt-3 divide-y">
               {shows.map((s) => {
                 const p = vnParts(s.starts_at),
                   e = vnParts(s.ends_at),
@@ -397,23 +396,6 @@ function EventReviewStep({ event, goStep }: { event: EventDetail; goStep: (n: nu
             {selectedLayout && (
               <ReviewSeatMap event={event} layout={selectedLayout} assignments={assignments.data ?? {}} />
             )}
-            <div className="mt-3 grid gap-3 sm:grid-cols-3">
-              {event.price_tiers?.map((t) => {
-                const mine = assignments.data ? zones.filter((z) => assignments.data![z.id] === t.id) : []
-                return (
-                  <div key={t.id} className="rounded-xl bg-canvas p-4">
-                    <p className="text-xs text-ink-secondary">{t.name}</p>
-                    <p className="wz-money">{formatVnd(t.price)}</p>
-                    <p className="admin-caption">
-                      {assignments.data
-                        ? `${mine.length} khu · ${mine.reduce((s, z) => s + z.capacity, 0).toLocaleString('vi-VN')} ghế`
-                        : '—'}
-                    </p>
-                  </div>
-                )
-              })}
-              {!event.price_tiers?.length && <p className="admin-notice sm:col-span-3">Chưa có hạng giá.</p>}
-            </div>
           </Panel>
         </div>
         <Panel className="wz-panel wz-sticky">
@@ -524,10 +506,16 @@ function ReviewSeatMap({
       <ErrorNotice error={overview.error || detail.error} />
       {(detail.isFetching || overview.isFetching) && <p role="status">Đang tải sơ đồ…</p>}
       {svg && (
-        <div className="h-72">
+        <div className="pricing-zone-map h-[clamp(420px,70vh,900px)] overflow-hidden rounded-xl bg-canvas">
           <SeatMapView
             svg={svg}
-            zones={Object.fromEntries(rows.map((row) => [row.code, { color: row.tier?.color, soldOut: !row.tier }]))}
+            fitToCanvas
+            zones={Object.fromEntries(
+              rows.map((row) => [
+                row.code,
+                { tier: row.tier ? 1 : undefined, color: row.tier?.color, soldOut: !row.tier },
+              ]),
+            )}
             selected={new Set()}
             selectedZones={new Set(selectedZone ? [selectedZone] : [])}
             onZoneClick={setSelectedZone}
@@ -538,17 +526,21 @@ function ReviewSeatMap({
           />
         </div>
       )}
-      <details>
-        <summary>Giá từng khu ({rows.length})</summary>
-        <ul className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
-          {rows.map((row) => (
-            <li key={row.id} className="flex justify-between gap-2" aria-current={selectedZone === row.code}>
-              <span>{row.name}</span>
-              <span>{row.tier ? formatVnd(row.tier.price) : 'Chưa có giá'}</span>
-            </li>
-          ))}
-        </ul>
-      </details>
+      <ul aria-label="Chú giải giá vé" className="flex flex-wrap gap-x-8 gap-y-3 py-3 text-base">
+        {event.price_tiers?.map((tier) => (
+          <li key={tier.id} className="flex min-w-0 items-center gap-2">
+            <span className="size-4 shrink-0" style={{ background: tier.color ?? 'var(--vg-tier-1)' }} aria-hidden />
+            <span className="font-bold break-words">{tier.name}:</span>
+            <span className="font-medium whitespace-nowrap">{formatVnd(tier.price).replace(/\s*₫/, 'đ')}</span>
+          </li>
+        ))}
+        {rows.some((row) => !row.tier) && (
+          <li className="flex items-center gap-2">
+            <span className="size-4 shrink-0" style={{ background: 'var(--vg-map-sold)' }} aria-hidden />
+            <span>Chưa có giá</span>
+          </li>
+        )}
+      </ul>
     </div>
   )
 }
