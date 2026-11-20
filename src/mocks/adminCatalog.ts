@@ -12,7 +12,7 @@ import type {
   UnblockSeatsBody,
 } from '@/api/generated/model'
 import { csvText } from '@/design/admin/data'
-import { audit, events, findShow, layouts, mapOf, page, stamp, statusOverrides, venues, zonePrices } from './adminStore'
+import { audit, events, findShow, layouts, mapOf, page, statusOverrides, venues, zonePrices } from './adminStore'
 
 const root = `*${API_BASE}`
 export const problem = (status = 404, code = 'NOT_FOUND') =>
@@ -48,8 +48,6 @@ export const adminCatalogHandlers = [
           .filter(
             (l) =>
               l.venue_id === params.id &&
-              (url.searchParams.get('include_legacy') === 'true' || !l.legacy) &&
-              (!url.searchParams.get('status') || l.status === url.searchParams.get('status')) &&
               (!url.searchParams.get('layout_type') || l.layout_type === url.searchParams.get('layout_type')),
           )
           .reverse(),
@@ -101,13 +99,6 @@ export const adminCatalogHandlers = [
           { headers: { 'Content-Type': 'text/csv' } },
         )
       : problem()
-  }),
-  http.post(`${root}/admin/seat-layouts/:id/publish`, ({ params }) => {
-    const l = layouts.get(String(params.id))
-    if (!l) return problem()
-    l.overview.status = 'PUBLISHED'
-    l.overview.published_at = stamp()
-    return HttpResponse.json(l.overview)
   }),
   http.get(`${root}/admin/events`, ({ request }) => {
     const u = new URL(request.url),

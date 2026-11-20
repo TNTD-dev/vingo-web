@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw'
 
 import { API_BASE } from '@/api/config'
-import type { ChatBlock, ChatMessage } from '@/api/generated/model'
+import type { ChatBlock, ChatMessage } from '@/features/chat/chatApi'
 
 import { emit } from './sse'
 

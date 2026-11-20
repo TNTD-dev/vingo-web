@@ -23,16 +23,12 @@ import { mergeLayers } from './LayoutPreview'
 
 export function VenueLayoutWorkspace({
   layout,
-  onRename,
-  onPublish,
   onExport,
   exportPending,
   exportError,
   catalogOnly = false,
 }: {
   layout: SeatLayoutOverview
-  onRename: () => void
-  onPublish: () => void
   onExport: (kind: 'zones' | 'seats') => void
   exportPending: boolean
   exportError: unknown
@@ -104,13 +100,7 @@ export function VenueLayoutWorkspace({
           <div>
             <strong>Sơ đồ sân</strong>
             <span className="venue-chip">
-              {layout.status === 'PUBLISHED' ? (
-                <>
-                  <LockKeyhole size={12} /> Đã khóa
-                </>
-              ) : (
-                'Bản nháp'
-              )}
+              <LockKeyhole size={12} /> Đã khóa
             </span>
           </div>
           <div className="venue-inline-actions">
@@ -139,14 +129,6 @@ export function VenueLayoutWorkspace({
                 </button>
               </div>
             </details>
-            {layout.status === 'DRAFT' && !layout.legacy && (
-              <>
-                <Button variant="outline" onClick={onRename}>
-                  Đổi tên
-                </Button>
-                <Button onClick={onPublish}>Phát hành</Button>
-              </>
-            )}
           </div>
         </div>
         <div className="venue-map-heading">
@@ -200,9 +182,7 @@ export function VenueLayoutWorkspace({
         <footer className="venue-map-help">
           Lăn chuột để zoom · Kéo để di chuyển · Bấm khu để xem ghế.
           <br />
-          {layout.status === 'PUBLISHED'
-            ? 'Sơ đồ đã phát hành được khóa. Nhập SVG xuất từ Figma để tạo cấu hình mới.'
-            : 'Đây là bản nháp, chưa dùng được cho suất diễn cho tới khi phát hành.'}
+          Sơ đồ sau khi nhập được khóa hình học. Nhập SVG xuất từ Figma để tạo phiên bản mới.
         </footer>
       </section>
       <aside className="venue-card venue-zone-panel" aria-label="Danh sách khu và thông tin chi tiết">

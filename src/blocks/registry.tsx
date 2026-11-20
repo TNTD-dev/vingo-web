@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react'
 
-import type { ChatBlockType } from '@/api/generated/model'
+import type { ChatBlockType } from '@/features/chat/chatApi'
 
 import { blockView } from './adminPayloads'
 import { Chart } from './Chart'

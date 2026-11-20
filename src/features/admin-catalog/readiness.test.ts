@@ -119,14 +119,6 @@ describe('eventChecklist', () => {
     expect(byId(list).layout.status).toBe('todo')
     expect(readinessSummary(list).canPublish).toBe(false)
   })
-  it('sơ đồ nháp thì chưa đạt', () => {
-    const list = eventChecklist({
-      event,
-      layouts: { l1: { ...layouts.l1, status: 'DRAFT' } },
-      assignments: { z1: 't1', z2: 't1' },
-    })
-    expect(byId(list).layout.status).toBe('todo')
-  })
   it('không đọc được gán giá thì chỉ cảnh báo, để backend quyết', () => {
     const list = eventChecklist({ event, layouts, assignments: null })
     expect(byId(list).prices.status).toBe('warn')
@@ -140,9 +132,8 @@ describe('eventChecklist', () => {
 })
 
 describe('venueState', () => {
-  it('phân biệt sẵn sàng, chỉ có bản nháp và chưa có sơ đồ', () => {
-    expect(venueState([[{ status: 'PUBLISHED' }], []])).toBe('READY')
-    expect(venueState([[{ status: 'DRAFT' }]])).toBe('DRAFT_ONLY')
+  it('phân biệt sẵn sàng và chưa có sơ đồ', () => {
+    expect(venueState([[{ version: 1 }], []])).toBe('READY')
     expect(venueState([[]])).toBe('NO_LAYOUT')
   })
 })
@@ -170,7 +161,7 @@ describe('saleState', () => {
       'UPCOMING',
     )
   })
-  it('không tính suất nháp hoặc đã hủy', () => {
-    expect(saleState([showtime, { ...showtime, status: 'CANCELLED' }], now)).toBe('NONE')
+  it('không tính suất đã hủy', () => {
+    expect(saleState([{ ...showtime, status: 'CANCELLED' }], now)).toBe('NONE')
   })
 })

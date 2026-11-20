@@ -56,16 +56,13 @@ function EditorBody({
   const [layout, setLayout] = useState(requiredLayout ?? source?.seat_layout_id ?? '')
   const layouts = useLayoutDirectory(venueId)
   const published =
-    layouts.data?.filter(
-      (l) =>
-        l.status === 'PUBLISHED' &&
-        !l.legacy &&
-        (requiredLayout
-          ? l.id === requiredLayout
-          : !category ||
-            !['FOOTBALL', 'CONCERT'].includes(category) ||
-            l.layout_type === category ||
-            initial?.seat_layout_id === l.id),
+    layouts.data?.filter((l) =>
+      requiredLayout
+        ? l.id === requiredLayout
+        : !category ||
+          !['FOOTBALL', 'CONCERT'].includes(category) ||
+          l.layout_type === category ||
+          initial?.seat_layout_id === l.id,
     ) ?? []
   const selectedLayout = layout || (category && published.length === 1 ? published[0].id : '')
   const startLocal = localDateTime(source?.starts_at),

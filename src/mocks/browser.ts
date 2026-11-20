@@ -6,7 +6,6 @@ import { getAdminOperationsMock } from '@/api/generated/endpoints/admin-operatio
 import { getAdminReportsMock } from '@/api/generated/endpoints/admin-reports/admin-reports.msw'
 import { getAuthMock } from '@/api/generated/endpoints/auth/auth.msw'
 import { getBookingMock } from '@/api/generated/endpoints/booking/booking.msw'
-import { getChatMock } from '@/api/generated/endpoints/chat/chat.msw'
 import { getCheckInMock } from '@/api/generated/endpoints/check-in/check-in.msw'
 import { getMeMock } from '@/api/generated/endpoints/me/me.msw'
 import { getPaymentMock } from '@/api/generated/endpoints/payment/payment.msw'
@@ -51,7 +50,6 @@ export const worker = setupWorker(
   ...getPaymentMock(),
   ...getTicketsMock(),
   ...getCheckInMock(),
-  ...getChatMock(),
   ...getAdminCatalogMock(),
   ...getAdminOperationsMock(),
   ...getAdminReportsMock(),

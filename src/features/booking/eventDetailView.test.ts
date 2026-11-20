@@ -60,13 +60,16 @@ describe('bannerText', () => {
     const event = {
       title: 'V.League 2026 · Vòng 12: HAGL vs Hà Nội FC',
       category: 'FOOTBALL',
-      attributes: { home_team: 'HAGL', away_team: 'Hà Nội FC', league: 'V.League 2026', round: 'Vòng 12' },
+      home_team: 'HAGL',
+      away_team: 'Hà Nội FC',
+      league: 'V.League 2026',
+      round: 'Vòng 12',
     } as EventDetail
     expect(bannerText(event)).toEqual({ title: 'HAGL vs Hà Nội FC', subtitle: 'V.League 2026 · Vòng 12' })
   })
 
   it('thiếu thuộc tính thì dùng nguyên tên sự kiện', () => {
-    expect(bannerText({ title: 'Kịch “Lôi Vũ”', category: 'THEATER' } as EventDetail)).toEqual({
+    expect(bannerText({ title: 'Kịch “Lôi Vũ”', category: 'CONCERT' } as EventDetail)).toEqual({
       title: 'Kịch “Lôi Vũ”',
     })
   })

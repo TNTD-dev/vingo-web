@@ -8,7 +8,7 @@ import AdminEventDetailPage from './AdminEventDetailPage'
 const event: EventDetail = {
   id: 'ev',
   title: 'Hội chợ Sách #15',
-  category: 'OTHER',
+  category: 'CONCERT',
   description: 'Sự kiện mẫu',
   status: 'PUBLISHED',
   max_tickets_per_order: 10,
@@ -54,7 +54,7 @@ describe('Trang sửa sự kiện', () => {
     setup()
     expect(screen.getAllByText('Đã công bố').length).toBeGreaterThan(0)
     expect(screen.getByText('Đang bán')).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: 'Thể loại' })).toHaveDisplayValue('Khác')
+    expect(screen.getByRole('combobox', { name: 'Thể loại' })).toHaveDisplayValue('Âm nhạc')
     expect(screen.queryByText('PUBLISHED')).toBeNull()
     expect(screen.queryByText(/ON.SALE/)).toBeNull()
   })
@@ -72,10 +72,9 @@ describe('Trang sửa sự kiện', () => {
   it('sửa mọi thông tin ngay trên trang, không còn hộp thoại thông tin bổ sung', () => {
     setup()
     expect(screen.queryByRole('button', { name: /thông tin thêm/i })).toBeNull()
-    fireEvent.click(screen.getByRole('radio', { name: '18+' }))
-    expect(screen.getByRole('button', { name: 'Lưu thay đổi' })).toBeEnabled()
     fireEvent.click(screen.getByRole('button', { name: 'Thêm 1 vé' }))
     expect(screen.getByRole('group', { name: 'Tối đa vé mỗi đơn' })).toHaveTextContent('11')
+    expect(screen.getByRole('button', { name: 'Lưu thay đổi' })).toBeEnabled()
     fireEvent.click(screen.getByRole('button', { name: 'Bỏ thay đổi' }))
     expect(screen.getByRole('button', { name: 'Đã lưu' })).toBeDisabled()
   })

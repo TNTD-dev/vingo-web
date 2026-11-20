@@ -10,6 +10,7 @@ export const scanLabels: Record<NonNullable<CheckinResult['result']>, string> = 
   ALREADY_USED: 'VÉ ĐÃ DÙNG',
   TICKET_VOID: 'VÉ ĐÃ HUỶ',
   WRONG_SHOWTIME: 'SAI SUẤT DIỄN',
+  INVALID_QR: 'MÃ QR KHÔNG HỢP LỆ',
 }
 
 /** Giải thích ngắn bên dưới chữ lớn, nhân viên cổng đọc là biết xử lý. */
@@ -18,6 +19,7 @@ export const scanHints: Record<NonNullable<CheckinResult['result']>, string> = {
   ALREADY_USED: 'Vé này đã được quét trước đó. Không cho vào.',
   TICKET_VOID: 'Vé đã bị vô hiệu hoá. Không cho vào.',
   WRONG_SHOWTIME: 'Vé thuộc suất diễn khác. Không cho vào.',
+  INVALID_QR: 'Không đọc ra vé từ mã này. Không cho vào.',
 }
 
 /** Contract: 409 trả CheckinResult (không phải Problem), nên http.ts ném ApiError mang body đó. */

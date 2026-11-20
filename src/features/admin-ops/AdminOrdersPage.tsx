@@ -21,7 +21,7 @@ import { reasonHeadline } from '@/design/admin/reasons'
 import { Button } from '@/design/ui/button'
 import { formatVnd } from '@/lib/money'
 
-const tabItems = ['', 'NEEDS_REVIEW', 'PENDING', 'PAID', 'EXPIRED', 'CANCELLED', 'REFUNDED'].map((value) => ({
+const tabItems = ['', 'NEEDS_REVIEW', 'PENDING', 'PAID', 'EXPIRED', 'CANCELLED', 'REJECTED'].map((value) => ({
   value,
   label: orderTabLabels[value],
 }))

@@ -1,4 +1,4 @@
-import type { ChatBlock } from '@/api/generated/model'
+import type { ChatBlock } from '@/features/chat/chatApi'
 
 import { isRecord, num, recList, root, str, strList } from './payloads'
 

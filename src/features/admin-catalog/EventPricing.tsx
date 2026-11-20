@@ -96,9 +96,7 @@ function PricingBody({
     .filter((v): v is string => !!v)
     .sort()[0]
   const locked =
-    event.status === 'ENDED' ||
-    event.status === 'CANCELLED' ||
-    (event.status === 'PUBLISHED' && !!firstOpen && Date.parse(firstOpen) <= viewedAt)
+    event.status === 'CANCELLED' || (event.status === 'PUBLISHED' && !!firstOpen && Date.parse(firstOpen) <= viewedAt)
   const layout = layouts[layoutId] ?? layoutList[0]
   const svg = useLayoutSvg(layout?.id ?? '')
   const zones = [...new Map(layoutList.flatMap((l) => l.zones.map((z) => [z.id, z] as const))).values()]

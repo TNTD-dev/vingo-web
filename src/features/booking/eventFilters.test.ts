@@ -86,10 +86,10 @@ describe('whenRange', () => {
 
 describe('toSearchParams', () => {
   it('đổi bộ lọc sang tham số API', () => {
-    const f = readFilters(new URLSearchParams('category=THEATER&when=today&price_max=800000'))
+    const f = readFilters(new URLSearchParams('category=CONCERT&when=today&price_max=800000'))
     expect(toSearchParams(f, THURSDAY)).toEqual({
       q: undefined,
-      category: 'THEATER',
+      category: 'CONCERT',
       city: undefined,
       from: vnStartOfDay(2026, 11, 12),
       to: vnStartOfDay(2026, 11, 13),

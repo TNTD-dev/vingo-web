@@ -1,4 +1,3 @@
-import { OpeningHoursFields } from './OpeningHoursFields'
 import { useEffect, useRef, useState } from 'react'
 import { FileCode2, Upload } from 'lucide-react'
 import { Link, useBlocker, useParams, useSearchParams } from 'react-router'
@@ -25,7 +24,6 @@ import type {
 import { AdminPage, ErrorNotice, Field, Panel, QueryState } from '@/design/admin/AdminUi'
 import { Button } from '@/design/ui/button'
 import { ApiError } from '@/api/problem'
-import { venueInfoText, venueTypes } from './catalog'
 import { VenueSetupFields } from './VenueSetupFields'
 import { LayoutPreview } from './LayoutPreview'
 import { VenueWorkspace } from './VenueWorkspace'
@@ -38,7 +36,7 @@ const blank: VenueImportDraft = {
   layout_name: '',
   layout_type: 'FOOTBALL',
   zone_areas: {},
-  venue: { name: '', type: 'STADIUM', address: '', city: 'HN' },
+  venue: { name: '', address: '', city: 'HN' },
 }
 
 const layoutNames = { FOOTBALL: 'Bóng đá', CONCERT: 'Concert' } as const
@@ -141,7 +139,7 @@ function ImportWizard({ venueId }: { venueId?: string }) {
   const files = session?.files ?? []
   const overview = files.find((f) => f.role === 'OVERVIEW')?.sanitized_svg
   const index = step === 'DETAILS' ? 0 : 1
-  const venueReady = !!venueId || !!(draft.venue?.name?.trim() && draft.venue?.location?.display_address?.trim())
+  const venueReady = !!venueId || !!(draft.venue?.name?.trim() && draft.venue?.address?.trim())
   const overviewReady = !!overview || !!session?.draft_data?.overview_id
   const detailFiles = files.filter((file) => file.role === 'SEAT_LAYOUT')
   const typeFor = (fileId?: string) =>
@@ -566,33 +564,8 @@ function ImportWizard({ venueId }: { venueId?: string }) {
                               onChange={(e) => venueField('name', e.target.value)}
                             />
                           </Field>
-                          <Field label="Loại địa điểm">
-                            <select
-                              value={draft.venue?.type}
-                              onChange={(e) => venueField('type', e.target.value as VenueInput['type'])}
-                            >
-                              {Object.entries(venueTypes).map(([k, v]) => (
-                                <option value={k} key={k}>
-                                  {v}
-                                </option>
-                              ))}
-                            </select>
-                          </Field>
-                          <OpeningHoursFields
-                            label="Giờ hoạt động sân"
-                            value={venueInfoText(draft.venue?.info, 'opening_hours')}
-                            onChange={(hours) => venueField('info', { ...draft.venue?.info, opening_hours: hours })}
-                          />
                           <div className="venue-setup-full-width">
-                            <VenueSetupFields
-                              draft={draft}
-                              sessionId={session.id!}
-                              onChange={change}
-                              save={save}
-                              accept={accept}
-                              run={run}
-                              pending={action.isPending}
-                            />
+                            <VenueSetupFields draft={draft} onChange={change} pending={action.isPending} />
                           </div>
                         </div>
                       ))}

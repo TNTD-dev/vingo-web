@@ -1,22 +1,20 @@
 import { http, HttpResponse } from 'msw'
 
 import { API_BASE } from '@/api/config'
-import type { BuyerProfile, Order, PaymentIntent } from '@/api/generated/model'
+import type { Order, PaymentIntent } from '@/api/generated/model'
 
 import { detailOf, EVENTS } from './events'
 import { held } from './holds'
 import { issueTickets } from './tickets'
 
 /*
- * Mock đơn hàng, thanh toán và hồ sơ người mua cho màn Thanh toán (Figma B4).
+ * Mock đơn hàng, thanh toán và người nhận vé cho màn Thanh toán (Figma B4).
  * Đơn do mock giữ ghế tạo ra. Sau khi tạo thanh toán 15 giây, đơn tự chuyển PAID để thử luồng chờ VNPay.
  */
 
 const orders = new Map<string, Order>()
 const paymentStartedAt = new Map<string, number>()
 export const PAY_AFTER_MS = 15_000
-
-let profile: BuyerProfile | null = { full_name: 'Nguyễn Minh Anh', phone: '0901234821', email: 'minhanh@gmail.com' }
 
 /** Đơn có sẵn để thử danh sách đơn và vé (Figma B6, B7, B10). */
 function seed() {
@@ -46,7 +44,7 @@ function seed() {
       currency: 'VND',
       expires_at: new Date(created + 10 * 60_000).toISOString(),
       paid_at: status === 'PAID' ? new Date(created + 5 * 60_000).toISOString() : null,
-      buyer: profile ?? undefined,
+      buyer: { full_name: 'Nguyễn Minh Anh', phone: '+84901234821', email: 'minhanh@gmail.com' },
       created_at: new Date(created).toISOString(),
     }
     orders.set(order.id!, order)
@@ -125,7 +123,6 @@ export const orderHandlers = [
     if (order.status === 'EXPIRED') return problem(409, 'HOLD_EXPIRED', 'Hết hạn giữ ghế')
     if (order.status !== 'PENDING')
       return problem(409, 'ORDER_STATE_INVALID', 'Đơn không còn ở trạng thái chờ thanh toán')
-    if (!profile) return problem(409, 'PROFILE_REQUIRED', 'Cần hồ sơ người mua trước khi thanh toán')
     if (!paymentStartedAt.has(order.id!)) paymentStartedAt.set(order.id!, Date.now())
     return HttpResponse.json<PaymentIntent>(
       {
@@ -140,13 +137,5 @@ export const orderHandlers = [
       },
       { status: 201 },
     )
-  }),
-
-  http.get(`*${API_BASE}/me/profile`, () =>
-    profile ? HttpResponse.json<BuyerProfile>(profile) : problem(404, 'NOT_FOUND', 'Chưa có hồ sơ người mua'),
-  ),
-  http.put(`*${API_BASE}/me/profile`, async ({ request }) => {
-    profile = (await request.json()) as BuyerProfile
-    return HttpResponse.json<BuyerProfile>(profile)
   }),
 ]

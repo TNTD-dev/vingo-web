@@ -7,7 +7,7 @@ export const stateLabels: Record<string, string> = {
   EXPIRED: 'Hết hạn',
   CANCELLED: 'Đã huỷ',
   NEEDS_REVIEW: 'Cần xử lý',
-  REFUNDED: 'Đã hoàn tiền',
+  REJECTED: 'Đã hoàn tiền',
   PAID_AFTER_EXPIRY: 'Tiền về sau hạn',
   PAID_AFTER_CANCEL: 'Tiền về sau khi huỷ',
   AMOUNT_MISMATCH: 'Sai số tiền',
@@ -26,6 +26,7 @@ export const stateLabels: Record<string, string> = {
   ALREADY_USED: 'Đã dùng',
   TICKET_VOID: 'Vé đã huỷ',
   WRONG_SHOWTIME: 'Sai suất',
+  INVALID_QR: 'Mã QR không hợp lệ',
 }
 
 /** Tab trạng thái đơn: nhãn ngắn hơn nhãn huy hiệu. */
@@ -36,7 +37,7 @@ export const orderTabLabels: Record<string, string> = {
   PAID: 'Đã thanh toán',
   EXPIRED: 'Hết hạn',
   CANCELLED: 'Đã huỷ',
-  REFUNDED: 'Hoàn tiền',
+  REJECTED: 'Hoàn tiền',
 }
 
 /** Màu chấm theo ý nghĩa: vé hợp lệ là trạng thái bình thường nên trung tính. */
@@ -54,7 +55,7 @@ export const stateTones: Record<string, BadgeTone> = {
   PENDING: 'info',
   DRAFT: 'info',
   SCHEDULED: 'info',
-  REFUNDED: 'info',
+  REJECTED: 'info',
   WRONG_SHOWTIME: 'info',
   CANCELLED: 'danger',
   VOID: 'danger',

@@ -9,30 +9,13 @@ import { AdminLinkAction } from '@/design/admin/AdminAction'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/design/ui/dropdown-menu'
 import more from '@/design/admin/icons/more.svg'
 import { Button } from '@/design/ui/button'
-import { cities, useVenueDirectory, venueTypes } from './catalog'
+import { cities, useVenueDirectory } from './catalog'
 import { latestPublished, venueState, type VenueState } from './readiness'
 
 type StatusFilter = '' | 'READY' | 'NOT_READY'
 
-/** Phác hoạ sơ đồ theo loại sân cho nền thẻ (trang trí, không phải sơ đồ thật). */
-function CoverArt({ type }: { type?: string }) {
-  if (type === 'THEATER')
-    return (
-      <svg viewBox="0 0 200 120" aria-hidden fill="none" stroke="currentColor" strokeWidth="6">
-        <rect x="60" y="20" width="80" height="8" rx="4" fill="currentColor" stroke="none" />
-        {[44, 58, 72, 86].map((r) => (
-          <path key={r} d={`M${100 - r * 1.6} ${60 + r * 0.9} Q100 ${30 + r * 0.4} ${100 + r * 1.6} ${60 + r * 0.9}`} />
-        ))}
-      </svg>
-    )
-  if (type === 'OUTDOOR')
-    return (
-      <svg viewBox="0 0 200 120" aria-hidden fill="currentColor">
-        {Array.from({ length: 40 }, (_, i) => (
-          <circle key={i} cx={20 + (i % 10) * 18} cy={20 + Math.floor(i / 10) * 22} r="3" />
-        ))}
-      </svg>
-    )
+/** Phác hoạ sơ đồ sân cho nền thẻ (trang trí, không phải sơ đồ thật). */
+function CoverArt() {
   return (
     <svg viewBox="0 0 200 120" aria-hidden fill="none" stroke="currentColor" strokeWidth="14">
       <ellipse cx="100" cy="60" rx="80" ry="50" strokeDasharray="20 6" />
@@ -50,7 +33,6 @@ const stateText: Record<VenueState, { chip: string; tone: string }> = {
 export default function VenuesPage() {
   const query = useVenueDirectory()
   const [city, setCity] = useState(''),
-    [type, setType] = useState(''),
     [status, setStatus] = useState<StatusFilter>(''),
     [q, setQ] = useState('')
   const venues = query.data
@@ -81,7 +63,6 @@ export default function VenuesPage() {
   const shown = venues?.filter(
     (v) =>
       (!city || v.city === city) &&
-      (!type || v.type === type) &&
       (!status || (status === 'READY' ? states.get(v.id) === 'READY' : notReady.includes(v))) &&
       (!needle || [v.name, v.district, v.address].some((x) => x?.toLowerCase().includes(needle))),
   )
@@ -105,14 +86,6 @@ export default function VenuesPage() {
           ]}
         />
         <div className="flex flex-wrap gap-2">
-          <select aria-label="Loại sân" className="wz-select" value={type} onChange={(e) => setType(e.target.value)}>
-            <option value="">Mọi loại sân</option>
-            {Object.entries(venueTypes).map(([k, v]) => (
-              <option key={k} value={k}>
-                {v}
-              </option>
-            ))}
-          </select>
           <select
             aria-label="Tình trạng"
             className="wz-select"
@@ -164,8 +137,7 @@ function VenueCard({ venue: v, layouts }: { venue: Venue; layouts?: SeatLayout[]
   return (
     <article className="wz-venue">
       <Link to={setup} className="wz-venue-cover" aria-label={`Quản lý ${v.name}`}>
-        <CoverArt type={v.type} />
-        <span className="wz-chip">{v.type}</span>
+        <CoverArt />
         {state && (
           <span className="wz-chip" data-tone={stateText[state].tone}>
             {stateText[state].chip}

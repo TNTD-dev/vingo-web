@@ -71,7 +71,6 @@ beforeEach(() => {
         name: 'Sân thử',
         address: 'Hà Nội',
         city: 'HN',
-        location: { display_address: 'Hà Nội', latitude: 21, longitude: 105, source: 'GEOAPIFY' },
       },
     },
     files: [

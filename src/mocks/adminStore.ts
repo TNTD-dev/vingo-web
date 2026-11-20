@@ -18,21 +18,15 @@ export const venues: Venue[] = [
   {
     id: uid('0193c100', 1),
     name: 'Sân vận động Thống Nhất',
-    type: 'STADIUM',
     address: '138 Đào Duy Từ, Phường Diên Hồng',
     city: 'HCM',
     city_name: 'TP. Hồ Chí Minh',
     district: 'Quận 10',
-    info: {
-      opening_hours: '08:00 – 22:00',
-      parking: 'Bãi xe tại cổng A và B.',
-      rules: 'Xuất trình vé QR tại cổng. Không mang vật sắc nhọn.',
-    },
+    rules: 'Xuất trình vé QR tại cổng. Không mang vật sắc nhọn.',
   },
   {
     id: uid('0193c100', 2),
     name: 'Nhà hát Bến Thành',
-    type: 'THEATER',
     address: '6 Mạc Đĩnh Chi',
     city: 'HCM',
     city_name: 'TP. Hồ Chí Minh',
@@ -40,7 +34,6 @@ export const venues: Venue[] = [
   {
     id: uid('0193c100', 3),
     name: 'SVĐ Quân khu 7',
-    type: 'STADIUM',
     address: '202 Hoàng Văn Thụ',
     city: 'HCM',
     city_name: 'TP. Hồ Chí Minh',
@@ -48,7 +41,6 @@ export const venues: Venue[] = [
   {
     id: uid('0193c100', 4),
     name: 'SVĐ Hàng Đẫy',
-    type: 'STADIUM',
     address: '9 Trịnh Hoài Đức',
     city: 'HN',
     city_name: 'Hà Nội',
@@ -57,7 +49,6 @@ export const venues: Venue[] = [
   {
     id: uid('0193c100', 5),
     name: 'Đồi Robin',
-    type: 'OUTDOOR',
     address: 'Khu biểu diễn ngoài trời',
     city: 'DN',
     city_name: 'Đà Nẵng',
@@ -65,7 +56,6 @@ export const venues: Venue[] = [
   {
     id: uid('0193c100', 6),
     name: 'SVĐ Mỹ Đình',
-    type: 'STADIUM',
     address: 'Lê Đức Thọ',
     city: 'HN',
     city_name: 'Hà Nội',
@@ -165,10 +155,7 @@ export function makeLayout(
       id,
       venue_id: venueId,
       name,
-      status: 'DRAFT',
       version,
-      schema_version: 2,
-      legacy: false,
       layout_type: 'FOOTBALL',
       zone_count: zones.length,
       seat_count: zones.reduce((n, z) => n + (z.kind === 'SEATED' ? z.capacity : 0), 0),
@@ -180,11 +167,9 @@ export function makeLayout(
   layouts.set(id, result)
   return result
 }
-const seeded = makeLayout(uid('0193c100', 1), 'Sơ đồ sân · 4 khán đài', stadiumSvg, 1, uid('0193c400', 1))
-seeded.overview.status = 'PUBLISHED'
+makeLayout(uid('0193c100', 1), 'Sơ đồ sân · 4 khán đài', stadiumSvg, 1, uid('0193c400', 1))
 makeLayout(uid('0193c100', 2), 'Sơ đồ khán phòng · Bản nháp', theaterSvg, 1, uid('0193c400', 2))
 const outdoor = makeLayout(uid('0193c100', 5), 'Sơ đồ ngoài trời · Khu đứng & VIP', outdoorSvg, 1, uid('0193c400', 5))
-outdoor.overview.status = 'PUBLISHED'
 outdoor.overview.layout_type = 'CONCERT'
 makeLayout(uid('0193c100', 6), 'Khán đài chính · Nháp', stadiumSvg, 1, uid('0193c400', 6))
 export const events: EventDetail[] = EVENTS.slice(0, 8).map((e, i) => {

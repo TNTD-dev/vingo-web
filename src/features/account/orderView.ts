@@ -7,7 +7,7 @@ export const ORDER_STATUS: Record<NonNullable<Order['status']>, { label: string;
   EXPIRED: { label: 'Hết hạn', tone: 'neutral' },
   CANCELLED: { label: 'Đã huỷ', tone: 'neutral' },
   NEEDS_REVIEW: { label: 'Đang xem xét', tone: 'info' },
-  REFUNDED: { label: 'Đã hoàn tiền', tone: 'neutral' },
+  REJECTED: { label: 'Đã từ chối', tone: 'neutral' },
 }
 
 /** Tổng số vé của đơn (ghế đơn = 1, khu đứng = quantity). */

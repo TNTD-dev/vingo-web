@@ -24,16 +24,14 @@ export function EventLayoutStep({
   goStep: (step: number, id?: string) => void
 }) {
   const [title, setTitle] = useState(event?.title ?? '')
-  const [venueId, setVenueId] = useState(event?.venue_id ?? venueHint ?? '')
+  const [venueId, setVenueId] = useState(event?.venue?.id ?? venueHint ?? '')
   const [category, setCategory] = useState<Category>(event?.category === 'CONCERT' ? 'CONCERT' : 'FOOTBALL')
   const [choice, setChoice] = useState(event?.seat_layout_id ?? '')
   const [confirm, setConfirm] = useState<boolean | null>(null)
   const client = useQueryClient()
   const venues = useVenueDirectory()
   const layouts = useLayoutDirectory(venueId, category)
-  const candidates = (layouts.data ?? []).filter(
-    (layout) => layout.status === 'PUBLISHED' && !layout.legacy && layout.layout_type === category,
-  )
+  const candidates = (layouts.data ?? []).filter((layout) => layout.layout_type === category)
   const layout = candidates.find((item) => item.id === choice) ?? (candidates.length === 1 ? candidates[0] : undefined)
   const svg = useLayoutSvg(layout?.id ?? '')
   const overview = useQuery({
@@ -49,7 +47,7 @@ export function EventLayoutStep({
       const body = {
         title: title.trim(),
         category,
-        ...(layout?.id && !selectionLocked ? { venue_id: venueId, seat_layout_id: layout.id } : {}),
+        ...(layout?.id && !selectionLocked ? { seat_layout_id: layout.id } : {}),
       }
       return (event?.id ? updateEvent(event.id, body) : createEvent(body)).then((saved) => ({ saved, advance }))
     },
