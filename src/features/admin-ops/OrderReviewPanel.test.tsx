@@ -68,6 +68,15 @@ describe('Xử lý đơn cần duyệt', () => {
       ),
     )
   })
+  it('lỗi của lần phát hành vé trước không hiện lại trong hộp thoại hoàn tiền', async () => {
+    vi.mocked(resolveReview).mockRejectedValueOnce(new ApiError(409, { code: 'SEAT_TAKEN', title: 'x', status: 409 }))
+    setup()
+    fireEvent.click(screen.getByRole('button', { name: 'Phát hành vé và gửi email' }))
+    await screen.findByRole('alert')
+    fireEvent.click(screen.getByRole('button', { name: 'Ghi nhận đã hoàn tiền thủ công' }))
+    expect(screen.getByText(/không chuyển tiền/)).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
   it('đối soát chưa được backend hỗ trợ (501) thì báo rõ, không vỡ trang', async () => {
     vi.mocked(reconcileOrder).mockRejectedValueOnce(new ApiError(501, null))
     setup()

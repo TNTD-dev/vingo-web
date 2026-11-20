@@ -289,7 +289,7 @@ export function ConfirmDialog({
             >
               {pending ? 'Đang xử lý…' : label}
             </Button>
-            <Button type="button" variant="outline" disabled={pending} onClick={onClose} className="rounded-pill">
+            <Button type="button" variant="outline" disabled={pending} onClick={onClose} className="admin-small-button">
               {cancelLabel}
             </Button>
           </div>

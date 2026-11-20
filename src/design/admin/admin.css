@@ -784,6 +784,7 @@
   min-height: 0;
   margin: 12px -8px -8px;
   padding: 8px;
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;

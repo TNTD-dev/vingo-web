@@ -1,7 +1,13 @@
 /* Bố cục sáng theo bản SVG; dùng token hiện có, không đổi giao diện buyer. */
-.admin {
+/* Hộp thoại cũng mang class `admin` (để nhận token) nên phải loại ra, nếu không padding: 0 ở đây
+   ghi đè padding của .admin-dialog / .admin-confirm và nội dung dính sát mép. */
+.admin:not(.admin-dialog) {
   gap: 0;
   padding: 0;
+}
+/* Trang đứng riêng không có sidebar (/checkin dùng trên điện thoại) nên giữ lề quanh màn hình. */
+.admin.admin-standalone:not(.admin-dialog) {
+  padding: 16px;
 }
 .admin .admin-sidebar {
   top: 0;
