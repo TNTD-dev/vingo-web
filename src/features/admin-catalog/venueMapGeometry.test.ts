@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { interpolateZoom } from '@/seatmap/geometry'
 import {
   fitVenueZone,
   resizeVenueView,
@@ -26,6 +27,21 @@ describe('điều khiển bản đồ cấu hình sân', () => {
       next = zoomVenueView(overview, 2, anchor, overview)
     expect((anchor.x - next.x) / next.w).toBeCloseTo(0.3)
     expect((anchor.y - next.y) / next.h).toBeCloseTo(0.3)
+  })
+  it('easing hình học giữ neo con trỏ ở mọi frame, cả khi zoom ngược', () => {
+    const anchor = { x: 300, y: 180 }
+    const target = zoomVenueView(overview, 4, anchor, overview)
+    for (const [from, to] of [
+      [overview, target],
+      [target, overview],
+    ]) {
+      for (const t of [0, 0.1, 0.5, 0.9, 1]) {
+        const frame = interpolateZoom(from, to, t)
+        expect((anchor.x - frame.x) / frame.w).toBeCloseTo(0.3)
+        expect((anchor.y - frame.y) / frame.h).toBeCloseTo(0.3)
+      }
+    }
+    expect(interpolateZoom(overview, target, 0.5).w).toBeCloseTo(overview.w / 2)
   })
   it('cho thu nhỏ tới 25% và giữ aspect ratio trong giới hạn zoom', () => {
     expect(zoomVenueView(overview, 1000, { x: 500, y: 300 }, overview).w).toBeCloseTo(1000 / 24)

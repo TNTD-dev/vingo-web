@@ -9,14 +9,25 @@
   --map-pitch-in: #f1f1ee;
   --map-walkway: #f6f6f4;
   --map-line: rgb(255 255 255 / 90%);
+  touch-action: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
+.seatmap-camera {
+  width: 100%;
+  height: 100%;
+  transform-origin: 0 0;
+}
 .seatmap svg {
   display: block;
   width: 100%;
   height: 100%;
-  touch-action: none;
-  user-select: none;
+  overflow: visible;
+}
+.seatmap text {
+  text-rendering: geometricPrecision;
 }
 
 /* ---- nền ---- */
@@ -125,7 +136,8 @@
 .seatmap [data-dim] {
   opacity: 0.18;
 }
-.seatmap [data-hidden] {
+.seatmap [data-hidden],
+.seatmap [data-seats-hidden] {
   display: none;
 }
 .seatmap [data-active] > path:first-child,

@@ -1,5 +1,6 @@
 import { useMemo, useRef } from 'react'
-import { boxToViewBox, fitView, type Box } from '@/seatmap/geometry'
+import { boxToViewBox, fitView, type Box } from './geometry'
+import './seatmap-minimap.css'
 
 type Props = {
   svg: string
@@ -12,12 +13,13 @@ type Props = {
 const percent = (value: number) => Math.min(100, Math.max(0, value))
 
 /** SVG thu nhỏ đặt trong ảnh riêng để không trùng ID/mask với bản đồ chính. */
-export function VenueMinimap({ svg, bounds, view, onNavigate, onFit }: Props) {
+export function SeatMapMinimap({ svg, bounds, view, onNavigate, onFit }: Props) {
   const pointer = useRef<number | null>(null)
   const { image, canvas } = useMemo(() => {
     const canvas = fitView(bounds, 1.4, 0.04)
     const document = new DOMParser().parseFromString(svg, 'image/svg+xml')
     const root = document.documentElement
+    root.querySelectorAll('[id^="SEAT__"]').forEach((seat) => seat.remove())
     root.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
     root.setAttribute('viewBox', boxToViewBox(canvas))
     root.setAttribute('width', '280')
@@ -53,15 +55,16 @@ export function VenueMinimap({ svg, bounds, view, onNavigate, onFit }: Props) {
           event.preventDefault()
           event.currentTarget.focus({ preventScroll: true })
           pointer.current = event.pointerId
-          event.currentTarget.setPointerCapture(event.pointerId)
+          event.currentTarget.setPointerCapture?.(event.pointerId)
           navigate(event.currentTarget, event.clientX, event.clientY)
         }}
         onPointerMove={(event) => {
           if (pointer.current === event.pointerId) navigate(event.currentTarget, event.clientX, event.clientY)
         }}
         onPointerUp={(event) => {
+          if (pointer.current !== event.pointerId) return
           pointer.current = null
-          if (event.currentTarget.hasPointerCapture(event.pointerId))
+          if (event.currentTarget.hasPointerCapture?.(event.pointerId))
             event.currentTarget.releasePointerCapture(event.pointerId)
         }}
         onPointerCancel={() => {

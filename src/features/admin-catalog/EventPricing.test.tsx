@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router'
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { putPriceTiers, putZonePrices } from '@/api/generated/endpoints/admin-catalog/admin-catalog'
 import EventPricing from './EventPricing'
 vi.mock('@/api/generated/endpoints/admin-catalog/admin-catalog', async (original) => ({
@@ -13,7 +13,7 @@ vi.mock('@/api/generated/endpoints/admin-catalog/admin-catalog', async (original
     id,
     name: id,
     version: 1,
-    zones: [{ id: `zone-${id}`, code: id, label: id, capacity: 100 }],
+    zones: [{ id: `zone-${id}`, code: id.toUpperCase(), label: id, capacity: 100 }],
   })),
 }))
 vi.mock('@/api/generated/endpoints/search/search', () => ({
@@ -23,9 +23,37 @@ vi.mock('@/api/generated/endpoints/search/search', () => ({
 }))
 vi.mock('./catalog', async (original) => ({
   ...(await original<typeof import('./catalog')>()),
-  useLayoutSvg: () => ({ data: undefined, isError: false }),
+  useLayoutSvg: (id: string) => {
+    const code = id.toUpperCase()
+    return {
+      data: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400"><rect id="ZONE__${code}__SEATED" x="20" y="20" width="50" height="50"/><g id="CONTENT__${code}"><circle id="SEAT__${code}__A__01" cx="30" cy="30" r="2"/></g></svg>`,
+      isError: false,
+    }
+  },
 }))
-afterEach(cleanup)
+beforeEach(() => {
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      private callback: ResizeObserverCallback
+
+      constructor(callback: ResizeObserverCallback) {
+        this.callback = callback
+      }
+      observe() {
+        this.callback(
+          [{ contentRect: { width: 600, height: 400 } }] as ResizeObserverEntry[],
+          this as unknown as ResizeObserver,
+        )
+      }
+      disconnect() {}
+    },
+  )
+})
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
 const event = {
   id: 'event',
   title: 'Sự kiện',
@@ -51,9 +79,16 @@ function setup() {
   )
   return { goStep, client }
 }
-it('thay hạng giá một khu vẫn giữ khu của các sơ đồ khác trong cùng sự kiện', async () => {
+it('chọn khu trên sơ đồ giá có minimap và giữ hạng của các sơ đồ khác khi lưu', async () => {
   const { goStep, client } = setup()
-  fireEvent.change(await screen.findByLabelText('Hạng giá khu l1'), { target: { value: 't2' } })
+  await screen.findByRole('button', { name: /^Bản đồ nhỏ/ })
+  const map = screen.getByRole('application')
+  const zone = map.querySelector('#ZONE__L1__SEATED')!
+  expect(map.querySelector('[id^="SEAT__"]')).toBeNull()
+  expect(zone.querySelector('title')?.textContent).toContain('l1')
+  fireEvent.click(zone)
+  expect(zone).toHaveAttribute('data-map-picked')
+  fireEvent.change(screen.getByLabelText('Hạng giá khu l1'), { target: { value: 't2' } })
   fireEvent.click(screen.getByRole('button', { name: 'Tiếp: Xem lại' }))
   await waitFor(() =>
     expect(putZonePrices).toHaveBeenCalledWith('event', [
@@ -68,7 +103,7 @@ it('thay hạng giá một khu vẫn giữ khu của các sơ đồ khác trong 
 it('báo rõ khu chưa có giá và số khu đã gán', async () => {
   const { client } = setup()
   fireEvent.change(await screen.findByLabelText('Hạng giá khu l2'), { target: { value: '' } })
-  expect(await screen.findByText(/1 khu chưa có giá: l2/)).toBeInTheDocument()
+  expect(await screen.findByText(/1 khu chưa có giá: L2/)).toBeInTheDocument()
   expect(screen.getByText('1/2 khu có giá')).toBeInTheDocument()
   client.clear()
 })

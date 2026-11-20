@@ -41,3 +41,23 @@ export function parseViewBox(value: string | null | undefined): Box | null {
 }
 
 export const boxToViewBox = (b: Box) => `${b.x} ${b.y} ${b.w} ${b.h}`
+
+/** Geometric zoom, with the same interpolation weight for position to retain the anchor. */
+export function interpolateZoom(from: Box, to: Box, progress: number): Box {
+  const ratio = to.w / from.w
+  const weight = Math.abs(ratio - 1) < 1e-8 ? progress : (Math.pow(ratio, progress) - 1) / (ratio - 1)
+  return {
+    x: from.x + (to.x - from.x) * weight,
+    y: from.y + (to.y - from.y) * weight,
+    w: from.w * Math.pow(ratio, progress),
+    h: from.h * Math.pow(to.h / from.h, progress),
+  }
+}
+
+/** Move a fixed-viewBox SVG to the requested view without changing its layout. */
+export function transformMapCamera(camera: HTMLElement, base: Box, view: Box, width: number, height: number) {
+  const scale = base.w / view.w
+  const x = ((base.x - view.x) / view.w) * width
+  const y = ((base.y - view.y) / view.h) * height
+  camera.style.transform = `translate3d(${x}px,${y}px,0) scale3d(${scale},${scale},1)`
+}

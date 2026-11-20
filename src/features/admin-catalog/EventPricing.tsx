@@ -8,12 +8,12 @@ import { ErrorNotice, Panel, QueryState } from '@/design/admin/AdminUi'
 import { LightButton } from '@/design/admin/wizard'
 import { Button } from '@/design/ui/button'
 import { formatVnd } from '@/lib/money'
-import { SeatMapView } from '@/seatmap/SeatMapView'
 import { toast } from 'sonner'
 import { dateText } from '@/design/admin/data'
 import { useLayoutSvg } from './catalog'
 import { getVenueOverview } from '@/api/generated/endpoints/venue-imports/venue-imports'
 import { mergeLayers } from './LayoutPreview'
+import { PricingZoneMap } from './PricingZoneMap'
 import { activeShowtimes, stepLabels, useEventLayouts, useZoneAssignments } from './eventSetup'
 import { formatVndShort } from './readiness'
 import { saveZoneAssignments } from './zoneAssignments'
@@ -448,27 +448,20 @@ function PricingBody({
             </div>
           )}
           {overview.isError && <ErrorNotice error={overview.error} />}
-          <div className="mt-4 h-[380px] overflow-hidden rounded-xl bg-canvas">
+          <div className="pricing-zone-map mt-4 h-[380px] overflow-hidden rounded-xl bg-canvas">
             {mapSvg && (!layout?.overview_id || !overview.isPending) ? (
-              <SeatMapView
+              <PricingZoneMap
                 svg={mapSvg}
-                zones={Object.fromEntries(
-                  layoutZones.map((z) => {
-                    const key = assigned(z.id),
-                      i = tiers.findIndex((t) => t.key === key)
-                    return [z.code, i >= 0 ? { tier: 1, color: colorOf(tiers[i]), soldOut: false } : { soldOut: true }]
-                  }),
-                )}
-                selected={new Set()}
-                selectedZones={new Set(layoutZones.filter((zone) => picked.includes(zone.id)).map((zone) => zone.code))}
-                tooltip={(code) => {
-                  const zone = layoutZones.find((entry) => entry.code === code)
-                  if (!zone) return null
+                zones={layoutZones.map((zone) => {
                   const tier = tiers.find((entry) => entry.key === assigned(zone.id))
-                  return `${displayNames[zone.id] || zone.label || code} · ${tier ? formatVnd(tier.price) : 'Chưa có giá'}`
-                }}
+                  return {
+                    code: zone.code,
+                    fill: tier ? colorOf(tier) : 'var(--vg-map-sold)',
+                    title: `${displayNames[zone.id] || zone.label || zone.code} · ${tier ? formatVnd(tier.price) : 'Chưa có giá'}`,
+                  }
+                })}
+                selectedZones={new Set(layoutZones.filter((zone) => picked.includes(zone.id)).map((zone) => zone.code))}
                 onZoneClick={toggleZone}
-                className="pricing-zone-map h-full"
               />
             ) : (
               <p className="grid h-full place-items-center text-ink-tertiary">
