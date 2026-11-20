@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { createShowtime, updateShowtime } from '@/api/generated/endpoints/admin-catalog/admin-catalog'
+import { createShowtime, updateShowtime, useGetSeatLayout } from '@/api/generated/endpoints/admin-catalog/admin-catalog'
 import type { Showtime, ShowtimeInput, Venue } from '@/api/generated/model'
 import { ErrorNotice, Field, QueryState } from '@/design/admin/AdminUi'
 import { DateField, DateTimeField, TimeField, todayVn } from '@/design/admin/DateTimePicker'
@@ -52,19 +52,24 @@ function EditorBody({
 }: Props & { venues: Venue[] }) {
   const client = useQueryClient(),
     source = initial ?? template
-  const [venueId, setVenueId] = useState(source?.venue?.id ?? venueHint ?? '')
-  const [layout, setLayout] = useState(requiredLayout ?? source?.seat_layout_id ?? '')
-  const layouts = useLayoutDirectory(venueId)
-  const published =
-    layouts.data?.filter((l) =>
-      requiredLayout
-        ? l.id === requiredLayout
-        : !category ||
+  const [chosenVenueId, setVenueId] = useState(source?.venue?.id ?? venueHint ?? '')
+  const [layout, setLayout] = useState(source?.seat_layout_id ?? '')
+  const fixedLayout = useGetSeatLayout(requiredLayout ?? '', { query: { enabled: !!requiredLayout } })
+  const venueId = requiredLayout ? (fixedLayout.data?.venue_id ?? '') : chosenVenueId
+  const venue = venues.find((v) => v.id === venueId)
+  const layouts = useLayoutDirectory(requiredLayout ? '' : venueId)
+  const published = requiredLayout
+    ? fixedLayout.data
+      ? [fixedLayout.data]
+      : []
+    : (layouts.data?.filter(
+        (l) =>
+          !category ||
           !['FOOTBALL', 'CONCERT'].includes(category) ||
           l.layout_type === category ||
           initial?.seat_layout_id === l.id,
-    ) ?? []
-  const selectedLayout = layout || (category && published.length === 1 ? published[0].id : '')
+      ) ?? [])
+  const selectedLayout = requiredLayout ?? (layout || (category && published.length === 1 ? published[0].id : ''))
   const startLocal = localDateTime(source?.starts_at),
     endLocal = localDateTime(source?.ends_at)
   const shift = template && !initial ? 7 * 1440 : 0
@@ -84,7 +89,7 @@ function EditorBody({
   const effectiveClose = close
   const window = { starts_at: startsAt, ends_at: endsAt, sale_opens_at: open, sale_closes_at: effectiveClose }
   const issues = validateSaleWindow(window)
-  const valid = !!venueId && published.some((l) => l.id === selectedLayout) && !issues.length
+  const valid = !!venue && published.some((l) => l.id === selectedLayout) && !issues.length
 
   function applyPreset(next: SalePreset, startsAtValue = startsAt) {
     setPreset(next)
@@ -112,7 +117,6 @@ function EditorBody({
       onSaved()
     },
   })
-  const venue = venues.find((v) => v.id === venueId)
   const span = startsAt && endsAt && open ? { a: ms(open), c: ms(effectiveClose || startsAt), e: ms(endsAt) } : null
   const total = span ? span.e - span.a : 0
   const pct = (n: number) => `${Math.max(0, Math.min(100, (n / total) * 100))}%`
@@ -162,8 +166,14 @@ function EditorBody({
                 ))}
               </select>
             </Field>
-            {venue && (
-              <QueryState query={layouts} empty={!published.length} emptyText="Sân chưa có layout v2 đã phát hành.">
+            {(requiredLayout || venue) && (
+              <QueryState
+                query={requiredLayout ? fixedLayout : layouts}
+                empty={!venue || !published.length}
+                emptyText={
+                  requiredLayout ? 'Không tìm thấy sân của sơ đồ đã chọn.' : 'Sân chưa có layout v2 đã phát hành.'
+                }
+              >
                 <Field label="Layout đã phát hành">
                   <select
                     value={selectedLayout}
@@ -267,7 +277,7 @@ function EditorBody({
               : 'Lịch hợp lệ: đóng bán không sau giờ diễn, kết thúc sau bắt đầu. Giờ theo Việt Nam (UTC+7).'}
           </span>
         </p>
-        {!layout && venue && <p className="admin-notice">Chọn layout đã phát hành để gắn vào suất.</p>}
+        {!selectedLayout && venue && <p className="admin-notice">Chọn layout đã phát hành để gắn vào suất.</p>}
         <ErrorNotice error={mutation.error} />
         <div className="admin-showtime-footer">
           <Button type="button" variant="outline" className="admin-small-button" onClick={onCancel}>
