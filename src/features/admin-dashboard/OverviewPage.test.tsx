@@ -1,90 +1,79 @@
 import { cleanup, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import OverviewPage from './OverviewPage'
 
 vi.mock('@/design/admin/AdminSearch', () => ({ AdminSearch: () => null }))
 vi.mock('@/design/admin/AdminNotifications', () => ({ AdminNotifications: () => null }))
-vi.mock('./OnSaleShowtimes', () => ({ OnSaleShowtimes: () => null }))
-let showtimesToday = false
-let review: Record<string, unknown>[] = []
-vi.mock('@/api/generated/endpoints/admin-reports/admin-reports', () => ({
-  useQueryMetric: (params: { metric: string; group_by?: string }) => {
-    const ok = (data: unknown) => ({ data, isPending: false, error: null, isError: false, refetch: vi.fn() })
-    if (params.group_by === 'zone') return ok({ series: showtimesToday ? [{ key: 'z', value: 10 }] : [] })
-    if (params.group_by === 'day') return ok({ series: [{ key: '2026-11-12', value: 31_000_000 }] })
-    return ok({ value: 100 })
-  },
-}))
-vi.mock('@/api/generated/endpoints/admin-operations/admin-operations', () => ({
-  useAdminListOrders: () => ({ data: { data: review, next_cursor: null }, isPending: false, error: null }),
-}))
+const api = vi.hoisted(() => ({ dashboard: vi.fn(), logs: vi.fn() }))
+vi.mock('@/api/generated/endpoints/admin-reports/admin-reports', () => ({ getAdminDashboard: api.dashboard }))
+vi.mock('@/api/generated/endpoints/admin-operations/admin-operations', () => ({ listAuditLogs: api.logs }))
+
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
-  vi.setSystemTime(new Date('2026-11-16T07:00:00Z'))
+  vi.setSystemTime(new Date('2026-11-18T07:00:00Z'))
+  api.dashboard.mockResolvedValue({
+    current: { revenue: 1000000, tickets_sold: 4, new_users: 2 },
+    previous: { revenue: 0, tickets_sold: 0, new_users: 0 },
+    on_sale_showtimes: 3,
+    computed_at: '2026-11-18T07:00:00Z',
+    revenue: { series: [{ key: '2026-11-18', value: 1000000 }] },
+    tickets: { series: [{ key: '2026-11-18', value: 4 }] },
+    tiers: { series: [{ key: 'tier-1', label: 'Sự kiện A · VIP', value: 4 }] },
+    upcoming: [],
+    venues: [{ id: 'v1', name: 'Sân A', sold: 0, capacity: 0 }],
+  })
+  api.logs.mockResolvedValue({ data: [], next_cursor: null })
 })
 afterEach(() => {
-  vi.useRealTimers()
   cleanup()
-  showtimesToday = false
-  review = []
+  vi.useRealTimers()
+  vi.clearAllMocks()
 })
 const setup = () =>
   render(
-    <MemoryRouter>
-      <OverviewPage />
-    </MemoryRouter>,
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter>
+        <OverviewPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
   )
-const card = (name: string) => screen.getByText(name).closest('section')!
 
-describe('Trang Tổng quan', () => {
-  it('không có suất hôm nay thì Check-in là "—" kèm huy hiệu trung tính, không phải 0%', () => {
+describe('Tổng quan theo API dashboard', () => {
+  it('hiển thị KPI từ backend và gửi trọn khoảng ngày Việt Nam', async () => {
     setup()
-    const checkin = within(card('Check-in hôm nay'))
-    expect(checkin.getByLabelText('Không có dữ liệu')).toHaveTextContent('—')
-    expect(checkin.getByText('0 suất')).toBeInTheDocument()
-    expect(checkin.queryByText(/0%/)).not.toBeInTheDocument()
+    await screen.findByText('Tổng doanh thu')
+    expect(within(screen.getByText('Vé đã bán').closest('section')!).getByText('4')).toBeInTheDocument()
+    expect(api.dashboard).toHaveBeenCalledWith(
+      expect.objectContaining({ from: '2026-10-19T17:00:00.000Z', to: '2026-11-18T17:00:00.000Z', group_by: 'day' }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    )
   })
-  it('có suất hôm nay thì hiện số vé đã quét', () => {
-    showtimesToday = true
+  it('không hiển thị tăng trưởng vô hạn khi kỳ trước bằng không', async () => {
     setup()
-    expect(within(card('Check-in hôm nay')).getByText('100')).toBeInTheDocument()
+    expect((await screen.findAllByText('Kỳ trước chưa có số liệu để so sánh')).length).toBe(3)
+    expect(screen.queryByText(/Infinity|NaN/)).not.toBeInTheDocument()
   })
-  it('thay đổi bằng 0 thì huy hiệu trung tính "Không đổi", không còn dòng "Theo khoảng đã chọn"', () => {
+  it('phân biệt suất sắp diễn và tỷ lệ bán trong kỳ, mẫu bằng không hiển thị 0%', async () => {
     setup()
-    expect(within(card('Doanh thu hôm nay')).getByText('Không đổi')).toBeInTheDocument()
-    expect(screen.queryByText('Theo khoảng đã chọn')).not.toBeInTheDocument()
+    await screen.findByText('Suất đang mở bán')
+    expect(screen.getByText('Chưa có suất sắp diễn.')).toBeInTheDocument()
+    expect(screen.getByText('0%')).toBeInTheDocument()
+    expect(screen.getByText('Sự kiện A · VIP')).toBeInTheDocument()
   })
-  it('biểu đồ doanh thu đủ 14 cột liên tục, đánh dấu hôm nay, ngày không có dữ liệu là cột 0', () => {
-    const { container } = setup()
-    const cols = container.querySelectorAll('.admin-plot-col')
-    expect(cols).toHaveLength(14)
-    expect(container.querySelectorAll('.admin-plot-col.is-today')).toHaveLength(1)
-    expect(cols[13]).toHaveClass('is-today')
-    expect(container.querySelectorAll('.admin-plot-bar.is-zero')).toHaveLength(13)
-    expect(screen.getByRole('figure')).toHaveAttribute('aria-label', expect.stringContaining('03: 0 ₫'))
-    expect(screen.getByText('31tr')).toBeInTheDocument()
+  it('activity feed chỉ yêu cầu hành động thay đổi thành công', async () => {
+    setup()
+    await screen.findByText('Hoạt động quản trị')
+    expect(api.logs).toHaveBeenCalledWith(
+      { activity_only: true, limit: 8 },
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    )
   })
-  it('bảng đơn cần xử lý có thời gian đã chờ; không có đơn thì báo rỗng', () => {
+  it('giữ thông báo lỗi API, không thay thế bằng số liệu minh họa', async () => {
+    api.dashboard.mockRejectedValue(new Error('Dashboard unavailable'))
     setup()
-    expect(screen.getByText('Không có đơn đang chờ xử lý.')).toBeInTheDocument()
-    cleanup()
-    review = [
-      {
-        id: 'o1',
-        code: 'SEED07',
-        status: 'NEEDS_REVIEW',
-        review_reason: 'PAID_AFTER_EXPIRY',
-        total_amount: 600000,
-        created_at: '2026-11-09T10:20:00Z',
-        event: { title: 'Hòa nhạc' },
-        items: [{ quantity: 2 }],
-      },
-    ]
-    setup()
-    const row = screen.getByText('SEED07').closest('tr')!
-    expect(within(row).getByText(/6 ngày/)).toBeInTheDocument()
-    expect(within(row).getByText('Tiền về sau hạn')).toBeInTheDocument()
-    expect(within(row).getByRole('link', { name: 'Xử lý' })).toHaveAttribute('href', '/admin/orders/o1')
+    await screen.findByRole('alert')
+    expect(screen.queryByText('Tổng doanh thu')).not.toBeInTheDocument()
   })
 })

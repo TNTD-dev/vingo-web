@@ -1,3 +1,5 @@
+import { getAdminAccountsMock } from '@/api/generated/endpoints/admin-accounts/admin-accounts.msw'
+import { getAdminWorkspaceMock } from '@/api/generated/endpoints/admin-workspace/admin-workspace.msw'
 import { http, passthrough } from 'msw'
 import { setupWorker } from 'msw/browser'
 
@@ -52,6 +54,8 @@ export const worker = setupWorker(
   ...getTicketsMock(),
   ...getCheckInMock(),
   ...getChatMock(),
+  ...getAdminAccountsMock(),
+  ...getAdminWorkspaceMock(),
   ...getAdminCatalogMock(),
   ...getAdminOperationsMock(),
   ...getAdminReportsMock(),

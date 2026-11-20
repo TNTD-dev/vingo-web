@@ -1,4 +1,4 @@
-import { CityCode, EventCategory, SearchEventsSort, type SearchEventsParams } from '@/api/generated/model'
+import { EventCategory, SearchEventsSort, type SearchEventsParams } from '@/api/generated/model'
 import { vnDate, vnStartOfDay } from '@/lib/time'
 
 import { parseYmd, rangeToIso, type Ymd } from './dateRange'
@@ -15,8 +15,8 @@ export const CATEGORY_LABEL: Record<EventCategory, string> = {
   OTHER: 'Khác',
 }
 
-export const CITY_LABEL: Record<CityCode, string> = { HCM: 'TP. HCM', HN: 'Hà Nội', DN: 'Đà Nẵng' }
-export const CITY_FULL_NAME: Record<CityCode, string> = {
+export const CITY_LABEL: Record<string, string> = { HCM: 'TP. HCM', HN: 'Hà Nội', DN: 'Đà Nẵng' }
+export const CITY_FULL_NAME: Record<string, string> = {
   HCM: 'TP. Hồ Chí Minh',
   HN: 'Hà Nội',
   DN: 'Đà Nẵng',
@@ -39,7 +39,7 @@ export const PRICE_STEP = 100_000
 export type EventFilters = {
   q?: string
   category?: EventCategory
-  city?: CityCode
+  city?: string
   when?: When
   /** Khoảng ngày tự chọn (giờ Việt Nam, gồm cả ngày cuối). Loại trừ với `when`. */
   from?: Ymd
@@ -76,7 +76,7 @@ export function readFilters(params: URLSearchParams): EventFilters {
   return {
     q: params.get('q')?.trim() || undefined,
     category: oneOf(Object.values(EventCategory), params.get('category')),
-    city: oneOf(Object.values(CityCode), params.get('city')),
+    city: params.get('city')?.trim() || undefined,
     when,
     ...custom,
     priceMax: Number.isInteger(price) && price > 0 && price < PRICE_LIMIT ? price : undefined,

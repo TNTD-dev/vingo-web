@@ -1,8 +1,23 @@
 import { fitView, panView, type Box } from '@/seatmap/geometry'
 
+export const MIN_VENUE_ZOOM = 25
+
+/** Đổi kích thước canvas vẫn giữ tâm và mức zoom tương đối của khung nhìn. */
+export function resizeVenueView(view: Box, previousOverview: Box, overview: Box): Box {
+  const zoom = previousOverview.w / view.w
+  const width = Math.max(overview.w / 24, Math.min((overview.w * 100) / MIN_VENUE_ZOOM, overview.w / zoom))
+  const height = (width * overview.h) / overview.w
+  return panView(
+    { x: view.x + view.w / 2 - width / 2, y: view.y + view.h / 2 - height / 2, w: width, h: height },
+    0,
+    0,
+    overview,
+  )
+}
+
 /** Giới hạn zoom nhưng giữ điểm dưới con trỏ đứng yên. */
 export function zoomVenueView(view: Box, factor: number, anchor: { x: number; y: number }, overview: Box): Box {
-  const width = Math.max(overview.w / 24, Math.min(overview.w, view.w / factor))
+  const width = Math.max(overview.w / 24, Math.min((overview.w * 100) / MIN_VENUE_ZOOM, view.w / factor))
   const ratio = width / view.w
   return panView(
     {
@@ -19,7 +34,8 @@ export function zoomVenueView(view: Box, factor: number, anchor: { x: number; y:
 
 export function wheelZoomFactor(delta: number, mode: number, height: number): number {
   const pixels = delta * (mode === 1 ? 16 : mode === 2 ? height : 1)
-  return Math.exp(-Math.max(-160, Math.min(160, pixels)) * 0.003)
+  // Mỗi nấc chuột chỉ đổi khoảng 8%, trackpad vẫn giữ các bước nhỏ theo delta.
+  return Math.exp(-Math.max(-100, Math.min(100, pixels)) * 0.0008)
 }
 
 /** Hai ngưỡng theo kích thước ghế trên màn hình để tránh nhấp nháy khi zoom. */

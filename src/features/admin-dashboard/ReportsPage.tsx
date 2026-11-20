@@ -20,7 +20,6 @@ import {
   metricValue,
   previousPoint,
   previousRange,
-  utcDayBounds,
   type ChartPoint,
 } from './metricFormat'
 
@@ -32,7 +31,7 @@ const PRESETS: { value: Preset; label: string }[] = [
   { value: 'custom', label: 'Tuỳ chọn' },
 ]
 const GROUPS: { value: QueryMetricGroupBy; label: string; noun: string }[] = [
-  { value: 'day', label: 'Ngày', noun: 'ngày · UTC' },
+  { value: 'day', label: 'Ngày', noun: 'ngày · giờ Việt Nam' },
   { value: 'hour', label: 'Giờ', noun: 'giờ · giờ VN' },
   { value: 'tier', label: 'Hạng vé', noun: 'hạng vé' },
   { value: 'zone', label: 'Khu', noun: 'khu' },
@@ -60,10 +59,10 @@ export default function ReportsPage() {
     days = valid ? dayCount(from, to) : 1,
     keys = dayKeys(from, days),
     previousFrom = addDays(from, -days)
-  // Nhóm ngày của API tính theo UTC: truy vấn đúng các ngày UTC liên tục để mọi cột đều có mặt.
-  const dayFilters = group === 'day' ? { ...filters, ...utcDayBounds(from, to) } : filters,
+  // Khoảng lọc và bucket báo cáo đều theo ngày Việt Nam.
+  const dayFilters = group === 'day' ? { ...filters, ...dateBounds(from, to) } : filters,
     previousDayFilters =
-      group === 'day' ? { ...filters, ...utcDayBounds(previousFrom, addDays(from, -1)) } : { ...filters, ...prior }
+      group === 'day' ? { ...filters, ...dateBounds(previousFrom, addDays(from, -1)) } : { ...filters, ...prior }
   const query = useQueryMetric({ metric, group_by: group, ...dayFilters }, { query: { enabled: valid } }),
     previous = useQueryMetric({ metric, group_by: group, ...previousDayFilters }, { query: { enabled: valid } }),
     cardTotal = useQueryMetric({ metric, group_by: 'none', ...filters }, { query: { enabled: valid } })

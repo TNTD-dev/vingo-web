@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 
-import { CityCode, EventCategory } from '@/api/generated/model'
+import { EventCategory } from '@/api/generated/model'
 import { icons } from '@/design/icons'
 import { cn } from '@/lib/cn'
 import { formatDateRange, vnDate } from '@/lib/time'
@@ -64,7 +64,7 @@ export function EventFiltersPanel({ filters: f, onChange, now, className }: Prop
 
       <Section title="Thành phố" className="gap-3">
         <div className="flex flex-wrap gap-2">
-          {Object.values(CityCode).map((c) => (
+          {Object.keys(CITY_LABEL).map((c) => (
             <Chip key={c} active={f.city === c} onClick={() => set({ city: f.city === c ? undefined : c })}>
               {CITY_LABEL[c]}
             </Chip>
