@@ -297,6 +297,7 @@ export function VenueLayoutWorkspace({
             {mapSvg && (!overviewId || !overview.isPending) && (
               <VenueMapView
                 svg={mapSvg}
+                minimap
                 focus={focus}
                 selectedSeat={seatId}
                 selectedZones={pickedSet}
@@ -331,7 +332,7 @@ export function VenueLayoutWorkspace({
         </QueryState>
         <ErrorNotice error={exportError} />
         <footer className="venue-map-help">
-          Lăn chuột để zoom · Kéo để di chuyển · Bấm khu để xem ghế.
+          Lăn chuột để zoom · Dùng bản đồ nhỏ để di chuyển nhanh · Bấm khu để xem ghế.
           <br />
           {layout.status === 'PUBLISHED'
             ? 'Sơ đồ đã phát hành được khóa. Nhập SVG xuất từ Figma để tạo cấu hình mới.'

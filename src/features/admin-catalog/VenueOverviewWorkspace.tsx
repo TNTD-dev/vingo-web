@@ -27,6 +27,7 @@ export function VenueOverviewWorkspace({ overviewId }: { overviewId: string }) {
               {overview.data.svg_content ? (
                 <VenueMapView
                   svg={overview.data.svg_content}
+                  minimap
                   onOverview={() => setGate(undefined)}
                   onZoneClick={() => setGate(undefined)}
                   onSeatClick={() => {}}
@@ -37,7 +38,7 @@ export function VenueOverviewWorkspace({ overviewId }: { overviewId: string }) {
               )}
             </div>
             <footer className="venue-map-help">
-              Lăn chuột để phóng to · Kéo để di chuyển · Bấm cổng để xem thông tin.
+              Lăn chuột để zoom · Dùng bản đồ nhỏ để di chuyển nhanh · Bấm cổng để xem thông tin.
             </footer>
           </section>
           <aside className="venue-card venue-overview-info" aria-label="Thông tin overview">

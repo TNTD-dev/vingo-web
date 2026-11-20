@@ -134,20 +134,15 @@
 }
 
 /* Chế độ gán giá thao tác trên khu, không thao tác trên từng ghế. */
-.pricing-zone-map .seatmap {
-  cursor: grab;
+.pricing-zone-map .venue-source-map [id^='ZONE__'],
+.pricing-zone-map .venue-source-map [id^='ZONE__'] :is(path, polygon, rect, ellipse, use):not(mask *, defs *) {
+  fill: var(--zone-custom-fill, var(--vg-map-sold));
 }
-.pricing-zone-map .seatmap [data-zone],
-.pricing-zone-map .seatmap [data-soldout] {
-  cursor: pointer;
-}
-.pricing-zone-map .seatmap [id^='CONTENT__'] [id^='SEAT__'] {
-  visibility: hidden;
-  pointer-events: none;
-}
-.pricing-zone-map .seatmap [id^='ZONE__'],
-.pricing-zone-map .seatmap [id^='ZONE__'] :is(path, polygon, rect, ellipse, use):not(mask *, defs *) {
-  fill: var(--zone-fill, var(--vg-map-sold));
+.pricing-zone-map .venue-source-map :is(path, polygon, rect, ellipse, use)[data-map-picked],
+.pricing-zone-map .venue-source-map [data-map-picked] :is(path, polygon, rect, ellipse, use):not(mask *, defs *) {
+  stroke: var(--vg-text-primary) !important;
+  stroke-width: 3px;
+  vector-effect: non-scaling-stroke;
 }
 
 .event-wizard-steps .wz-step {

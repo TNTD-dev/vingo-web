@@ -15,7 +15,6 @@ import { ConfirmDialog, ErrorNotice, Field, Panel, QueryState } from '@/design/a
 import { dateText } from '@/design/admin/data'
 import { ChecklistRow, ChoiceCard, ChoiceGroup, LightButton, Segmented } from '@/design/admin/wizard'
 import { formatVnd } from '@/lib/money'
-import { SeatMapView } from '@/seatmap/SeatMapView'
 import { toast } from 'sonner'
 import { categories, useLayoutSvg, vnParts } from './catalog'
 import { activeShowtimes, stepLabels, useEventLayouts, useZoneAssignments } from './eventSetup'
@@ -23,6 +22,7 @@ import EventPricing from './EventPricing'
 import { EventLayoutStep } from './EventLayoutStep'
 import EventShowtimesStep from './EventShowtimesStep'
 import { mergeLayers } from './LayoutPreview'
+import { PricingZoneMap } from './PricingZoneMap'
 import { eventChecklist, readinessSummary } from './readiness'
 import { stepItems, WizardShell } from './WizardShell'
 
@@ -507,22 +507,15 @@ function ReviewSeatMap({
       {(detail.isFetching || overview.isFetching) && <p role="status">Đang tải sơ đồ…</p>}
       {svg && (
         <div className="pricing-zone-map h-[clamp(420px,70vh,900px)] overflow-hidden rounded-xl bg-canvas">
-          <SeatMapView
+          <PricingZoneMap
             svg={svg}
-            fitToCanvas
-            zones={Object.fromEntries(
-              rows.map((row) => [
-                row.code,
-                { tier: row.tier ? 1 : undefined, color: row.tier?.color, soldOut: !row.tier },
-              ]),
-            )}
-            selected={new Set()}
+            zones={rows.map((row) => ({
+              code: row.code,
+              fill: row.tier ? (row.tier.color ?? 'var(--vg-tier-1)') : 'var(--vg-map-sold)',
+              title: `${row.name} · ${row.tier ? formatVnd(row.tier.price) : 'Chưa có giá'}`,
+            }))}
             selectedZones={new Set(selectedZone ? [selectedZone] : [])}
             onZoneClick={setSelectedZone}
-            tooltip={(code) => {
-              const row = rows.find((zone) => zone.code === code)
-              return row ? `${row.name} · ${row.tier ? formatVnd(row.tier.price) : 'Chưa có giá'}` : null
-            }}
           />
         </div>
       )}

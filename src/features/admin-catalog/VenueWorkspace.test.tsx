@@ -19,7 +19,9 @@ vi.mock('@/api/generated/endpoints/venue-imports/venue-imports', async (load) =>
 vi.mock('@/design/admin/AdminSearch', () => ({ AdminSearch: () => null }))
 vi.mock('./VenueLocationPicker', () => ({ VenueLocationPicker: () => null }))
 vi.mock('./VenueMapView', () => ({
-  VenueMapView: ({ svg }: { svg: string }) => <div data-testid="map" dangerouslySetInnerHTML={{ __html: svg }} />,
+  VenueMapView: ({ svg, minimap }: { svg: string; minimap?: boolean }) => (
+    <div data-testid="map" data-minimap={minimap} dangerouslySetInnerHTML={{ __html: svg }} />
+  ),
 }))
 
 const background =
@@ -83,10 +85,12 @@ describe('quản lý overview và layout đã tạo', () => {
   it('chuyển sang overview chỉ hiện nền và giữ đúng liên kết tạo layout trên nền đó', async () => {
     setup()
     await waitFor(() => expect(screen.getByTestId('map').querySelector('[id^="SEAT__"]')).not.toBeNull())
+    expect(screen.getByTestId('map')).toHaveAttribute('data-minimap', 'true')
     await userEvent.click(screen.getByRole('button', { name: 'Xem overview →' }))
     expect(await screen.findByRole('complementary', { name: 'Thông tin overview' })).toBeInTheDocument()
     expect(screen.getByTestId('map').querySelector('#PITCH')).not.toBeNull()
     expect(screen.getByTestId('map').querySelector('[id^="SEAT__"]')).toBeNull()
+    expect(screen.getByTestId('map')).toHaveAttribute('data-minimap', 'true')
     expect(screen.getByRole('link', { name: 'Thêm layout trên nền này' })).toHaveAttribute(
       'href',
       '/admin/venues/v1?import=new&overview=o1',
