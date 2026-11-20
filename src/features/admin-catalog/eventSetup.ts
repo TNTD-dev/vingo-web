@@ -30,8 +30,8 @@ export function useEventLayouts(event: EventDetail) {
  * Sự kiện đã công bố: đọc từ seatmap công khai. Sự kiện nháp: API không cho đọc, dùng bản sao lưu ở tab này.
  */
 export function useZoneAssignments(event: EventDetail) {
-  const shows = activeShowtimes(event).filter((s) => s.id && s.status !== 'DRAFT')
-  const published = event.status === 'PUBLISHED' || event.status === 'ENDED'
+  const shows = activeShowtimes(event).filter((s) => s.id)
+  const published = event.status === 'PUBLISHED'
   return useQuery({
     queryKey: ['admin-zone-assignments', event.id, event.status, event.zone_prices, shows.map((s) => s.id)],
     queryFn: async (): Promise<Record<string, string> | null> => {

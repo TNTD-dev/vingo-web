@@ -54,7 +54,7 @@ describe('Xử lý đơn cần duyệt', () => {
     expect(calls[0][1]).toEqual({ action: 'ISSUE_TICKETS', reason: 'Đã đối chiếu, ghế còn trống' })
   })
   it('chỉ ghi nhận REFUND sau khi xác nhận đã hoàn tiền thủ công', async () => {
-    vi.mocked(resolveReview).mockResolvedValue({ id: 'order', status: 'REFUNDED' })
+    vi.mocked(resolveReview).mockResolvedValue({ id: 'order', status: 'REJECTED' })
     setup()
     fireEvent.click(screen.getByRole('button', { name: 'Ghi nhận đã hoàn tiền thủ công' }))
     expect(resolveReview).not.toHaveBeenCalled()
@@ -67,6 +67,15 @@ describe('Xử lý đơn cần duyệt', () => {
         expect.objectContaining({ headers: expect.any(Object) }),
       ),
     )
+  })
+  it('lỗi của lần phát hành vé trước không hiện lại trong hộp thoại hoàn tiền', async () => {
+    vi.mocked(resolveReview).mockRejectedValueOnce(new ApiError(409, { code: 'SEAT_TAKEN', title: 'x', status: 409 }))
+    setup()
+    fireEvent.click(screen.getByRole('button', { name: 'Phát hành vé và gửi email' }))
+    await screen.findByRole('alert')
+    fireEvent.click(screen.getByRole('button', { name: 'Ghi nhận đã hoàn tiền thủ công' }))
+    expect(screen.getByText(/không chuyển tiền/)).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
   it('đối soát chưa được backend hỗ trợ (501) thì báo rõ, không vỡ trang', async () => {
     vi.mocked(reconcileOrder).mockRejectedValueOnce(new ApiError(501, null))

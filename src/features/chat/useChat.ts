@@ -1,12 +1,6 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 
-import {
-  confirmAction,
-  createConversation,
-  listMessages,
-  rejectAction,
-  sendMessage,
-} from '@/api/generated/endpoints/chat/chat'
+import { confirmAction, createConversation, listMessages, rejectAction, sendMessage } from './chatApi'
 import { isApiError } from '@/api/problem'
 import { useAuth } from '@/auth/auth-context'
 import { useMeStream } from '@/realtime/useMeStream'

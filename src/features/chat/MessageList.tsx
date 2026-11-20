@@ -1,7 +1,7 @@
 import { Check } from 'lucide-react'
 import { Fragment, useEffect, useRef, useState } from 'react'
 
-import type { ChatBlock } from '@/api/generated/model'
+import type { ChatBlock } from '@/features/chat/chatApi'
 import { BlockView } from '@/blocks/registry'
 import type { BlockProps } from '@/blocks/types'
 import { MascotAvatar } from '@/design/MascotAvatar'

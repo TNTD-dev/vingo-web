@@ -16,12 +16,12 @@ const FIELD_MESSAGES: Record<Field, string> = {
   email: 'Email chưa đúng định dạng',
 }
 
-/** Lỗi 400 VALIDATION_ERROR của PUT /me/profile → lỗi theo ô nhập (câu tiếng Việt, không hiện chuỗi của backend). */
+/** Lỗi 400 VALIDATION_ERROR của POST /orders/{id}/payments (trường buyer) → lỗi theo ô nhập (câu tiếng Việt, không hiện chuỗi của backend). */
 export function profileFieldErrors(error: unknown): ProfileFieldErrors {
   const items = error instanceof ApiError && error.code === 'VALIDATION_ERROR' ? (error.problem?.errors ?? []) : []
   const found: ProfileFieldErrors = {}
   for (const item of items) {
-    const field = item.field ? FIELD_ALIASES[item.field] : undefined
+    const field = item.field ? FIELD_ALIASES[item.field.split('.').pop() ?? ''] : undefined
     if (field) found[field] = FIELD_MESSAGES[field]
   }
   return found

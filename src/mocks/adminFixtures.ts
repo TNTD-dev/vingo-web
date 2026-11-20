@@ -32,7 +32,7 @@ export const EVENTS: EventSummary[] = [
   ev(
     3,
     'Kịch “Lôi Vũ” — suất tối cuối tuần',
-    'THEATER',
+    'CONCERT',
     theater,
     'Nhà hát Bến Thành',
     'HCM',
@@ -65,7 +65,7 @@ export const EVENTS: EventSummary[] = [
   ev(
     6,
     'Saigon Weekend Market & Live Music',
-    'OTHER',
+    'CONCERT',
     market,
     'Công viên Gia Định',
     'HCM',
@@ -88,7 +88,7 @@ export const EVENTS: EventSummary[] = [
   ev(
     9,
     'Vở “Hồn Trương Ba, da hàng thịt”',
-    'THEATER',
+    'CONCERT',
     theater,
     'Nhà hát Tuổi Trẻ',
     'HN',
@@ -96,7 +96,7 @@ export const EVENTS: EventSummary[] = [
     250_000,
     true,
   ),
-  ev(10, 'Đà Nẵng Beach Festival', 'OTHER', market, 'Bãi biển Mỹ Khê', 'DN', '2026-12-12T10:00:00Z', 0, true),
+  ev(10, 'Đà Nẵng Beach Festival', 'CONCERT', market, 'Bãi biển Mỹ Khê', 'DN', '2026-12-12T10:00:00Z', 0, true),
   ev(
     11,
     'SHB Đà Nẵng vs Becamex Bình Dương',
@@ -122,7 +122,7 @@ export const EVENTS: EventSummary[] = [
   ev(
     13,
     'Nhạc kịch “Những người khốn khổ”',
-    'THEATER',
+    'CONCERT',
     theater,
     'Nhà hát Thành phố',
     'HCM',
@@ -130,7 +130,7 @@ export const EVENTS: EventSummary[] = [
     900_000,
     true,
   ),
-  ev(14, 'Chợ phiên Giáng sinh', 'OTHER', market, 'Công viên Tao Đàn', 'HCM', '2026-12-24T09:00:00Z', 50_000, true),
+  ev(14, 'Chợ phiên Giáng sinh', 'CONCERT', market, 'Công viên Tao Đàn', 'HCM', '2026-12-24T09:00:00Z', 50_000, true),
 ]
 
 function ev(
@@ -188,7 +188,10 @@ export function detailOf(summary: EventSummary): EventDetail {
     status: 'PUBLISHED',
     description:
       'Trận cầu tâm điểm vòng 12 giữa Hoàng Anh Gia Lai và Hà Nội FC. Cổng mở lúc 15:30, khuyến khích đến sớm để ổn định chỗ ngồi. Vé điện tử QR được gửi qua email ngay khi thanh toán thành công.',
-    attributes: { league: 'V.League 2026', round: 'Vòng 12', home_team: 'HAGL', away_team: 'Hà Nội FC' },
+    league: 'V.League 2026',
+    round: 'Vòng 12',
+    home_team: 'HAGL',
+    away_team: 'Hà Nội FC',
     poster_desktop_url: summary.poster_url,
     poster_mobile_url: summary.poster_url,
     max_tickets_per_order: 6,

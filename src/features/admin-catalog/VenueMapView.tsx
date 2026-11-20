@@ -1,8 +1,26 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Maximize2, Minus, Plus } from 'lucide-react'
-import { boxToViewBox, easeInOut, fitView, lerpBox, panView, parseViewBox, type Box } from '@/seatmap/geometry'
+import {
+  boxToViewBox,
+  easeInOut,
+  fitView,
+  interpolateZoom,
+  panView,
+  parseViewBox,
+  transformMapCamera,
+  type Box,
+} from '@/seatmap/geometry'
 import { parseSeatId, zoneCodeOfPart } from '@/seatmap/svg'
-import { fitVenueZone, showVenueSeats, visibleBox, wheelZoomFactor, zoomVenueView } from './venueMapGeometry'
+import {
+  fitVenueZone,
+  resizeVenueView,
+  showVenueSeats,
+  visibleBox,
+  wheelZoomFactor,
+  zoomVenueView,
+} from './venueMapGeometry'
+import { SeatMapMinimap } from '@/seatmap/SeatMapMinimap'
+import './venue-console.css'
 
 export type VenueGate = { id: string; zone?: string; number: string }
 
@@ -17,18 +35,22 @@ function parseMapGate(element: Element): VenueGate | undefined {
 }
 type Props = {
   svg: string
+  minimap?: boolean
+  zonesOnly?: boolean
   focus?: string
   selectedSeat?: string
   selectedZones?: ReadonlySet<string>
-  zoneColors?: Record<string, { fill: string; stroke: string }>
+  zoneColors?: Record<string, { fill: string; stroke?: string }>
+  zoneTitles?: Record<string, string>
   onZoneClick: (code: string) => void
-  onSeatClick: (id: string) => void
-  onGateClick: (gate: VenueGate) => void
-  onOverview: () => void
+  onSeatClick?: (id: string) => void
+  onGateClick?: (gate: VenueGate) => void
+  onOverview?: () => void
 }
 type ZoneGeometry = {
   box: Box
   seats: SVGGraphicsElement[]
+  seatLayers: SVGGElement[]
   seatSize: number
   visible: boolean
   surface: SVGGraphicsElement
@@ -38,10 +60,13 @@ type ZoneGeometry = {
 /** Bộ xem cấu hình: giữ màu, nhãn và cổng từ SVG. Không có thao tác đặt/khóa ghế. */
 export function VenueMapView({
   svg,
+  minimap = false,
+  zonesOnly = false,
   focus,
   selectedSeat,
   selectedZones,
   zoneColors,
+  zoneTitles,
   onZoneClick,
   onSeatClick,
   onGateClick,
@@ -49,6 +74,11 @@ export function VenueMapView({
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const frameRef = useRef<HTMLDivElement>(null)
+  const cameraRef = useRef<HTMLDivElement | null>(null)
+  const settleRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const lastDetailRef = useRef(-Infinity)
+  const pointers = useRef(new Map<number, { x: number; y: number }>())
+  const pinch = useRef<{ distance: number; x: number; y: number; view: Box } | null>(null)
   const rootRef = useRef<SVGSVGElement | null>(null)
   const boundsRef = useRef<Box | null>(null)
   const overviewRef = useRef<Box | null>(null)
@@ -58,10 +88,13 @@ export function VenueMapView({
   const [revision, setRevision] = useState(0)
   const [zoom, setZoom] = useState(100)
   const [detailMode, setDetailMode] = useState(false)
+  const [minimapView, setMinimapView] = useState<{ bounds: Box; view: Box } | null>(null)
   const drag = useRef<{ x: number; y: number; view: Box } | null>(null)
   const suppressClick = useRef(false)
   const frame = useRef(0)
   const animRef = useRef(0)
+  const wheelTargetRef = useRef<Box | null>(null)
+  const wheelAnimatingRef = useRef(false)
   const focusedRef = useRef(focus)
   const prevFocusRef = useRef(focus)
   const skipFlyZoneRef = useRef<string | null>(null)
@@ -76,27 +109,25 @@ export function VenueMapView({
   const stopFly = useCallback(() => {
     if (animRef.current > 0) cancelAnimationFrame(animRef.current)
     animRef.current = 0
+    wheelTargetRef.current = null
+    wheelAnimatingRef.current = false
   }, [])
 
-  const renderView = useCallback(() => {
-    if (frame.current > 0) {
-      cancelAnimationFrame(frame.current)
-      frame.current = 0
-    }
+  const updateDetails = useCallback(() => {
     const root = rootRef.current,
       view = viewRef.current,
       overview = overviewRef.current,
-      host = frameRef.current
-    if (!root || !view || !overview || !host) return
-    root.setAttribute('viewBox', boxToViewBox(view))
-    const pixelsPerUnit = Math.min(host.clientWidth / view.w, host.clientHeight / view.h)
+      viewport = sizeRef.current
+    if (!root || !view || !overview || viewport.width <= 0 || viewport.height <= 0) return
+    const pixelsPerUnit = Math.min(viewport.width / view.w, viewport.height / view.h)
     let any = false
+    const overscan = { x: view.x - view.w * 0.5, y: view.y - view.h * 0.5, w: view.w * 2, h: view.h * 2 }
     for (const [code, zone] of zonesRef.current) {
       const show =
-        visibleBox(view, zone.box) &&
+        visibleBox(overscan, zone.box) &&
         (focusedRef.current === code || showVenueSeats(zone.visible, zone.seatSize * pixelsPerUnit))
       if (show !== zone.visible) {
-        zone.seats.forEach((seat) => seat.toggleAttribute('data-map-hidden', !show))
+        zone.seatLayers.forEach((layer) => layer.toggleAttribute('data-map-hidden', !show))
         zone.surface.toggleAttribute('data-map-detail', show)
         zone.label?.toggleAttribute('data-map-detail', show)
         zone.visible = show
@@ -105,10 +136,32 @@ export function VenueMapView({
     }
     setZoom(Math.round((overview.w / view.w) * 100))
     setDetailMode(any)
-  }, [])
+    if (minimap) setMinimapView({ bounds: boundsRef.current ?? overview, view: { ...view } })
+  }, [minimap])
+
+  // The SVG keeps a stable viewBox. Only this wrapper moves in the frame loop.
+  const renderView = useCallback(() => {
+    const camera = cameraRef.current,
+      view = viewRef.current,
+      overview = overviewRef.current,
+      viewport = sizeRef.current
+    if (!camera || !view || !overview || viewport.width <= 0 || viewport.height <= 0) return
+    camera.style.willChange = 'transform'
+    transformMapCamera(camera, overview, view, viewport.width, viewport.height)
+    const now = performance.now()
+    if (now - lastDetailRef.current >= 80) {
+      lastDetailRef.current = now
+      updateDetails()
+    }
+    clearTimeout(settleRef.current)
+    settleRef.current = setTimeout(() => {
+      camera.style.willChange = 'auto'
+      updateDetails()
+    }, 120)
+  }, [updateDetails])
 
   const flyTo = useCallback(
-    (target: Box) => {
+    (target: Box, duration = 260) => {
       stopFly()
       const from = viewRef.current
       const reduce = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
@@ -124,15 +177,65 @@ export function VenueMapView({
         renderView()
         return
       }
-      const duration = 260
       const start = performance.now()
       const tick = (now: number) => {
         animRef.current = 0
         const elapsed = now > start ? now - start : duration
         const t = Math.min(1, elapsed / duration)
-        viewRef.current = lerpBox(from, target, easeInOut(t))
+        viewRef.current = interpolateZoom(from, target, easeInOut(t))
         renderView()
         if (t < 1) {
+          animRef.current = -1
+          const id = requestAnimationFrame(tick)
+          if (animRef.current === -1) animRef.current = id
+        } else {
+          wheelTargetRef.current = null
+        }
+      }
+      animRef.current = -1
+      const id = requestAnimationFrame(tick)
+      if (animRef.current === -1) animRef.current = id
+    },
+    [renderView, stopFly],
+  )
+
+  // Một vòng rAF cho cả lượt cuộn; các nấc mới chỉ cập nhật đích, không khởi động lại easing.
+  const glideWheelTo = useCallback(
+    (target: Box) => {
+      if (wheelAnimatingRef.current) {
+        wheelTargetRef.current = target
+        return
+      }
+      stopFly()
+      if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) {
+        viewRef.current = target
+        renderView()
+        return
+      }
+      wheelTargetRef.current = target
+      wheelAnimatingRef.current = true
+      let previousTime = performance.now()
+      const tick = (now: number) => {
+        animRef.current = 0
+        const current = viewRef.current,
+          destination = wheelTargetRef.current
+        if (!current || !destination) {
+          wheelAnimatingRef.current = false
+          return
+        }
+        const elapsed = now > previousTime ? Math.min(64, now - previousTime) : Number.POSITIVE_INFINITY
+        previousTime = now
+        const next = interpolateZoom(current, destination, 1 - Math.exp(-elapsed / 45))
+        const settled =
+          Math.abs(next.w - destination.w) < destination.w * 0.0004 &&
+          Math.abs(next.x - destination.x) < destination.w * 0.0004 &&
+          Math.abs(next.y - destination.y) < destination.h * 0.0004
+        viewRef.current = settled ? destination : next
+        renderView()
+        if (settled) {
+          wheelTargetRef.current = null
+          wheelAnimatingRef.current = false
+        } else {
           animRef.current = -1
           const id = requestAnimationFrame(tick)
           if (animRef.current === -1) animRef.current = id
@@ -158,11 +261,18 @@ export function VenueMapView({
   useLayoutEffect(() => {
     const host = hostRef.current
     if (!host) return
-    host.innerHTML = svg
+    const activePointers = pointers.current
+    const camera = document.createElement('div')
+    camera.className = 'venue-map-camera'
+    camera.innerHTML = svg
+    host.replaceChildren(camera)
+    cameraRef.current = camera
+    lastDetailRef.current = -Infinity
     const root = host.querySelector('svg')
     rootRef.current = root
     zonesRef.current.clear()
     if (!root) return
+    if (zonesOnly) root.querySelectorAll('[id^="SEAT__"]').forEach((seat) => seat.remove())
     root.removeAttribute('width')
     root.removeAttribute('height')
     root.setAttribute('preserveAspectRatio', 'xMidYMid meet')
@@ -216,6 +326,7 @@ export function VenueMapView({
             zonesRef.current.set(code, {
               box: b,
               seats: [],
+              seatLayers: [],
               seatSize: 0,
               visible: false,
               surface: el,
@@ -230,18 +341,39 @@ export function VenueMapView({
     }
     for (const el of Array.from(root.querySelectorAll<SVGGraphicsElement>('[id^="SEAT__"]'))) {
       el.setAttribute('data-map-seat', '')
-      el.setAttribute('data-map-hidden', '')
       const seat = parseSeatId(el.id),
         zone = seat && zonesRef.current.get(seat.zone)
       if (!zone) continue
       // Ghế không có fill/stroke trong file vẫn cần thấy được khi xem cấu hình.
-      const paint = getComputedStyle(el)
-      if (paint.fill === 'none' && paint.stroke === 'none') el.setAttribute('data-map-seat-fallback', '')
+      if (!el.getAttribute('fill') || el.getAttribute('fill') === 'none') {
+        const paint = getComputedStyle(el)
+        if (paint.fill === 'none' && paint.stroke === 'none') el.setAttribute('data-map-seat-fallback', '')
+      }
       if (!zone.seatSize) {
         const b = boxOf(el)
         zone.seatSize = b ? Math.min(b.w, b.h) : 2
       }
       zone.seats.push(el)
+    }
+    // Chỉ gom các ghế liền nhau, giữ nguyên thứ tự vẽ, transform và cổng trong CONTENT.
+    // Khi zoom, đổi visibility một nhóm thay vì sửa thuộc tính trên hàng trăm ghế của từng khu.
+    for (const [code, zone] of zonesRef.current) {
+      for (const seat of zone.seats) {
+        const parent = seat.parentElement
+        if (!parent) continue
+        const previous = seat.previousElementSibling
+        let layer: SVGGElement
+        if (previous?.getAttribute('data-map-seat-layer') === code) {
+          layer = previous as SVGGElement
+        } else {
+          layer = root.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'g')
+          layer.setAttribute('data-map-seat-layer', code)
+          parent.insertBefore(layer, seat)
+          zone.seatLayers.push(layer)
+        }
+        layer.appendChild(seat)
+      }
+      zone.seatLayers.forEach((layer) => layer.setAttribute('data-map-hidden', ''))
     }
     for (const el of Array.from(root.querySelectorAll<SVGGraphicsElement>('[id^="GATE__"], [id^="GATE_LABEL__"]'))) {
       if (parseMapGate(el)) el.setAttribute('data-map-gate', '')
@@ -251,12 +383,16 @@ export function VenueMapView({
     setRevision((v) => v + 1)
     return () => {
       stopFly()
+      clearTimeout(settleRef.current)
+      activePointers.clear()
+      pinch.current = null
+      cameraRef.current = null
       if (frame.current > 0) cancelAnimationFrame(frame.current)
       frame.current = 0
       rootRef.current = null
       host.replaceChildren()
     }
-  }, [svg, stopFly])
+  }, [svg, stopFly, zonesOnly])
 
   useEffect(() => {
     const host = frameRef.current
@@ -273,18 +409,21 @@ export function VenueMapView({
     if (!bounds || size.width <= 0 || size.height <= 0) return
     const aspect = size.width / size.height
     const overview = fitView(bounds, aspect, 0.04)
+    const previousOverview = overviewRef.current
     overviewRef.current = overview
+    rootRef.current?.setAttribute('viewBox', boxToViewBox(overview))
+    lastDetailRef.current = -Infinity
     if (!viewRef.current) {
       const f = focusedRef.current
       const zone = f && zonesRef.current.get(f)
       viewRef.current = zone ? fitVenueZone(zone.box, overview, aspect) : overview
       prevFocusRef.current = f
     } else {
-      const nextW = Math.min(overview.w, viewRef.current.w)
-      viewRef.current = panView({ ...viewRef.current, w: nextW, h: nextW / aspect }, 0, 0, overview)
+      stopFly()
+      viewRef.current = resizeVenueView(viewRef.current, previousOverview ?? overview, overview)
     }
     renderView()
-  }, [size, revision, renderView])
+  }, [size, revision, renderView, stopFly])
 
   useLayoutEffect(() => {
     const overview = overviewRef.current
@@ -294,12 +433,12 @@ export function VenueMapView({
     const skip = skipFlyZoneRef.current === focus
     skipFlyZoneRef.current = null
     if (skip) {
-      renderView()
+      updateDetails()
       return
     }
     const zone = focus && zonesRef.current.get(focus)
     flyTo(zone ? fitVenueZone(zone.box, overview, size.width / size.height) : overview)
-  }, [focus, size, revision, flyTo, renderView])
+  }, [focus, size, revision, flyTo, updateDetails])
 
   useLayoutEffect(() => {
     const root = rootRef.current
@@ -308,15 +447,27 @@ export function VenueMapView({
       const color = zoneColors?.[code]
       if (color) {
         z.surface.style.setProperty('--zone-custom-fill', color.fill)
-        z.surface.style.setProperty('--zone-custom-stroke', color.stroke)
         z.surface.setAttribute('data-map-colored', '')
       } else {
         z.surface.style.removeProperty('--zone-custom-fill')
-        z.surface.style.removeProperty('--zone-custom-stroke')
         z.surface.removeAttribute('data-map-colored')
       }
       z.surface.toggleAttribute('data-map-active', code === focus)
       z.surface.toggleAttribute('data-map-picked', !!selectedZones?.has(code))
+      if (!zonesOnly) continue
+      const title = zoneTitles?.[code]
+      for (const part of [z.surface, z.label]) {
+        if (!part) continue
+        const existing = part.querySelector('title[data-map-title]')
+        if (!title) {
+          existing?.remove()
+          continue
+        }
+        const label = existing ?? document.createElementNS(part.namespaceURI, 'title')
+        label.setAttribute('data-map-title', '')
+        if (label.textContent !== title) label.textContent = title
+        if (!existing) part.prepend(label)
+      }
     }
     for (const el of Array.from(root.querySelectorAll('[data-map-selected]'))) el.removeAttribute('data-map-selected')
     if (selectedSeat) {
@@ -326,39 +477,54 @@ export function VenueMapView({
           : selectedSeat.replace(/["\\]/g, '\\$&')
       root.querySelector(`[id="${esc}"]`)?.setAttribute('data-map-selected', '')
     }
-  }, [focus, selectedSeat, selectedZones, zoneColors, revision])
+  }, [focus, selectedSeat, selectedZones, zoneColors, zoneTitles, zonesOnly, revision])
 
   const changeZoom = useCallback(
-    (factor: number, point?: { x: number; y: number }) => {
-      stopFly()
+    (factor: number, point?: { x: number; y: number }, smooth = true) => {
       skipFlyZoneRef.current = null
-      const view = viewRef.current,
+      const current = viewRef.current,
         overview = overviewRef.current
-      if (!view || !overview) return
-      const anchor = point ?? { x: view.x + view.w / 2, y: view.y + view.h / 2 }
+      if (!current || !overview) return
+      // Cộng các nấc đang lăn vào đích để không mất thao tác khi animation chưa kết thúc.
+      const view = smooth ? (wheelTargetRef.current ?? current) : current
+      const anchor = point
+        ? {
+            x: view.x + ((point.x - current.x) / current.w) * view.w,
+            y: view.y + ((point.y - current.y) / current.h) * view.h,
+          }
+        : { x: view.x + view.w / 2, y: view.y + view.h / 2 }
       const next = zoomVenueView(view, factor, anchor, overview)
-      viewRef.current = next
       // Thu nhỏ về tổng quan phải rời focus, nếu không khu đó vẫn hiện ghế.
       if (overview.w / next.w < 1.5 && focusedRef.current) {
         focusedRef.current = undefined
         prevFocusRef.current = undefined
-        callbacks.current.onOverview()
+        callbacks.current.onOverview?.()
       }
-      schedule()
+      if (smooth) {
+        glideWheelTo(next)
+      } else {
+        stopFly()
+        viewRef.current = next
+        schedule()
+      }
     },
-    [schedule, stopFly],
+    [glideWheelTo, schedule, stopFly],
   )
 
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
     const wheel = (e: WheelEvent) => {
-      const root = rootRef.current,
-        matrix = root?.getScreenCTM()
-      if (!matrix) return
+      const current = viewRef.current
+      const viewport = sizeRef.current
+      if (!current || viewport.width <= 0 || viewport.height <= 0) return
       e.preventDefault()
-      const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(matrix.inverse())
-      changeZoom(wheelZoomFactor(e.deltaY, e.deltaMode, host.clientHeight), p)
+      const rect = frameRef.current!.getBoundingClientRect()
+      const point = {
+        x: current.x + ((e.clientX - rect.left) / viewport.width) * current.w,
+        y: current.y + ((e.clientY - rect.top) / viewport.height) * current.h,
+      }
+      changeZoom(wheelZoomFactor(e.deltaY, e.deltaMode, viewport.height), point, true)
     }
     host.addEventListener('wheel', wheel, { passive: false })
     return () => host.removeEventListener('wheel', wheel)
@@ -368,14 +534,16 @@ export function VenueMapView({
     focusedRef.current = undefined
     prevFocusRef.current = undefined
     skipFlyZoneRef.current = null
-    callbacks.current.onOverview()
+    callbacks.current.onOverview?.()
     if (overviewRef.current) flyTo(overviewRef.current)
   }
   return (
     <div ref={frameRef} className="venue-map-frame">
-      <div className="venue-map-mode" aria-live="polite">
-        {detailMode ? 'Chi tiết ghế' : 'Tổng quan khu'}
-      </div>
+      {!zonesOnly && (
+        <div className="venue-map-mode" aria-live="polite">
+          {detailMode ? 'Chi tiết ghế' : 'Tổng quan khu'}
+        </div>
+      )}
       {/* Vùng bản đồ có điều khiển bàn phím riêng và bảng khu tương đương ở bên cạnh. */}
       {/* oxlint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
       <div
@@ -408,11 +576,60 @@ export function VenueMapView({
         onPointerDown={(e) => {
           if (e.button !== 0 || !viewRef.current) return
           stopFly()
+          pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+          if (pointers.current.size === 2) {
+            const [a, b] = [...pointers.current.values()]
+            pinch.current = {
+              distance: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
+              x: (a.x + b.x) / 2,
+              y: (a.y + b.y) / 2,
+              view: { ...viewRef.current },
+            }
+            suppressClick.current = true
+            drag.current = null
+          }
+          if (pinch.current) {
+            for (const id of pointers.current.keys()) {
+              try {
+                e.currentTarget.setPointerCapture(id)
+              } catch {
+                /* Pointer already released. */
+              }
+            }
+            return
+          }
           suppressClick.current = false
           drag.current = { x: e.clientX, y: e.clientY, view: { ...viewRef.current } }
-          // Capture ở SVG để click vào phần tử con vẫn giữ target gốc khi chưa kéo.
+          // Delay capture until dragging so a tap keeps its original seat/gate target.
         }}
         onPointerMove={(e) => {
+          if (pointers.current.has(e.pointerId)) pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+          const gesture = pinch.current,
+            overviewBox = overviewRef.current
+          if (gesture && pointers.current.size === 2 && overviewBox) {
+            const [a, b] = [...pointers.current.values()]
+            const rect = frameRef.current!.getBoundingClientRect()
+            const viewport = sizeRef.current
+            if (!viewport.width || !viewport.height) return
+            const anchor = {
+              x: gesture.view.x + ((gesture.x - rect.left) / viewport.width) * gesture.view.w,
+              y: gesture.view.y + ((gesture.y - rect.top) / viewport.height) * gesture.view.h,
+            }
+            const next = zoomVenueView(
+              gesture.view,
+              Math.hypot(a.x - b.x, a.y - b.y) / gesture.distance,
+              anchor,
+              overviewBox,
+            )
+            viewRef.current = panView(
+              next,
+              (-((a.x + b.x) / 2 - gesture.x) * next.w) / viewport.width,
+              (-((a.y + b.y) / 2 - gesture.y) * next.h) / viewport.height,
+              overviewBox,
+            )
+            schedule()
+            return
+          }
           const d = drag.current,
             root = rootRef.current,
             overview = overviewRef.current
@@ -425,22 +642,38 @@ export function VenueMapView({
             dy = e.clientY - d.y
           if (Math.hypot(dx, dy) < 5 && !suppressClick.current) return
           suppressClick.current = true
-          e.currentTarget.setPointerCapture(e.pointerId)
-          const scale = Math.min(e.currentTarget.clientWidth / d.view.w, e.currentTarget.clientHeight / d.view.h)
+          try {
+            e.currentTarget.setPointerCapture(e.pointerId)
+          } catch {
+            /* Pointer already released. */
+          }
+          const scale = Math.min(sizeRef.current.width / d.view.w, sizeRef.current.height / d.view.h)
           viewRef.current = panView(d.view, -dx / scale, -dy / scale, overview)
           schedule()
         }}
         onPointerUp={(e) => {
-          drag.current = null
+          pointers.current.delete(e.pointerId)
+          pinch.current = null
+          const remaining = [...pointers.current.values()][0]
+          drag.current = remaining && viewRef.current ? { ...remaining, view: { ...viewRef.current } } : null
           if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId)
         }}
-        onPointerCancel={() => {
+        onPointerCancel={(e) => {
+          pointers.current.delete(e.pointerId)
+          pinch.current = null
+          drag.current = null
+          suppressClick.current = true
+        }}
+        onLostPointerCapture={(e) => {
+          if (!pointers.current.delete(e.pointerId)) return
+          pinch.current = null
           drag.current = null
           suppressClick.current = true
         }}
         onPointerLeave={() => {
           if (!suppressClick.current) drag.current = null
         }}
+        onDragStart={(e) => e.preventDefault()}
         onClick={(e) => {
           if (suppressClick.current) {
             suppressClick.current = false
@@ -448,16 +681,16 @@ export function VenueMapView({
           }
           const target = e.target as Element
           const gate = target.closest('[data-map-gate]')
-          if (gate) {
+          if (gate && callbacks.current.onGateClick) {
             const selected = parseMapGate(gate)
             if (selected) callbacks.current.onGateClick(selected)
             return
           }
           const seat = target.closest('[data-map-seat]')
-          if (seat && !seat.hasAttribute('data-map-hidden')) {
+          if (seat && !seat.closest('[data-map-hidden]')) {
             const seatZone = parseSeatId(seat.id)?.zone
             skipFlyZoneRef.current = seatZone && seatZone !== focusedRef.current ? seatZone : null
-            callbacks.current.onSeatClick(seat.id)
+            callbacks.current.onSeatClick?.(seat.id)
             return
           }
           const code = target.closest('[data-map-zone]')?.getAttribute('data-map-zone')
@@ -479,6 +712,22 @@ export function VenueMapView({
         }}
       />
       {/* oxlint-enable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
+      {minimap && minimapView && (
+        <SeatMapMinimap
+          svg={svg}
+          bounds={minimapView.bounds}
+          view={minimapView.view}
+          onFit={fit}
+          onNavigate={(point) => {
+            const view = viewRef.current,
+              overview = overviewRef.current
+            if (!view || !overview) return
+            stopFly()
+            viewRef.current = panView({ ...view, x: point.x - view.w / 2, y: point.y - view.h / 2 }, 0, 0, overview)
+            schedule()
+          }}
+        />
+      )}
       <div className="venue-map-controls">
         <button type="button" onClick={fit} aria-label="Về toàn cảnh">
           <Maximize2 size={16} />

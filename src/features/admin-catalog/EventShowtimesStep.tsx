@@ -62,7 +62,7 @@ export default function EventShowtimesStep({
         </>
       }
     >
-      <div className="wz-grid wz-grid-side-left" style={{ gridTemplateColumns: 'minmax(260px, 360px) minmax(0, 1fr)' }}>
+      <div className="wz-grid wz-grid-side-left">
         <Panel className="wz-panel">
           <div className="mb-4 flex items-center justify-between gap-3">
             <h2>{shows.length} suất diễn</h2>
@@ -122,7 +122,7 @@ export default function EventShowtimesStep({
             eventId={event.id!}
             initial={editorMode.kind === 'edit' ? editorMode.show : undefined}
             template={editorMode.kind === 'new' ? editorMode.template : undefined}
-            venueHint={event.venue_id ?? lastVenue}
+            venueHint={event.venue?.id ?? lastVenue}
             requiredLayout={event.seat_layout_id}
             category={event.category}
             onSaved={() => setMode({ kind: 'new' })}

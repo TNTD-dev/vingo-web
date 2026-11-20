@@ -3,6 +3,7 @@ import { Link, Navigate, useParams } from 'react-router'
 import { ArrowLeft, ImageOff, Lock, Minus, Plus } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
+  addSkuPrice,
   useGetAdminEvent,
   updateEvent,
   putPriceTiers,
@@ -10,16 +11,17 @@ import {
   cancelEvent,
   cancelShowtime,
 } from '@/api/generated/endpoints/admin-catalog/admin-catalog'
-import type { EventDetail, EventInput, Showtime } from '@/api/generated/model'
+import type { EventDetail, EventInput, Showtime, SkuPrice } from '@/api/generated/model'
 import { AdminPage, Panel, QueryState, StateBadge, ConfirmDialog, Field, ErrorNotice } from '@/design/admin/AdminUi'
 import { AdminAction } from '@/design/admin/AdminAction'
+import { FormDialog } from '@/design/admin/FormDialog'
 import { stateLabel } from '@/design/admin/labels'
 import { dateText } from '@/design/admin/data'
 import { Button } from '@/design/ui/button'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/design/ui/dropdown-menu'
 import more from '@/design/admin/icons/more.svg'
 import { formatVnd } from '@/lib/money'
-import { categories, vnParts } from './catalog'
+import { categories, toUtc, vnParts } from './catalog'
 import ShowtimeForm from './ShowtimeForm'
 import { toast } from 'sonner'
 
@@ -29,7 +31,6 @@ const MATCH_FIELDS = [
   ['league', 'Giải đấu'],
   ['round', 'Vòng đấu'],
 ] as const
-const AGES = [0, 13, 16, 18]
 
 export default function AdminEventDetailPage() {
   const { eventId = '' } = useParams(),
@@ -39,19 +40,22 @@ export default function AdminEventDetailPage() {
   return <QueryState query={query}>{query.data && <EventEditor key={eventId} event={query.data} />}</QueryState>
 }
 
-// venue_id và seat_layout_id do wizard quản lý, trang sửa không gửi lại.
+// seat_layout_id do wizard quản lý, trang sửa không gửi lại.
 function initialData(
   event: EventDetail,
-): Required<Omit<EventInput, 'attributes' | 'venue_id' | 'seat_layout_id'>> & Pick<EventInput, 'attributes'> {
+): Required<Omit<EventInput, 'seat_layout_id' | 'home_team' | 'away_team' | 'league' | 'round'>> &
+  Pick<EventInput, 'home_team' | 'away_team' | 'league' | 'round'> {
   return {
     title: event.title ?? '',
-    category: event.category ?? 'OTHER',
+    category: event.category ?? 'CONCERT',
     description: event.description ?? '',
     poster_mobile_url: event.poster_mobile_url ?? '',
     poster_desktop_url: event.poster_desktop_url ?? '',
-    age_limit: event.age_limit ?? 0,
     max_tickets_per_order: event.max_tickets_per_order ?? 6,
-    attributes: event.attributes,
+    home_team: event.home_team ?? undefined,
+    away_team: event.away_team ?? undefined,
+    league: event.league ?? undefined,
+    round: event.round ?? undefined,
   }
 }
 
@@ -65,13 +69,14 @@ function EventEditor({ event }: { event: EventDetail }) {
     original = initialData(event),
     [data, setData] = useState(original)
   const [tierEdits, setTierEdits] = useState<Record<string, number>>({}),
+    [priceTarget, setPriceTarget] = useState<{ id: string; name: string; price: number } | null>(null),
     [editor, setEditor] = useState<Showtime | 'new' | null>(null),
     [action, setAction] = useState<{ kind: 'publish' | 'cancel' | 'showtime'; show?: Showtime } | null>(null),
     [infoSaved, setInfoSaved] = useState(false)
   const [viewedAt] = useState(() => Date.now())
   const set = <K extends keyof typeof data>(key: K, value: (typeof data)[K]) => setData({ ...data, [key]: value })
   const tiers = (event.price_tiers ?? []).map((t, i) => ({ ...t, price: tierEdits[t.id ?? i] ?? t.price }))
-  const terminal = event.status === 'CANCELLED' || event.status === 'ENDED'
+  const terminal = event.status === 'CANCELLED'
   const priceLocked =
     terminal ||
     event.showtimes?.some((s) => s.status !== 'CANCELLED' && s.sale_opens_at && Date.parse(s.sale_opens_at) <= viewedAt)
@@ -176,29 +181,15 @@ function EventEditor({ event }: { event: EventDetail }) {
                     disabled={!!event.seat_layout_id}
                     onChange={(e) => set('category', e.target.value as EventInput['category'] & string)}
                   >
-                    {Object.entries(categories).map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
+                    {Object.entries(categories)
+                      .filter(([value]) => value === 'FOOTBALL' || value === 'CONCERT' || value === event.category)
+                      .map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
                   </select>
                 </Field>
-                <div className="admin-field">
-                  <span id="age-label">Độ tuổi</span>
-                  <div className="admin-chips" role="radiogroup" aria-labelledby="age-label">
-                    {[...new Set([...AGES, data.age_limit])].map((age) => (
-                      <button
-                        key={age}
-                        type="button"
-                        role="radio"
-                        aria-checked={data.age_limit === age}
-                        onClick={() => set('age_limit', age)}
-                      >
-                        {age ? `${age}+` : 'Mọi tuổi'}
-                      </button>
-                    ))}
-                  </div>
-                </div>
               </div>
               <Field label="Mô tả">
                 <textarea
@@ -218,8 +209,8 @@ function EventEditor({ event }: { event: EventDetail }) {
                     <Field key={key} label={label}>
                       <input
                         form="admin-event-editor"
-                        value={String(data.attributes?.[key] ?? '')}
-                        onChange={(e) => set('attributes', { ...data.attributes, [key]: e.target.value })}
+                        value={data[key] ?? ''}
+                        onChange={(e) => set(key, e.target.value)}
                       />
                     </Field>
                   ))}
@@ -275,31 +266,48 @@ function EventEditor({ event }: { event: EventDetail }) {
             {priceLocked ? (
               <ul className="admin-price-list">
                 {tiers.map((t, i) => (
-                  <li key={t.id ?? i}>
-                    <span>{t.name}</span>
-                    <strong>{formatVnd(t.price ?? 0)}</strong>
+                  <li key={t.id ?? i} className="flex-col items-stretch gap-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span>{t.name}</span>
+                      <span className="flex items-center gap-2">
+                        <strong>{formatVnd(t.price ?? 0)}</strong>
+                        {!terminal && t.id && (
+                          <button
+                            type="button"
+                            className="wz-link text-xs"
+                            onClick={() => setPriceTarget({ id: t.id!, name: t.name, price: t.price })}
+                          >
+                            Đổi giá
+                          </button>
+                        )}
+                      </span>
+                    </div>
+                    <SkuPriceHistory prices={t.prices} />
                   </li>
                 ))}
               </ul>
             ) : (
               <div className="space-y-2">
                 {tiers.map((t, i) => (
-                  <label key={t.id ?? i} className="admin-price-row">
-                    <span>{t.name}</span>
-                    <span className="admin-price-input">
-                      <input
-                        type="number"
-                        form="admin-event-editor"
-                        required
-                        min={0}
-                        step={1000}
-                        aria-label={`Giá ${t.name}`}
-                        value={t.price}
-                        onChange={(e) => setTierEdits({ ...tierEdits, [t.id ?? i]: Number(e.target.value) })}
-                      />
-                      <span>₫</span>
-                    </span>
-                  </label>
+                  <div key={t.id ?? i} className="space-y-1">
+                    <label className="admin-price-row">
+                      <span>{t.name}</span>
+                      <span className="admin-price-input">
+                        <input
+                          type="number"
+                          form="admin-event-editor"
+                          required
+                          min={0}
+                          step={1000}
+                          aria-label={`Giá ${t.name}`}
+                          value={t.price}
+                          onChange={(e) => setTierEdits({ ...tierEdits, [t.id ?? i]: Number(e.target.value) })}
+                        />
+                        <span>₫</span>
+                      </span>
+                    </label>
+                    <SkuPriceHistory prices={t.prices} />
+                  </div>
                 ))}
               </div>
             )}
@@ -311,9 +319,10 @@ function EventEditor({ event }: { event: EventDetail }) {
             {priceLocked && (
               <p className="admin-lock-note">
                 <Lock size={14} aria-hidden />
-                Giá đã khóa vì có suất đã mở bán.
+                Hạng giá đã khóa vì có suất đang bán; có thể thêm mốc giá mới theo lịch.
               </p>
             )}
+            {priceTarget && <SkuPriceDialog eventId={id} target={priceTarget} onClose={() => setPriceTarget(null)} />}
             <hr className="admin-side-rule" />
             <div className="admin-stepper-row">
               <span>
@@ -555,5 +564,91 @@ function ShowtimeList({
         </ul>
       )}
     </Panel>
+  )
+}
+
+function SkuPriceHistory({ prices }: { prices?: SkuPrice[] }) {
+  if (!prices?.length) return null
+  return (
+    <ul className="space-y-0.5 pl-2 text-xs text-ink-tertiary" aria-label="Lịch sử giá">
+      {prices.map((p) => (
+        <li key={p.id} className="flex flex-wrap items-center justify-between gap-2">
+          <span>
+            {formatVnd(p.price)} · từ {dateText(p.effective_from)}
+          </span>
+          {p.reason && <span className="truncate">{p.reason}</span>}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function SkuPriceDialog({
+  eventId,
+  target,
+  onClose,
+}: {
+  eventId: string
+  target: { id: string; name: string; price: number }
+  onClose: () => void
+}) {
+  const client = useQueryClient()
+  const [price, setPrice] = useState(target.price)
+  const [effectiveFrom, setEffectiveFrom] = useState('')
+  const [reason, setReason] = useState('')
+  const save = useMutation({
+    mutationFn: () =>
+      addSkuPrice(eventId, target.id, {
+        price,
+        effective_from: effectiveFrom ? (toUtc(effectiveFrom) ?? null) : null,
+        reason: reason.trim() || null,
+      }),
+    onSuccess: async () => {
+      toast.success(`Đã cập nhật giá ${target.name}`)
+      await client.invalidateQueries()
+      onClose()
+    },
+  })
+  return (
+    <FormDialog title={`Đổi giá · ${target.name}`} pending={save.isPending} onClose={onClose}>
+      <form
+        className="space-y-4"
+        onSubmit={(e) => {
+          e.preventDefault()
+          save.mutate()
+        }}
+      >
+        <Field label="Giá mới (VND) *">
+          <input
+            type="number"
+            required
+            min={0}
+            step={1000}
+            value={price}
+            onChange={(e) => setPrice(Number(e.target.value))}
+          />
+        </Field>
+        <Field label="Hiệu lực từ (để trống = ngay lập tức)">
+          <input type="datetime-local" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
+        </Field>
+        <Field label="Lý do điều chỉnh">
+          <input
+            maxLength={500}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="VD: Early bird kết thúc"
+          />
+        </Field>
+        <ErrorNotice error={save.error} />
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={onClose}>
+            Huỷ
+          </Button>
+          <AdminAction type="submit" disabled={save.isPending || price < 0}>
+            {save.isPending ? 'Đang lưu…' : 'Lưu mốc giá'}
+          </AdminAction>
+        </div>
+      </form>
+    </FormDialog>
   )
 }

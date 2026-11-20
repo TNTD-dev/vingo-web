@@ -1,18 +1,52 @@
 import { describe, expect, it } from 'vitest'
-import { fitVenueZone, showVenueSeats, visibleBox, wheelZoomFactor, zoomVenueView } from './venueMapGeometry'
+import { interpolateZoom } from '@/seatmap/geometry'
+import {
+  fitVenueZone,
+  resizeVenueView,
+  showVenueSeats,
+  visibleBox,
+  wheelZoomFactor,
+  zoomVenueView,
+} from './venueMapGeometry'
 
 const overview = { x: 0, y: 0, w: 1000, h: 600 }
 describe('điều khiển bản đồ cấu hình sân', () => {
+  it('đổi từ mobile sang desktop vẫn giữ toàn cảnh ở giữa canvas', () => {
+    const mobile = { x: 0, y: -400, w: 1000, h: 1400 }
+    expect(resizeVenueView(mobile, mobile, overview)).toEqual(overview)
+  })
+  it('đổi tỉ lệ canvas vẫn giữ tâm và mức phóng đang xem', () => {
+    const next = resizeVenueView({ x: 300, y: 200, w: 250, h: 150 }, overview, { x: -100, y: 0, w: 1200, h: 600 })
+    expect(1200 / next.w).toBe(4)
+    expect(next.x + next.w / 2).toBe(425)
+    expect(next.y + next.h / 2).toBe(275)
+    expect(next.w / next.h).toBe(2)
+  })
   it('zoom neo vị trí con trỏ', () => {
     const anchor = { x: 300, y: 180 },
       next = zoomVenueView(overview, 2, anchor, overview)
     expect((anchor.x - next.x) / next.w).toBeCloseTo(0.3)
     expect((anchor.y - next.y) / next.h).toBeCloseTo(0.3)
   })
-  it('giới hạn zoom nhưng giữ aspect ratio', () => {
+  it('easing hình học giữ neo con trỏ ở mọi frame, cả khi zoom ngược', () => {
+    const anchor = { x: 300, y: 180 }
+    const target = zoomVenueView(overview, 4, anchor, overview)
+    for (const [from, to] of [
+      [overview, target],
+      [target, overview],
+    ]) {
+      for (const t of [0, 0.1, 0.5, 0.9, 1]) {
+        const frame = interpolateZoom(from, to, t)
+        expect((anchor.x - frame.x) / frame.w).toBeCloseTo(0.3)
+        expect((anchor.y - frame.y) / frame.h).toBeCloseTo(0.3)
+      }
+    }
+    expect(interpolateZoom(overview, target, 0.5).w).toBeCloseTo(overview.w / 2)
+  })
+  it('cho thu nhỏ tới 25% và giữ aspect ratio trong giới hạn zoom', () => {
     expect(zoomVenueView(overview, 1000, { x: 500, y: 300 }, overview).w).toBeCloseTo(1000 / 24)
     const next = zoomVenueView(overview, 0.001, { x: 500, y: 300 }, overview)
-    expect(next.w).toBe(1000)
+    expect(next.w).toBe(4000)
     expect(next.w / next.h).toBeCloseTo(1000 / 600)
   })
   it('chuẩn hóa wheel theo pixel, dòng và trang', () => {

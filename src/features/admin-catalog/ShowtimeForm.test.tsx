@@ -3,10 +3,17 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createShowtime } from '@/api/generated/endpoints/admin-catalog/admin-catalog'
+import type { EventDetail } from '@/api/generated/model'
 import ShowtimeForm from './ShowtimeForm'
 vi.mock('@/api/generated/endpoints/admin-catalog/admin-catalog', () => ({
   createShowtime: vi.fn().mockResolvedValue({ id: 'show' }),
   updateShowtime: vi.fn(),
+  useGetSeatLayout: () => ({
+    data: { id: 'layout2', venue_id: 'venue2', name: 'Sơ đồ chính', version: 1, zones: [] },
+    isPending: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
 }))
 vi.mock('./catalog', async (original) => ({
   ...(await original<typeof import('./catalog')>()),
@@ -43,17 +50,21 @@ afterEach(() => {
   vi.clearAllMocks()
   vi.useRealTimers()
 })
-function setup() {
+function renderForm(event?: EventDetail) {
   const close = vi.fn()
   render(
     <MemoryRouter>
       <QueryClientProvider
         client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}
       >
-        <ShowtimeForm eventId="event" onClose={close} />
+        <ShowtimeForm eventId="event" event={event} onClose={close} />
       </QueryClientProvider>
     </MemoryRouter>,
   )
+  return close
+}
+function setup() {
+  const close = renderForm()
   fireEvent.change(screen.getByLabelText('Sân'), { target: { value: 'venue' } })
   fireEvent.change(screen.getByLabelText('Layout đã phát hành'), { target: { value: 'layout' } })
   return close
@@ -89,6 +100,22 @@ function dates(end = '22:00') {
   }
 }
 describe('Lưu suất diễn', () => {
+  it('lấy sân từ sơ đồ sự kiện khi sự kiện nháp chưa có suất hoặc thông tin sân', async () => {
+    renderForm({ id: 'event', category: 'CONCERT', status: 'DRAFT', seat_layout_id: 'layout2', showtimes: [] })
+    dates()
+    expect(screen.getByRole('button', { name: 'Lưu suất diễn' })).toBeEnabled()
+    expect(screen.getByLabelText('Sân')).toHaveValue('venue2')
+    expect(screen.getByLabelText('Sân')).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Lưu suất diễn' }))
+    await waitFor(() =>
+      expect(createShowtime).toHaveBeenCalledWith(
+        'event',
+        expect.objectContaining({
+          seat_layout_id: 'layout2',
+        }),
+      ),
+    )
+  })
   it('đổi sân xóa layout cũ và yêu cầu chọn lại', () => {
     setup()
     dates()

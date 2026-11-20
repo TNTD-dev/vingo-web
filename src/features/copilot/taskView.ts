@@ -1,6 +1,6 @@
 import { blockView } from '@/blocks/adminPayloads'
 import { internalAdminPath, parseConfirmAction, root, str } from '@/blocks/payloads'
-import type { ChatBlock } from '@/api/generated/model'
+import type { ChatBlock } from '@/features/chat/chatApi'
 import type { ChatState } from '@/features/chat/chatReducer'
 
 /** Việc Copilot đang làm, suy ra từ block trong hội thoại (contract chưa có sự kiện bước tool). */

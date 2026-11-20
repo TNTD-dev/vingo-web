@@ -1,14 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  hasErrors,
-  isSafePaymentUrl,
-  maskPhone,
-  needsSave,
-  normalizePhone,
-  toProfile,
-  validateProfile,
-} from './checkoutForm'
+import { hasErrors, isSafePaymentUrl, maskPhone, normalizePhone, toBuyer, validateProfile } from './checkoutForm'
 
 const ok = { full_name: 'Nguyễn Minh Anh', phone: '0901234821', email: 'minhanh@gmail.com' }
 
@@ -29,23 +21,18 @@ describe('validateProfile', () => {
   })
 })
 
-describe('normalizePhone / toProfile', () => {
+describe('normalizePhone / toBuyer', () => {
   it('chuẩn hoá về 10 chữ số bắt đầu bằng 0', () => {
     expect(normalizePhone('+84 901 234 821')).toBe('0901234821')
-    expect(toProfile({ ...ok, full_name: '  Minh Anh ', phone: '090.123.4821' })).toEqual({
+  })
+
+  it('toBuyer gửi số điện thoại dạng E.164 và cắt khoảng trắng', () => {
+    expect(toBuyer({ ...ok, full_name: '  Minh Anh ', phone: '090.123.4821' })).toEqual({
       full_name: 'Minh Anh',
-      phone: '0901234821',
+      phone: '+84901234821',
       email: 'minhanh@gmail.com',
     })
-  })
-})
-
-describe('needsSave', () => {
-  it('chưa có hồ sơ hoặc có thay đổi thì cần lưu, giống hệt thì không', () => {
-    expect(needsSave(ok, undefined)).toBe(true)
-    expect(needsSave(ok, { ...ok })).toBe(false)
-    expect(needsSave({ ...ok, phone: '090 123 4821' }, { ...ok })).toBe(false)
-    expect(needsSave({ ...ok, email: 'khac@gmail.com' }, { ...ok })).toBe(true)
+    expect(toBuyer({ ...ok, phone: '+84 901 234 821' }).phone).toBe('+84901234821')
   })
 })
 
@@ -64,13 +51,5 @@ describe('isSafePaymentUrl', () => {
     expect(isSafePaymentUrl('data:text/html,hi')).toBe(false)
     expect(isSafePaymentUrl('khong phai url')).toBe(false)
     expect(isSafePaymentUrl(undefined)).toBe(false)
-  })
-})
-
-describe('needsSave với số điện thoại dạng +84', () => {
-  it('hồ sơ lưu +84… và form hiện 0… cùng số thì không cần lưu lại', () => {
-    const saved = { full_name: 'A B', phone: '+84900000002', email: 'a@b.vn' }
-    expect(needsSave({ full_name: 'A B', phone: '+84900000002', email: 'a@b.vn' }, saved)).toBe(false)
-    expect(needsSave({ full_name: 'A B', phone: '0900000002', email: 'a@b.vn' }, saved)).toBe(false)
   })
 })

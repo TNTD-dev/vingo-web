@@ -23,9 +23,11 @@ export function EventForm({
     description: initial?.description ?? '',
     poster_mobile_url: initial?.poster_mobile_url ?? '',
     poster_desktop_url: initial?.poster_desktop_url ?? '',
-    age_limit: initial?.age_limit ?? 0,
     max_tickets_per_order: initial?.max_tickets_per_order ?? 6,
-    attributes: initial?.attributes,
+    home_team: initial?.home_team ?? undefined,
+    away_team: initial?.away_team ?? undefined,
+    league: initial?.league ?? undefined,
+    round: initial?.round ?? undefined,
   })
   function submit(e: FormEvent) {
     e.preventDefault()
@@ -89,15 +91,6 @@ export function EventForm({
             placeholder="https://…"
           />
         </Field>
-        <Field label="Độ tuổi tối thiểu">
-          <input
-            type="number"
-            min={0}
-            max={100}
-            value={data.age_limit}
-            onChange={(e) => setData({ ...data, age_limit: Number(e.target.value) })}
-          />
-        </Field>
         <div className="sm:col-span-2">
           <Field label="Giới thiệu sự kiện">
             <textarea
@@ -108,12 +101,9 @@ export function EventForm({
           </Field>
         </div>
         {data.category === 'FOOTBALL' &&
-          ['home_team', 'away_team', 'league', 'round'].map((key, i) => (
+          (['home_team', 'away_team', 'league', 'round'] as const).map((key, i) => (
             <Field key={key} label={['Đội nhà', 'Đội khách', 'Giải đấu', 'Vòng đấu'][i]}>
-              <input
-                value={String(data.attributes?.[key] ?? '')}
-                onChange={(e) => setData({ ...data, attributes: { ...data.attributes, [key]: e.target.value } })}
-              />
+              <input value={data[key] ?? ''} onChange={(e) => setData({ ...data, [key]: e.target.value })} />
             </Field>
           ))}
       </fieldset>

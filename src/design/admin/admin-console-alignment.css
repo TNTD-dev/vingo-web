@@ -1,0 +1,255 @@
+/* Bố cục sáng theo bản SVG; dùng token hiện có, không đổi giao diện buyer. */
+/* Hộp thoại cũng mang class `admin` (để nhận token) nên phải loại ra, nếu không padding: 0 ở đây
+   ghi đè padding của .admin-dialog / .admin-confirm và nội dung dính sát mép. */
+.admin:not(.admin-dialog) {
+  gap: 0;
+  padding: 0;
+}
+/* Trang đứng riêng không có sidebar (/checkin dùng trên điện thoại) nên giữ lề quanh màn hình. */
+.admin.admin-standalone:not(.admin-dialog) {
+  padding: 16px;
+}
+.admin .admin-sidebar {
+  top: 0;
+  height: 100dvh;
+  border-radius: 0;
+  border-right: 1px solid var(--vg-border-subtle);
+  background: var(--vg-bg-surface);
+  color: var(--vg-text-primary);
+}
+.admin .admin-nav-label {
+  color: var(--vg-text-primary);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  line-height: 1.5;
+}
+.admin .admin-nav-link {
+  color: var(--vg-text-secondary);
+}
+.admin .admin-nav-link:hover,
+.admin .admin-nav-link[aria-current='page'] {
+  background: var(--vg-bg-canvas);
+  color: var(--vg-text-primary);
+  font-weight: 600;
+}
+.admin .admin-nav-link img {
+  filter: brightness(0);
+}
+.admin .admin-sidebar-user {
+  border-color: var(--vg-border-subtle);
+  background: var(--vg-bg-canvas);
+  color: var(--vg-text-primary);
+}
+.admin .admin-sidebar-user button img {
+  filter: brightness(0);
+}
+.admin .admin-sidebar-user-text a {
+  color: var(--vg-text-secondary);
+}
+.admin .admin-sidebar-toggle {
+  color: var(--vg-text-primary);
+  border-color: var(--vg-border-subtle);
+}
+.admin .admin-main {
+  padding: 28px;
+}
+.admin .admin-header h1 {
+  font-size: clamp(24px, 3vw, 34px);
+  font-weight: 650;
+}
+.admin .admin-panel {
+  border: 1px solid var(--vg-border-subtle);
+  border-radius: 16px;
+}
+.admin .admin-panel h2 {
+  font-size: 17px;
+  font-weight: 600;
+}
+.admin progress {
+  accent-color: var(--vg-status-success);
+}
+.admin .text-muted {
+  color: var(--vg-text-secondary);
+}
+.admin .border-line {
+  border-color: var(--vg-border-subtle);
+}
+.admin-mobile-nav .admin-nav-label {
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+}
+.overview-dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+.overview-dashboard-grid > .admin-panel {
+  min-width: 0;
+}
+.overview-full-panel {
+  grid-column: 1 / -1;
+}
+.overview-chart-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.overview-panel-description {
+  margin-top: 6px;
+  color: var(--vg-text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.overview-chart-total {
+  margin-top: 20px;
+  font-size: clamp(24px, 2.8vw, 34px);
+  font-weight: 650;
+  letter-spacing: -0.04em;
+}
+.overview-sales-plot {
+  margin-top: 20px;
+  overflow-x: auto;
+}
+.overview-sales-plot svg {
+  display: block;
+  width: 100%;
+  min-width: 480px;
+}
+.overview-chart-gridline {
+  stroke: var(--vg-border-subtle);
+  stroke-dasharray: 4 4;
+}
+.overview-chart-label {
+  fill: var(--vg-text-secondary);
+  font-size: 12px;
+}
+.overview-chart-hit {
+  fill: transparent;
+}
+.overview-chart-column {
+  fill: var(--vg-status-success);
+}
+.overview-chart-column[data-active] {
+  fill: var(--vg-bg-inverse);
+}
+.overview-chart-detail {
+  min-height: 22px;
+  margin-top: 8px;
+  color: var(--vg-text-secondary);
+  font-size: 12px;
+}
+.overview-chart-data {
+  margin-top: 12px;
+  color: var(--vg-text-secondary);
+  font-size: 13px;
+}
+.overview-chart-data summary {
+  cursor: pointer;
+}
+.overview-chart-data .admin-table-wrap {
+  max-height: 280px;
+  margin-top: 12px;
+  overflow: auto;
+}
+.overview-chart-empty {
+  display: grid;
+  min-height: 250px;
+  place-items: center;
+  color: var(--vg-text-secondary);
+}
+.overview-tier-list {
+  max-height: 380px;
+  margin-top: 16px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+.overview-tier-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--vg-border-subtle);
+}
+.overview-tier-rank {
+  display: grid;
+  place-items: center;
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--vg-bg-canvas);
+  color: var(--vg-text-secondary);
+  font-size: 12px;
+}
+.overview-tier-content {
+  flex: 1;
+  min-width: 0;
+}
+.overview-tier-content p {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.overview-tier-row > strong {
+  flex-shrink: 0;
+  min-width: 32px;
+  text-align: right;
+  font-size: 16px;
+  font-weight: 650;
+}
+.overview-tier-row small {
+  display: block;
+  color: var(--vg-text-secondary);
+  font-size: 11px;
+  font-weight: 400;
+}
+.overview-meter {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: var(--vg-bg-muted);
+}
+.overview-meter > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--vg-status-success);
+}
+.overview-tier-content .overview-meter {
+  margin-top: 8px;
+}
+.overview-tier-expand {
+  width: 100%;
+  margin-top: 14px;
+  padding: 10px;
+  border: 1px solid var(--vg-border-subtle);
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.overview-tier-expand:hover {
+  background: var(--vg-bg-canvas);
+}
+@media (max-width: 1100px) {
+  .overview-dashboard-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 767px) {
+  .admin .admin-main {
+    padding: 16px;
+  }
+  .admin .admin-panel {
+    padding: 16px;
+  }
+}

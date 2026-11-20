@@ -13,9 +13,8 @@ import type { EventCreateInput, EventDetail, SeatLayoutOverview } from '@/api/ge
 import { AdminAction } from '@/design/admin/AdminAction'
 import { ConfirmDialog, ErrorNotice, Field, Panel, QueryState } from '@/design/admin/AdminUi'
 import { dateText } from '@/design/admin/data'
-import { ChecklistRow, ChoiceCard, ChoiceGroup, LightButton, Segmented } from '@/design/admin/wizard'
+import { ChecklistRow, ChoiceCard, ChoiceGroup, LightButton } from '@/design/admin/wizard'
 import { formatVnd } from '@/lib/money'
-import { SeatMapView } from '@/seatmap/SeatMapView'
 import { toast } from 'sonner'
 import { categories, useLayoutSvg, vnParts } from './catalog'
 import { activeShowtimes, stepLabels, useEventLayouts, useZoneAssignments } from './eventSetup'
@@ -23,6 +22,7 @@ import EventPricing from './EventPricing'
 import { EventLayoutStep } from './EventLayoutStep'
 import EventShowtimesStep from './EventShowtimesStep'
 import { mergeLayers } from './LayoutPreview'
+import { PricingZoneMap } from './PricingZoneMap'
 import { eventChecklist, readinessSummary } from './readiness'
 import { stepItems, WizardShell } from './WizardShell'
 
@@ -70,15 +70,7 @@ export default function EventWizardPage() {
 const categoryHints: Record<keyof typeof categories, string> = {
   FOOTBALL: 'Có đội nhà / đội khách',
   CONCERT: 'Concert, liveshow',
-  THEATER: 'Kịch, nhạc kịch',
-  OTHER: 'Hội chợ, stand-up…',
 }
-const ages = [
-  { value: 0, label: 'Mọi lứa tuổi' },
-  { value: 13, label: '13+' },
-  { value: 16, label: '16+' },
-  { value: 18, label: '18+' },
-]
 const isUrl = (v?: string) => !v || /^https?:\/\/\S+$/i.test(v)
 const footballFields = [
   ['home_team', 'Đội nhà'],
@@ -96,9 +88,11 @@ function EventInfoStep({ event, goStep }: { event?: EventDetail; goStep: (n: num
     description: event?.description ?? '',
     poster_mobile_url: event?.poster_mobile_url ?? '',
     poster_desktop_url: event?.poster_desktop_url ?? '',
-    age_limit: event?.age_limit ?? 0,
     max_tickets_per_order: event?.max_tickets_per_order ?? 6,
-    attributes: event?.attributes,
+    home_team: event?.home_team ?? undefined,
+    away_team: event?.away_team ?? undefined,
+    league: event?.league ?? undefined,
+    round: event?.round ?? undefined,
   })
   const valid = !!data.title.trim() && isUrl(data.poster_mobile_url) && isUrl(data.poster_desktop_url)
   const save = useMutation({
@@ -108,7 +102,9 @@ function EventInfoStep({ event, goStep }: { event?: EventDetail; goStep: (n: num
         title: data.title.trim(),
         poster_mobile_url: data.poster_mobile_url || undefined,
         poster_desktop_url: data.poster_desktop_url || undefined,
-        attributes: data.category === 'FOOTBALL' ? data.attributes : event ? {} : undefined,
+        ...(data.category !== 'FOOTBALL'
+          ? { home_team: undefined, away_team: undefined, league: undefined, round: undefined }
+          : {}),
       }
       const saved = event?.id ? await updateEvent(event.id, body) : await createEvent(body)
       return { id: saved.id ?? event?.id, then }
@@ -147,15 +143,17 @@ function EventInfoStep({ event, goStep }: { event?: EventDetail; goStep: (n: num
               <>
                 <p className="admin-caption">Thể loại *</p>
                 <ChoiceGroup label="Thể loại" className="!mt-2">
-                  {(Object.keys(categories) as (keyof typeof categories)[]).map((c) => (
-                    <ChoiceCard
-                      key={c}
-                      title={categories[c]}
-                      hint={categoryHints[c]}
-                      selected={data.category === c}
-                      onSelect={() => setData({ ...data, category: c })}
-                    />
-                  ))}
+                  {(Object.keys(categories) as (keyof typeof categories)[])
+                    .filter((c) => c === 'FOOTBALL' || c === 'CONCERT')
+                    .map((c) => (
+                      <ChoiceCard
+                        key={c}
+                        title={categories[c]}
+                        hint={categoryHints[c]}
+                        selected={data.category === c}
+                        onSelect={() => setData({ ...data, category: c })}
+                      />
+                    ))}
                 </ChoiceGroup>
               </>
             )}
@@ -192,10 +190,7 @@ function EventInfoStep({ event, goStep }: { event?: EventDetail; goStep: (n: num
                 </h3>
                 {footballFields.map(([key, label]) => (
                   <Field key={key} label={label}>
-                    <input
-                      value={String(data.attributes?.[key] ?? '')}
-                      onChange={(e) => setData({ ...data, attributes: { ...data.attributes, [key]: e.target.value } })}
-                    />
+                    <input value={data[key] ?? ''} onChange={(e) => setData({ ...data, [key]: e.target.value })} />
                   </Field>
                 ))}
               </section>
@@ -222,16 +217,6 @@ function EventInfoStep({ event, goStep }: { event?: EventDetail; goStep: (n: num
                     <Plus size={14} aria-hidden />
                   </button>
                 </div>
-              </div>
-              <div>
-                <p className="admin-caption mb-2">Độ tuổi tối thiểu</p>
-                <Segmented
-                  variant="pills"
-                  label="Độ tuổi tối thiểu"
-                  options={ages}
-                  value={data.age_limit ?? 0}
-                  onChange={(age_limit) => setData({ ...data, age_limit })}
-                />
               </div>
             </div>
           </fieldset>
@@ -306,14 +291,10 @@ function EventReviewStep({ event, goStep }: { event: EventDetail; goStep: (n: nu
       navigate('/admin/events')
     },
   })
-  const zones = [
-    ...new Map(Object.values(layouts.data ?? {}).flatMap((l) => l.zones.map((z) => [z.id, z] as const))).values(),
-  ]
   const first = shows
     .map((s) => s.sale_opens_at)
     .filter((v): v is string => !!v)
     .sort()[0]
-  const fb = event.attributes
   const selectedLayout = event.seat_layout_id ? layouts.data?.[event.seat_layout_id] : undefined
   return (
     <WizardShell
@@ -348,11 +329,10 @@ function EventReviewStep({ event, goStep }: { event: EventDetail; goStep: (n: nu
                       {categories[event.category]}
                     </span>
                   )}
-                  <span className="wz-chip">{event.age_limit ? `${event.age_limit}+` : 'Mọi lứa tuổi'}</span>
                   <span className="wz-chip">Tối đa {event.max_tickets_per_order ?? 6} vé/đơn</span>
                 </div>
                 <p className="text-sm text-ink-secondary">
-                  {[fb?.league, fb?.round].filter(Boolean).join(' · ')} {event.description}
+                  {[event.league, event.round].filter(Boolean).join(' · ')} {event.description}
                 </p>
               </div>
             </div>
@@ -364,7 +344,7 @@ function EventReviewStep({ event, goStep }: { event: EventDetail; goStep: (n: nu
                 Sửa →
               </button>
             </div>
-            <ul className="mt-3 divide-y">
+            <ul className="event-review-showtimes mt-3 divide-y">
               {shows.map((s) => {
                 const p = vnParts(s.starts_at),
                   e = vnParts(s.ends_at),
@@ -397,23 +377,6 @@ function EventReviewStep({ event, goStep }: { event: EventDetail; goStep: (n: nu
             {selectedLayout && (
               <ReviewSeatMap event={event} layout={selectedLayout} assignments={assignments.data ?? {}} />
             )}
-            <div className="mt-3 grid gap-3 sm:grid-cols-3">
-              {event.price_tiers?.map((t) => {
-                const mine = assignments.data ? zones.filter((z) => assignments.data![z.id] === t.id) : []
-                return (
-                  <div key={t.id} className="rounded-xl bg-canvas p-4">
-                    <p className="text-xs text-ink-secondary">{t.name}</p>
-                    <p className="wz-money">{formatVnd(t.price)}</p>
-                    <p className="admin-caption">
-                      {assignments.data
-                        ? `${mine.length} khu · ${mine.reduce((s, z) => s + z.capacity, 0).toLocaleString('vi-VN')} ghế`
-                        : '—'}
-                    </p>
-                  </div>
-                )
-              })}
-              {!event.price_tiers?.length && <p className="admin-notice sm:col-span-3">Chưa có hạng giá.</p>}
-            </div>
           </Panel>
         </div>
         <Panel className="wz-panel wz-sticky">
@@ -524,31 +487,34 @@ function ReviewSeatMap({
       <ErrorNotice error={overview.error || detail.error} />
       {(detail.isFetching || overview.isFetching) && <p role="status">Đang tải sơ đồ…</p>}
       {svg && (
-        <div className="h-72">
-          <SeatMapView
+        <div className="pricing-zone-map h-[clamp(420px,70vh,900px)] overflow-hidden rounded-xl bg-canvas">
+          <PricingZoneMap
             svg={svg}
-            zones={Object.fromEntries(rows.map((row) => [row.code, { color: row.tier?.color, soldOut: !row.tier }]))}
-            selected={new Set()}
+            zones={rows.map((row) => ({
+              code: row.code,
+              fill: row.tier ? (row.tier.color ?? 'var(--vg-tier-1)') : 'var(--vg-map-sold)',
+              title: `${row.name} · ${row.tier ? formatVnd(row.tier.price) : 'Chưa có giá'}`,
+            }))}
             selectedZones={new Set(selectedZone ? [selectedZone] : [])}
             onZoneClick={setSelectedZone}
-            tooltip={(code) => {
-              const row = rows.find((zone) => zone.code === code)
-              return row ? `${row.name} · ${row.tier ? formatVnd(row.tier.price) : 'Chưa có giá'}` : null
-            }}
           />
         </div>
       )}
-      <details>
-        <summary>Giá từng khu ({rows.length})</summary>
-        <ul className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
-          {rows.map((row) => (
-            <li key={row.id} className="flex justify-between gap-2" aria-current={selectedZone === row.code}>
-              <span>{row.name}</span>
-              <span>{row.tier ? formatVnd(row.tier.price) : 'Chưa có giá'}</span>
-            </li>
-          ))}
-        </ul>
-      </details>
+      <ul aria-label="Chú giải giá vé" className="flex flex-wrap gap-x-8 gap-y-3 py-3 text-base">
+        {event.price_tiers?.map((tier) => (
+          <li key={tier.id} className="flex min-w-0 items-center gap-2">
+            <span className="size-4 shrink-0" style={{ background: tier.color ?? 'var(--vg-tier-1)' }} aria-hidden />
+            <span className="font-bold break-words">{tier.name}:</span>
+            <span className="font-medium whitespace-nowrap">{formatVnd(tier.price).replace(/\s*₫/, 'đ')}</span>
+          </li>
+        ))}
+        {rows.some((row) => !row.tier) && (
+          <li className="flex items-center gap-2">
+            <span className="size-4 shrink-0" style={{ background: 'var(--vg-map-sold)' }} aria-hidden />
+            <span>Chưa có giá</span>
+          </li>
+        )}
+      </ul>
     </div>
   )
 }

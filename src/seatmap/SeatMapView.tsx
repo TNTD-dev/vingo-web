@@ -3,7 +3,6 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
@@ -13,8 +12,18 @@ import {
 import { cn } from '@/lib/cn'
 
 import './seatmap.css'
-import { boxToViewBox, easeInOut, fitView, lerpBox, panView, parseViewBox, zoomAround, type Box } from './geometry'
-import { indexSvg, parseZoneId, zoneCodeOfPart } from './svg'
+import {
+  boxToViewBox,
+  fitView,
+  interpolateZoom,
+  panView,
+  parseViewBox,
+  transformMapCamera,
+  zoomAround,
+  type Box,
+} from './geometry'
+import { SeatMapMinimap } from './SeatMapMinimap'
+import { parseSeatId, parseZoneId, zoneCodeOfPart } from './svg'
 
 /**
  * Vẽ sơ đồ ghế từ SVG layout admin đã nhập (quy ước SVG v1, xem ./svg.ts).
@@ -45,7 +54,7 @@ type Props = {
   selected: ReadonlySet<string>
   selectedZones?: ReadonlySet<string>
   /** Chỉ sáng các khu thuộc hạng này (số) hoặc khu đứng; null = tất cả. */
-  tierFilter?: number | 'standing' | null
+  tierFilter?: number | null
   onZoneClick: (code: string) => void
   onSeatClick?: (svgSeatId: string) => void
   /** Bấm vào chỗ trống (không phải khu/ghế): thường dùng để thoát về toàn cảnh. */
@@ -54,14 +63,10 @@ type Props = {
   selectableStatuses?: readonly SeatState[]
   /** Nội dung tooltip khi rê chuột vào khu; trả null để không hiện. */
   tooltip?: (code: string) => ReactNode
-  /** Hiện bản đồ thu nhỏ khi đang xem gần. */
+  /** Hiện bản đồ thu nhỏ để định vị và di chuyển. */
   minimap?: boolean
   className?: string
 }
-
-const ANIMATION_MS = 380
-/** Vùng bản vẽ hiện trong bản đồ thu nhỏ (bỏ lề trắng quanh sân). */
-const MINIMAP: Box = { x: 120, y: 24, w: 1360, h: 1152 }
 
 const tierColor = (tier: number | undefined, soldOut: boolean) =>
   soldOut || !tier ? 'var(--vg-map-sold)' : `var(--vg-tier-${Math.min(tier, 4)})`
@@ -84,26 +89,43 @@ export function SeatMapView({
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const frameRef = useRef<HTMLDivElement>(null)
-  const index = useMemo(() => indexSvg(svg), [svg])
+  const cameraRef = useRef<HTMLDivElement | null>(null)
+  const baseRef = useRef<Box | null>(null)
+  const settleRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const lastMinimapUpdate = useRef(-Infinity)
+  const zonePartsRef = useRef(new Map<string, SVGElement[]>())
+  const seatGroupsRef = useRef(new Map<string, { layers: SVGGElement[]; seats: SVGElement[] }>())
+  const previousFocus = useRef<string | undefined>(undefined)
+  const targetRef = useRef<Box | null>(null)
+  const inputFrame = useRef(0)
   const [ready, setReady] = useState(false)
   const [full, setFull] = useState<Box | null>(null)
-  const [view, setView] = useState<Box | null>(null)
+  const [minimapView, setMinimapView] = useState<Box | null>(null)
   const viewRef = useRef<Box | null>(null)
   const [size, setSize] = useState({ w: 0, h: 0 })
   const [hover, setHover] = useState<{ code: string; x: number; y: number } | null>(null)
   const animation = useRef(0)
-  const miniRef = useRef<HTMLDivElement>(null)
   const drag = useRef<{ x: number; y: number; view: Box; moved: boolean } | null>(null)
   const suppressClick = useRef(false)
   const pointers = useRef(new Map<number, { x: number; y: number }>())
-  const pinch = useRef<{ dist: number; view: Box } | null>(null)
+  const pinch = useRef<{ dist: number; x: number; y: number; view: Box } | null>(null)
+
+  const stopMotion = useCallback(() => {
+    cancelAnimationFrame(animation.current)
+    cancelAnimationFrame(inputFrame.current)
+    animation.current = 0
+    inputFrame.current = 0
+    targetRef.current = null
+  }, [])
 
   // ---- chèn SVG một lần ----
   useLayoutEffect(() => {
     const host = hostRef.current
     if (!host) return
-    host.innerHTML = svg
-    const root = host.querySelector('svg')
+    const camera = host.ownerDocument.createElement('div')
+    camera.className = 'seatmap-camera'
+    camera.innerHTML = svg
+    const root = camera.querySelector('svg')
     const box = parseViewBox(root?.getAttribute('viewBox'))
     if (!root || !box) return
     root.removeAttribute('width')
@@ -111,23 +133,76 @@ export function SeatMapView({
     root.setAttribute('preserveAspectRatio', 'xMidYMid meet')
     root.setAttribute('role', 'img')
     root.setAttribute('aria-label', 'Sơ đồ chỗ ngồi')
-    // Đánh dấu phần tử tương tác bằng data-zone để CSS và xử lý sự kiện dùng chung.
-    for (const el of Array.from(host.querySelectorAll('[id]'))) {
+    host.replaceChildren(camera)
+    cameraRef.current = camera
+    baseRef.current = null
+    viewRef.current = null
+    lastMinimapUpdate.current = -Infinity
+    const zoneParts = new Map<string, SVGElement[]>()
+    const seatGroups = new Map<string, { layers: SVGGElement[]; seats: SVGElement[] }>()
+    for (const el of root.querySelectorAll<SVGElement>('[id]')) {
       const code = zoneCodeOfPart(el.id)
-      if (!code) continue
-      const zone = parseZoneId(el.id)
-      el.setAttribute('data-zone', code)
-      if (zone) el.setAttribute('data-kind', zone.kind)
+      if (code) {
+        const zone = parseZoneId(el.id)
+        el.setAttribute('data-zone', code)
+        if (zone) el.setAttribute('data-kind', zone.kind)
+        const parts = zoneParts.get(code)
+        if (parts) parts.push(el)
+        else zoneParts.set(code, [el])
+      }
     }
-    setFull(box)
-    setView(box)
-    viewRef.current = box
+    // Group adjacent seats in place so the camera can paint only the focused zone.
+    for (const seat of root.querySelectorAll<SVGElement>('[id^="SEAT__"]')) {
+      const code = parseSeatId(seat.id)?.zone ?? seat.closest('[data-zone]')?.getAttribute('data-zone')
+      const parent = seat.parentNode
+      if (!code || !parent) continue
+      let group = seatGroups.get(code)
+      if (!group) {
+        group = { layers: [], seats: [] }
+        seatGroups.set(code, group)
+      }
+      const previous = seat.previousElementSibling
+      const layer =
+        previous?.getAttribute('data-seat-zone') === code
+          ? (previous as SVGGElement)
+          : root.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'g')
+      if (layer !== previous) {
+        layer.setAttribute('data-seat-zone', code)
+        layer.setAttribute('data-seats-hidden', '')
+        parent.insertBefore(layer, seat)
+        group.layers.push(layer)
+      }
+      layer.appendChild(seat)
+      group.seats.push(seat)
+    }
+    zonePartsRef.current = zoneParts
+    seatGroupsRef.current = seatGroups
+    previousFocus.current = undefined
+    const background = root.querySelector<SVGGraphicsElement>('[id="BACKGROUND"]')
+    const display = background?.style.display
+    if (background) background.style.display = 'none'
+    let bounds = box
+    try {
+      const fitted = root.getBBox()
+      if (fitted.width > 0 && fitted.height > 0) {
+        bounds = { x: fitted.x, y: fitted.y, w: fitted.width, h: fitted.height }
+      }
+    } catch {
+      // The original viewBox is the fallback when SVG geometry isn't available.
+    }
+    if (background) background.style.display = display ?? ''
+    setFull(bounds)
     setReady(true)
     return () => {
-      host.innerHTML = ''
+      stopMotion()
+      clearTimeout(settleRef.current)
+      cameraRef.current = null
+      baseRef.current = null
+      viewRef.current = null
+      host.replaceChildren()
       setReady(false)
     }
-  }, [svg])
+  }, [svg, stopMotion])
 
   // ---- kích thước khung chứa ----
   useEffect(() => {
@@ -141,39 +216,89 @@ export function SeatMapView({
     return () => ro.disconnect()
   }, [])
 
-  // ---- đưa khung nhìn tới đích (có hiệu ứng, tôn trọng prefers-reduced-motion) ----
-  const flyTo = useCallback((target: Box) => {
-    cancelAnimationFrame(animation.current)
-    const from = viewRef.current ?? target
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    if (reduce) {
-      animation.current = requestAnimationFrame(() => {
-        viewRef.current = target
-        setView(target)
-      })
-      return
-    }
-    const start = performance.now()
-    const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / ANIMATION_MS)
-      const next = lerpBox(from, target, easeInOut(t))
+  const paintView = useCallback(
+    (next: Box, interacting = true) => {
+      const camera = cameraRef.current
+      const base = baseRef.current
+      if (!camera || !base || !size.w || !size.h) return
+      camera.style.willChange = interacting ? 'transform' : 'auto'
+      transformMapCamera(camera, base, next, size.w, size.h)
+      clearTimeout(settleRef.current)
+      const now = performance.now()
+      if (minimap && (!interacting || now - lastMinimapUpdate.current >= 80)) {
+        lastMinimapUpdate.current = now
+        setMinimapView(next)
+      }
+      if (interacting) {
+        settleRef.current = setTimeout(() => {
+          camera.style.willChange = 'auto'
+          if (minimap) setMinimapView(next)
+        }, 120)
+      }
+    },
+    [minimap, size],
+  )
+
+  const scheduleView = useCallback(
+    (next: Box) => {
       viewRef.current = next
-      setView(next)
-      if (t < 1) animation.current = requestAnimationFrame(tick)
-    }
-    animation.current = requestAnimationFrame(tick)
-  }, [])
-  useEffect(() => () => cancelAnimationFrame(animation.current), [])
+      if (inputFrame.current) return
+      inputFrame.current = requestAnimationFrame(() => {
+        inputFrame.current = 0
+        if (viewRef.current) paintView(viewRef.current)
+      })
+    },
+    [paintView],
+  )
+
+  // Wheel and button input can retarget the same animation while it is running.
+  const glideTo = useCallback(
+    (target: Box) => {
+      targetRef.current = target
+      if (animation.current) return
+      if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) {
+        viewRef.current = target
+        targetRef.current = null
+        paintView(target, false)
+        return
+      }
+      let previousTime = performance.now()
+      const tick = (now: number) => {
+        animation.current = 0
+        const current = viewRef.current
+        const destination = targetRef.current
+        if (!current || !destination) return
+        const elapsed = Math.max(1, Math.min(64, now - previousTime))
+        previousTime = now
+        const next = interpolateZoom(current, destination, 1 - Math.exp(-elapsed / 45))
+        const settled =
+          Math.max(
+            Math.abs(next.w - destination.w),
+            Math.abs(next.x - destination.x),
+            Math.abs(next.y - destination.y),
+          ) <
+          destination.w * 0.0004
+        viewRef.current = settled ? destination : next
+        paintView(viewRef.current)
+        if (settled) targetRef.current = null
+        else animation.current = requestAnimationFrame(tick)
+      }
+      animation.current = requestAnimationFrame(tick)
+    },
+    [paintView],
+  )
 
   // ---- hộp bao của khu (toạ độ gốc của bản vẽ) ----
   const zoneBox = useCallback((code: string): Box | null => {
-    const host = hostRef.current
-    const root = host?.querySelector('svg')
-    const el = host?.querySelector<SVGGraphicsElement>(`[id^="CONTENT__${code}"]`)
-    const ctm = root?.getScreenCTM()
-    const elCtm = el?.getScreenCTM()
-    if (!root || !el || !ctm || !elCtm) return null
-    const b = el.getBBox()
+    const parts = zonePartsRef.current.get(code)
+    const root = cameraRef.current?.querySelector('svg')
+    const ctm = root?.getScreenCTM?.()
+    if (!parts || !ctm) return null
+    const surface = parts.find((part) => part.id.startsWith('ZONE__'))
+    const el = (surface ?? parts.find((part) => part.id.startsWith('CONTENT__'))) as SVGGraphicsElement | undefined
+    const elCtm = el?.getScreenCTM?.()
+    const b = el?.getBBox?.()
+    if (!elCtm || !b || b.width <= 0 || b.height <= 0) return null
     const m = ctm.inverse().multiply(elCtm)
     const pts = [
       new DOMPoint(b.x, b.y),
@@ -191,48 +316,49 @@ export function SeatMapView({
     }
   }, [])
 
-  // ---- phóng vào khu / trở về toàn cảnh ----
-  const aspect = size.w > 0 && size.h > 0 ? size.w / size.h : 4 / 3
   const fitTarget = useCallback((): Box | null => {
-    if (!full) return null
+    const base = baseRef.current
+    if (!base) return null
     const box = focus ? zoneBox(focus) : null
-    // Toàn cảnh: bỏ chừa trắng quanh sân để bản đồ to hơn.
-    return box ? fitView(box, aspect, 0.1) : fitView({ x: 120, y: 24, w: 1360, h: 1152 }, aspect, 0.04)
-  }, [full, focus, aspect, zoneBox])
+    return box && box.w > 0 && box.h > 0 ? fitView(box, base.w / base.h, 0.1) : base
+  }, [focus, zoneBox])
 
-  useEffect(() => {
-    if (!ready) return
+  useLayoutEffect(() => {
+    const root = cameraRef.current?.querySelector('svg')
+    if (!root || !full || !size.w || !size.h) return
+    stopMotion()
+    const base = fitView(full, size.w / size.h, 0.04)
+    baseRef.current = base
+    root.setAttribute('viewBox', boxToViewBox(base))
+    viewRef.current = base
+    paintView(base, false)
+  }, [full, size, paintView, stopMotion])
+
+  useLayoutEffect(() => {
     const target = fitTarget()
-    if (target) flyTo(target)
-  }, [ready, focus, aspect, fitTarget, flyTo])
-
-  useEffect(() => {
-    const root = hostRef.current?.querySelector('svg')
-    if (root && view) root.setAttribute('viewBox', boxToViewBox(view))
-  }, [view, ready])
+    if (!target || target === viewRef.current) return
+    stopMotion()
+    glideTo(target)
+  }, [full, ready, fitTarget, glideTo, stopMotion])
 
   // ---- tô màu khu, lọc hạng, ghế ----
   useLayoutEffect(() => {
     const host = hostRef.current
     if (!host || !ready) return
-    const parts = new Map<string, Element[]>()
-    for (const el of Array.from(host.querySelectorAll('[data-zone]'))) {
-      const code = el.getAttribute('data-zone') ?? ''
-      parts.set(code, [...(parts.get(code) ?? []), el])
-    }
-    for (const [code, els] of parts) {
+    for (const [code, els] of zonePartsRef.current) {
       const zone = zones[code]
-      const standing = index.zones.find((z) => z.code === code)?.kind === 'STANDING'
+      const standing = els.some((el) => el.getAttribute('data-kind') === 'STANDING')
       const soldOut = !zone || zone.soldOut
-      const matchesFilter =
-        tierFilter === null || (tierFilter === 'standing' ? standing : !standing && zone?.tier === tierFilter)
+      const matchesFilter = tierFilter === null || zone?.tier === tierFilter
       const dim = focus ? code !== focus : !matchesFilter
       for (const el of els) {
         const isContent = el.id.startsWith('CONTENT__')
         const isZone = el.id.startsWith('ZONE__')
         ;(el as SVGElement).style.setProperty(
           '--zone-fill',
-          soldOut ? tierColor(zone?.tier, true) : (zone?.color ?? tierColor(zone?.tier, false)),
+          soldOut
+            ? tierColor(zone?.tier, true)
+            : (zone?.color ?? (standing ? 'var(--vg-bg-surface)' : tierColor(zone?.tier, false))),
         )
         toggle(el, 'data-zone-picked', isZone && !!selectedZones?.has(code))
         toggle(el, 'data-soldout', soldOut)
@@ -242,37 +368,25 @@ export function SeatMapView({
         toggle(el, 'data-hidden', isContent && Boolean(focus) && code !== focus)
       }
     }
-  }, [ready, zones, focus, tierFilter, index, selectedZones])
+  }, [ready, svg, zones, focus, tierFilter, selectedZones])
 
   useLayoutEffect(() => {
-    const host = hostRef.current
-    if (!host || !ready) return
-    // Gỡ trạng thái ở lần trước rồi gán lại cho khu đang xem.
-    for (const el of Array.from(host.querySelectorAll('[data-status]'))) el.removeAttribute('data-status')
-    if (!focus) return
-    const content = host.querySelector(`[id^="CONTENT__${focus}"]`)
-    if (!content) return
-    for (const el of Array.from(content.querySelectorAll('[id^="SEAT__"]'))) {
-      const state = selected.has(el.id) ? 'SELECTED' : seats?.[el.id]
-      if (state) el.setAttribute('data-status', state)
-      else el.setAttribute('data-status', 'BLOCKED') // ghế không có dữ liệu = không bán
+    if (!ready) return
+    const previous = previousFocus.current
+    if (previous && previous !== focus) {
+      const group = seatGroupsRef.current.get(previous)
+      group?.layers.forEach((layer) => layer.setAttribute('data-seats-hidden', ''))
+      group?.seats.forEach((seat) => seat.removeAttribute('data-status'))
     }
-  }, [ready, focus, seats, selected])
-
-  // Bản đồ thu nhỏ: nhân bản SVG đã tô màu (CSS không áp dụng được vào <use>), chỉ khi đang xem gần.
-  useEffect(() => {
-    const mini = miniRef.current
-    const root = hostRef.current?.querySelector('svg')
-    if (!mini || !root || !ready || !focus) return
-    const clone = root.cloneNode(true) as SVGSVGElement
-    clone.setAttribute('viewBox', `${MINIMAP.x} ${MINIMAP.y} ${MINIMAP.w} ${MINIMAP.h}`)
-    clone.removeAttribute('role')
-    clone.removeAttribute('aria-label')
-    clone.setAttribute('aria-hidden', 'true')
-    for (const el of Array.from(clone.querySelectorAll('[data-status]'))) el.removeAttribute('data-status')
-    mini.replaceChildren(clone)
-    return () => mini.replaceChildren()
-  }, [ready, focus, zones, tierFilter])
+    previousFocus.current = focus
+    if (!focus) return
+    const group = seatGroupsRef.current.get(focus)
+    group?.layers.forEach((layer) => layer.removeAttribute('data-seats-hidden'))
+    for (const seat of group?.seats ?? []) {
+      const state = selected.has(seat.id) ? 'SELECTED' : (seats?.[seat.id] ?? 'BLOCKED')
+      if (seat.getAttribute('data-status') !== state) seat.setAttribute('data-status', state)
+    }
+  }, [ready, svg, focus, seats, selected])
 
   // ---- tương tác ----
   function zoneOf(target: EventTarget | null): string | null {
@@ -295,56 +409,93 @@ export function SeatMapView({
     else onBackgroundClick?.()
   }
 
-  // Đưa điểm (clientX, clientY) về toạ độ bản vẽ của khung nhìn hiện tại.
   function toMap(v: Box, clientX: number, clientY: number) {
     const rect = frameRef.current?.getBoundingClientRect()
     if (!rect || !rect.width || !rect.height) return { x: v.x + v.w / 2, y: v.y + v.h / 2 }
     return { x: v.x + ((clientX - rect.left) / rect.width) * v.w, y: v.y + ((clientY - rect.top) / rect.height) * v.h }
   }
 
-  function zoomAt(factor: number, clientX: number, clientY: number, from?: Box) {
-    const v = from ?? viewRef.current
-    if (!v || !full) return
-    cancelAnimationFrame(animation.current)
-    const p = toMap(v, clientX, clientY)
-    const next = zoomAround(v, factor, p.x, p.y, full)
-    viewRef.current = next
-    setView(next)
-  }
+  const zoomAt = useCallback(
+    (factor: number, clientX?: number, clientY?: number) => {
+      const view = targetRef.current ?? viewRef.current
+      const base = baseRef.current
+      if (!view || !base) return
+      const anchor =
+        clientX === undefined || clientY === undefined
+          ? { x: view.x + view.w / 2, y: view.y + view.h / 2 }
+          : toMap(view, clientX, clientY)
+      setHover(null)
+      glideTo(zoomAround(view, Math.min(factor, (view.w / base.w) * 24), anchor.x, anchor.y, base))
+    },
+    [glideTo],
+  )
 
-  // Lăn chuột để phóng/thu quanh con trỏ (listener không-passive để chặn cuộn trang).
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
     const onWheel = (e: WheelEvent) => {
+      if (!baseRef.current) return
       e.preventDefault()
-      zoomAt(Math.exp(-e.deltaY * (e.deltaMode === 1 ? 0.05 : 0.0015)), e.clientX, e.clientY)
+      const pixels = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? size.h : 1)
+      zoomAt(Math.exp(-Math.max(-100, Math.min(100, pixels)) * 0.0008), e.clientX, e.clientY)
     }
     host.addEventListener('wheel', onWheel, { passive: false })
     return () => host.removeEventListener('wheel', onWheel)
-  })
+  }, [size.h, zoomAt])
+
+  function capturePointer(element: Element, id: number) {
+    try {
+      element.setPointerCapture(id)
+    } catch {
+      // The pointer may already have been released.
+    }
+  }
 
   function onPointerDown(e: ReactPointerEvent) {
-    if (!viewRef.current) return
+    if (e.button !== 0 || !viewRef.current || pointers.current.size >= 2) return
+    stopMotion()
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
     if (pointers.current.size === 2) {
       const [a, b] = [...pointers.current.values()]
-      pinch.current = { dist: Math.hypot(a.x - b.x, a.y - b.y), view: viewRef.current }
+      pinch.current = {
+        dist: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
+        x: (a.x + b.x) / 2,
+        y: (a.y + b.y) / 2,
+        view: viewRef.current,
+      }
+      for (const id of pointers.current.keys()) capturePointer(e.currentTarget, id)
       drag.current = null
       suppressClick.current = true
       return
     }
+    suppressClick.current = false
     drag.current = { x: e.clientX, y: e.clientY, view: viewRef.current, moved: false }
   }
 
   function onPointerMove(e: ReactPointerEvent) {
     if (pointers.current.has(e.pointerId)) pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
-    if (pinch.current && pointers.current.size === 2) {
+    const gesture = pinch.current
+    const base = baseRef.current
+    if (gesture && base && pointers.current.size === 2 && size.w && size.h) {
       const [a, b] = [...pointers.current.values()]
-      const dist = Math.hypot(a.x - b.x, a.y - b.y)
-      if (pinch.current.dist > 0 && dist > 0) {
-        zoomAt(dist / pinch.current.dist, (a.x + b.x) / 2, (a.y + b.y) / 2, pinch.current.view)
-      }
+      const dist = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y))
+      const anchor = toMap(gesture.view, gesture.x, gesture.y)
+      const next = zoomAround(
+        gesture.view,
+        Math.min(dist / gesture.dist, (gesture.view.w / base.w) * 24),
+        anchor.x,
+        anchor.y,
+        base,
+      )
+      scheduleView(
+        panView(
+          next,
+          (-((a.x + b.x) / 2 - gesture.x) * next.w) / size.w,
+          (-((a.y + b.y) / 2 - gesture.y) * next.h) / size.h,
+          base,
+        ),
+      )
+      setHover(null)
       return
     }
     const d = drag.current
@@ -354,13 +505,11 @@ export function SeatMapView({
       const dy = e.clientY - d.y
       if (!d.moved && Math.hypot(dx, dy) > 5) {
         d.moved = true
-        cancelAnimationFrame(animation.current)
+        capturePointer(e.currentTarget, e.pointerId)
       }
-      if (d.moved && full) {
-        const scale = d.view.w / frame.clientWidth
-        const next = panView(d.view, -dx * scale, -dy * scale, full)
-        viewRef.current = next
-        setView(next)
+      if (d.moved && base && size.w) {
+        const scale = d.view.w / size.w
+        scheduleView(panView(d.view, -dx * scale, -dy * scale, base))
         setHover(null)
         return
       }
@@ -374,35 +523,35 @@ export function SeatMapView({
     setHover({ code, x: e.clientX - rect.left, y: e.clientY - rect.top })
   }
 
-  function onPointerUp(e?: ReactPointerEvent) {
-    if (e) pointers.current.delete(e.pointerId)
+  function onPointerUp(e: ReactPointerEvent) {
+    if (!pointers.current.delete(e.pointerId)) return
     if (pinch.current) {
-      if (pointers.current.size < 2) pinch.current = null
+      pinch.current = null
+      const remaining = [...pointers.current.values()][0]
+      drag.current = remaining && viewRef.current ? { ...remaining, view: viewRef.current, moved: true } : null
+    } else {
+      if (drag.current?.moved || e.type === 'pointercancel') suppressClick.current = true
       drag.current = null
-      return
     }
-    if (drag.current?.moved) suppressClick.current = true
-    drag.current = null
   }
 
-  const zoomBy = (factor: number) => {
-    const v = viewRef.current
-    if (!v || !full) return
-    flyTo(zoomAround(v, factor, v.x + v.w / 2, v.y + v.h / 2, full))
-  }
   const refit = () => {
     const target = fitTarget()
-    if (target) flyTo(target)
+    if (target) {
+      stopMotion()
+      glideTo(target)
+    }
   }
 
   // Bàn phím: + / - phóng thu, 0 vừa khung, phím mũi tên kéo khung nhìn.
   function onKeyDown(e: React.KeyboardEvent) {
-    const v = viewRef.current
-    if (!v || !full) return
+    const v = targetRef.current ?? viewRef.current
+    const base = baseRef.current
+    if (!v || !base) return
     const step = v.w * 0.12
-    const move = (dx: number, dy: number) => flyTo(panView(v, dx, dy, full))
-    if (e.key === '+' || e.key === '=') zoomBy(1.6)
-    else if (e.key === '-') zoomBy(1 / 1.6)
+    const move = (dx: number, dy: number) => glideTo(panView(v, dx, dy, base))
+    if (e.key === '+' || e.key === '=') zoomAt(1.6)
+    else if (e.key === '-') zoomAt(1 / 1.6)
     else if (e.key === '0') refit()
     else if (e.key === 'ArrowLeft') move(-step, 0)
     else if (e.key === 'ArrowRight') move(step, 0)
@@ -433,8 +582,10 @@ export function SeatMapView({
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
+        onLostPointerCapture={onPointerUp}
+        onDragStart={(e) => e.preventDefault()}
         onPointerLeave={(e) => {
-          onPointerUp(e)
+          if (!e.currentTarget.hasPointerCapture?.(e.pointerId)) onPointerUp(e)
           setHover(null)
         }}
       />
@@ -447,10 +598,10 @@ export function SeatMapView({
       )}
 
       <div className="absolute top-3 right-3 z-10 flex flex-col gap-0.5 rounded-lg bg-surface p-1 shadow-float">
-        <ControlButton label="Phóng to" onClick={() => zoomBy(1.6)}>
+        <ControlButton label="Phóng to" onClick={() => zoomAt(1.6)}>
           <Plus className="size-4" />
         </ControlButton>
-        <ControlButton label="Thu nhỏ" onClick={() => zoomBy(1 / 1.6)}>
+        <ControlButton label="Thu nhỏ" onClick={() => zoomAt(1 / 1.6)}>
           <Minus className="size-4" />
         </ControlButton>
         <ControlButton label="Vừa khung" onClick={refit}>
@@ -458,27 +609,24 @@ export function SeatMapView({
         </ControlButton>
       </div>
 
-      {minimap && focus && view && (
-        <div className="pointer-events-none absolute bottom-2 left-2 z-10 w-[88px] rounded-md bg-surface p-1 shadow-float sm:bottom-3 sm:left-3 sm:w-[190px]">
-          <div className="relative overflow-hidden" style={{ aspectRatio: `${MINIMAP.w} / ${MINIMAP.h}` }}>
-            <div ref={miniRef} className="seatmap size-full" aria-hidden />
-            <div
-              className="absolute border-2 border-ink bg-agent/25"
-              style={{
-                left: `${clampPct(((view.x - MINIMAP.x) / MINIMAP.w) * 100)}%`,
-                top: `${clampPct(((view.y - MINIMAP.y) / MINIMAP.h) * 100)}%`,
-                width: `${Math.min(100, (view.w / MINIMAP.w) * 100)}%`,
-                height: `${Math.min(100, (view.h / MINIMAP.h) * 100)}%`,
-              }}
-            />
-          </div>
-        </div>
+      {minimap && ready && minimapView && full && (
+        <SeatMapMinimap
+          svg={svg}
+          bounds={full}
+          view={minimapView}
+          onFit={refit}
+          onNavigate={(point) => {
+            const view = viewRef.current
+            const base = baseRef.current
+            if (!view || !base) return
+            stopMotion()
+            scheduleView(panView({ ...view, x: point.x - view.w / 2, y: point.y - view.h / 2 }, 0, 0, base))
+          }}
+        />
       )}
     </div>
   )
 }
-
-const clampPct = (n: number) => Math.min(100, Math.max(0, n))
 
 function toggle(el: Element, attr: string, on: boolean) {
   if (on) el.setAttribute(attr, '')

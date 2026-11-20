@@ -1,4 +1,4 @@
-import type { ChatBlock } from '@/api/generated/model'
+import type { ChatBlock } from '@/features/chat/chatApi'
 
 /** Trạng thái một ConfirmAction sau khi người dùng quyết định. */
 export type ActionState = 'confirming' | 'confirmed' | 'rejected' | 'expired' | 'failed'

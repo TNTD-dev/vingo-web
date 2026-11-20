@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
 
-import { ChatBlockType } from '@/api/generated/model'
+import { ChatBlockType } from '@/features/chat/chatApi'
 
 import { BlockView } from './registry'
 
