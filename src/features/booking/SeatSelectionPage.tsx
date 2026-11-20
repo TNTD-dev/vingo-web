@@ -72,7 +72,7 @@ function SeatSelection({ event, showtimeId }: { event: EventDetail; showtimeId: 
   const { title } = bannerText(event)
 
   const [focus, setFocus] = useState<string>()
-  const [tierFilter, setTierFilter] = useState<number | 'standing' | null>(null)
+  const [tierFilter, setTierFilter] = useState<number | null>(null)
   const [picks, setPicks] = useState<PickedSeat[]>([])
   const [standing, setStanding] = useState<Standing | null>(null)
   // Ghế gợi ý khi SEAT_TAKEN (cùng khu, cùng số lượng).
@@ -116,8 +116,6 @@ function SeatSelection({ event, showtimeId }: { event: EventDetail; showtimeId: 
   const selectedIds = useMemo(() => new Set(picks.map((p) => p.svgId)), [picks])
 
   // ---- thao tác ----
-  const tierOfZone = (code: string) => model?.zones[code]?.tier
-
   function onZoneClick(code: string) {
     const zone = model?.zones[code]
     const kind = index?.zones.find((z) => z.code === code)?.kind
@@ -158,7 +156,7 @@ function SeatSelection({ event, showtimeId }: { event: EventDetail; showtimeId: 
       svgId: seatSvgId(parsed.zone, s.row ?? '', s.number ?? 0),
       zoneCode: parsed.zone,
       zoneName: a.name ?? parsed.zone,
-      tier: tierOfZone(parsed.zone),
+      tierName: a.tier!.name,
       row: s.row ?? '',
       number: s.number ?? 0,
       price: a.tier!.price,
@@ -186,6 +184,7 @@ function SeatSelection({ event, showtimeId }: { event: EventDetail; showtimeId: 
       zoneName: zone.name ?? '',
       row: s.row ?? '',
       number: s.number ?? 0,
+      tierName: zone.tier?.name,
       price: zone.tier?.price ?? 0,
       pairSeatId: s.pair_seat_id,
     }
@@ -201,7 +200,6 @@ function SeatSelection({ event, showtimeId }: { event: EventDetail; showtimeId: 
       svgId: seatSvgId(code, s.row ?? '', s.number ?? 0),
       zoneCode: code,
       zoneName: zone.name ?? code,
-      tier: tierOfZone(code),
     }
   }
 
@@ -332,7 +330,7 @@ function SeatSelection({ event, showtimeId }: { event: EventDetail; showtimeId: 
   }
 
   const count = ticketCount(picks, standing)
-  const focusTier = focus ? tierOfZone(focus) : undefined
+  const focusTier = focusAvail?.tier?.name
   const mapReady = Boolean(svg.data && model)
 
   return (
@@ -410,7 +408,7 @@ function SeatSelection({ event, showtimeId }: { event: EventDetail; showtimeId: 
                       return (
                         <ZoneTooltip
                           name={a.name ?? code}
-                          tier={zone.tier}
+                          tier={a.tier?.name}
                           standing={index?.zones.find((z) => z.code === code)?.kind === 'STANDING'}
                           price={a.tier?.price}
                           left={a.seats_left ?? 0}
@@ -550,9 +548,9 @@ function MapHead({
 }: {
   focus?: string
   tiers: TierSummary[]
-  tierFilter: number | 'standing' | null
-  onFilter: (f: number | 'standing' | null) => void
-  focusTier?: number
+  tierFilter: number | null
+  onFilter: (f: number | null) => void
+  focusTier?: string
   focusPrice?: number
   gates?: string[]
   kind?: 'SEATED' | 'STANDING'
@@ -574,7 +572,7 @@ function MapHead({
           <span className="type-body-m text-ink-tertiary">/</span>
           <span className="type-body-m-strong text-foreground">
             Khu {focus.replace(/-T\d+$/, '')}
-            {kind === 'STANDING' ? ' · Khu đứng' : focusTier ? ` · Hạng ${focusTier}` : ''}
+            {focusTier ? ` · ${focusTier}` : kind === 'STANDING' ? ' · Khu đứng' : ''}
             {focusPrice !== undefined && ` · ${formatVnd(focusPrice)}`}
           </span>
         </div>
@@ -587,7 +585,7 @@ function MapHead({
       </div>
     )
   }
-  const chip = (key: number | 'standing' | null, label: string) => (
+  const chip = (key: number | null, label: string) => (
     <button
       key={String(key)}
       type="button"
@@ -622,7 +620,7 @@ function ZoneTooltip({
   gate,
 }: {
   name: string
-  tier?: number
+  tier?: string
   standing: boolean
   price?: number
   left: number
@@ -635,7 +633,7 @@ function ZoneTooltip({
         <span className="type-h4">Khu {name.replace(/-T\d+$/, '')}</span>
         <span className="flex items-center gap-1.5 rounded-pill bg-agent px-2.5 py-[3px] type-mono-small text-foreground">
           <span className="size-1.5 rounded-pill bg-ink" />
-          {soldOut ? 'HẾT VÉ' : standing ? 'KHU ĐỨNG' : `HẠNG ${tier ?? ''}`}
+          {soldOut ? 'HẾT VÉ' : (tier ?? (standing ? 'KHU ĐỨNG' : 'Ghế ngồi'))}
         </span>
       </div>
       <p className="type-body-m text-on-ink-secondary">
@@ -683,10 +681,9 @@ function Legend({ focused, tiers }: { focused: boolean; tiers: TierSummary[] }) 
         </>
       ) : (
         <>
-          {tiers
-            .filter((t) => t.key !== 'standing')
-            .map((t) => dot(TIER_SWATCH[Math.min(Number(t.key), 4) - 1], t.label, t.color))}
-          {tiers.filter((t) => t.key === 'standing').map((t) => dot('bg-surface', t.label, t.color, true))}
+          {tiers.map((t) =>
+            dot(t.standingOnly ? 'bg-surface' : TIER_SWATCH[Math.min(t.key, 4) - 1], t.label, t.color, t.standingOnly),
+          )}
           {dot('bg-map-sold', 'Hết vé')}
         </>
       )}
@@ -701,8 +698,8 @@ function TierList({
   loading,
 }: {
   tiers: TierSummary[]
-  active: number | 'standing' | null
-  onPick: (k: number | 'standing' | null) => void
+  active: number | null
+  onPick: (k: number | null) => void
   loading: boolean
 }) {
   return (
@@ -715,7 +712,7 @@ function TierList({
               key={String(t.key)}
               type="button"
               aria-pressed={active === t.key}
-              aria-label={`${t.label}, ${formatVnd(t.price)}, khu ${t.zones}`}
+              aria-label={`${t.label}, ${formatVnd(t.price)}`}
               onClick={() => onPick(active === t.key ? null : t.key)}
               className={cn(
                 'flex items-center gap-3.5 rounded-md px-3 py-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring',
@@ -725,17 +722,14 @@ function TierList({
               <span
                 className={cn(
                   'size-[18px] shrink-0 rounded-[5px]',
-                  t.key === 'standing'
+                  t.standingOnly
                     ? 'border border-dashed border-ink-tertiary bg-surface'
-                    : TIER_SWATCH[Math.min(Number(t.key), 4) - 1],
+                    : TIER_SWATCH[Math.min(t.key, 4) - 1],
                 )}
                 style={{ backgroundColor: t.color }}
               />
-              <span className="flex min-w-0 flex-col gap-0.5">
-                <span className="type-body-m-strong text-foreground">
-                  {t.label} · {formatVnd(t.price)}
-                </span>
-                <span className="type-caption text-ink-tertiary">{t.zones}</span>
+              <span className="min-w-0 type-body-m-strong text-foreground">
+                {t.label} · {formatVnd(t.price)}
               </span>
             </button>
           ))}
@@ -806,7 +800,7 @@ function Selection({
               <span className="truncate type-body-m-strong text-foreground">
                 Khu {p.zoneName.replace(/-T\d+$/, '')} · Hàng {p.row} · Ghế {String(p.number).padStart(2, '0')}
               </span>
-              <span className="type-caption text-ink-tertiary">{p.tier ? `Hạng ${p.tier}` : 'Ghế tiêu chuẩn'}</span>
+              <span className="type-caption text-ink-tertiary">{p.tierName ?? 'Ghế tiêu chuẩn'}</span>
             </div>
             <span className="shrink-0 type-body-m-strong text-foreground">{formatVnd(p.price)}</span>
             <button

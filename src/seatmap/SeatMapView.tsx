@@ -45,7 +45,7 @@ type Props = {
   selected: ReadonlySet<string>
   selectedZones?: ReadonlySet<string>
   /** Chỉ sáng các khu thuộc hạng này (số) hoặc khu đứng; null = tất cả. */
-  tierFilter?: number | 'standing' | null
+  tierFilter?: number | null
   onZoneClick: (code: string) => void
   onSeatClick?: (svgSeatId: string) => void
   /** Bấm vào chỗ trống (không phải khu/ghế): thường dùng để thoát về toàn cảnh. */
@@ -228,8 +228,7 @@ export function SeatMapView({
       const zone = zones[code]
       const standing = index.zones.find((z) => z.code === code)?.kind === 'STANDING'
       const soldOut = !zone || zone.soldOut
-      const matchesFilter =
-        tierFilter === null || (tierFilter === 'standing' ? standing : !standing && zone?.tier === tierFilter)
+      const matchesFilter = tierFilter === null || zone?.tier === tierFilter
       const dim = focus ? code !== focus : !matchesFilter
       for (const el of els) {
         const isContent = el.id.startsWith('CONTENT__')

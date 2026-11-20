@@ -11,14 +11,11 @@ import type { MapZone } from '@/seatmap/SeatMapView'
 export const DEFAULT_MAX_TICKETS = 6
 
 export type TierSummary = {
-  /** 1..n theo giá giảm dần cho khu ngồi; 'standing' cho khu đứng. */
-  key: number | 'standing'
+  key: number
   label: string
   price: number
   color?: string
-  /** Mã khu viết gọn, vd. "A3–A6, B1, C3". */
-  zones: string
-  seatsLeft: number
+  standingOnly: boolean
 }
 
 export type MapModel = {
@@ -35,69 +32,37 @@ export function buildMapModel(svgZones: ZoneRef[], availability: GetAvailability
     const match = availability.find((a) => sameZone(z.code, a.code ?? a.name))
     if (match) byCode[z.code] = match
   }
-  const seatedTiers = new Map<string | number, number>()
+  const tierId = (tier: NonNullable<GetAvailability200ZonesItem['tier']>) =>
+    tier.id ?? JSON.stringify([tier.name, tier.price])
+  const byTier = new Map<string, Omit<TierSummary, 'key'>>()
   for (const z of svgZones) {
     const tier = byCode[z.code]?.tier
-    if (z.kind === 'SEATED' && tier) seatedTiers.set(tier.id ?? tier.price, tier.price)
+    if (!tier) continue
+    const id = tierId(tier)
+    const current = byTier.get(id)
+    byTier.set(id, {
+      label: tier.name,
+      price: tier.price,
+      color: tier.color,
+      standingOnly: z.kind === 'STANDING' && (current?.standingOnly ?? true),
+    })
   }
-  const ranks = new Map([...seatedTiers].sort(([, a], [, b]) => b - a).map(([id], index) => [id, index + 1]))
+  const ranked = [...byTier].sort(
+    ([, a], [, b]) => Number(a.standingOnly) - Number(b.standingOnly) || b.price - a.price,
+  )
+  const keys = new Map(ranked.map(([id], index) => [id, index + 1]))
+  const tiers = ranked.map(([, tier], index) => ({ ...tier, key: index + 1 }))
 
   const zones: Record<string, MapZone> = {}
-  const grouped = new Map<number | 'standing', { price: number; color?: string; codes: string[]; left: number }>()
   for (const z of svgZones) {
     const a = byCode[z.code]
-    const tier = a?.tier
-    const left = a?.seats_left ?? 0
-    const key = z.kind === 'STANDING' ? 'standing' : tier && ranks.get(tier.id ?? tier.price)
-    zones[z.code] = { tier: typeof key === 'number' ? key : undefined, color: tier?.color, soldOut: !a || left <= 0 }
-    if (key === undefined || !tier) continue
-    const g = grouped.get(key) ?? { price: tier.price, color: tier.color, codes: [], left: 0 }
-    if (g.color !== tier.color) g.color = undefined
-    g.codes.push(z.code)
-    g.left += left
-    grouped.set(key, g)
+    zones[z.code] = {
+      tier: a?.tier && keys.get(tierId(a.tier)),
+      color: a?.tier?.color,
+      soldOut: !a || (a.seats_left ?? 0) <= 0,
+    }
   }
-  const tiers = [...grouped.entries()]
-    .sort(([a], [b]) => (a === 'standing' ? 1 : b === 'standing' ? -1 : a - b))
-    .map(([key, g]) => ({
-      key,
-      label: key === 'standing' ? 'Khu đứng' : `Hạng ${key}`,
-      price: g.price,
-      color: g.color,
-      zones: compressZoneCodes(g.codes),
-      seatsLeft: g.left,
-    }))
   return { zones, tiers, byCode }
-}
-
-/** ["A3-T1","A4-T1","A5-T1","B1-T1","C3-T1"] → "A3–A5, B1, C3". Bỏ hậu tố tầng và L/R; gộp số liền nhau cùng chữ. */
-export function compressZoneCodes(codes: string[]): string {
-  const parsed = [...new Set(codes.map((c) => c.replace(/-T\d+$/, '').replace(/([A-Z]\d+)[LR]$/, '$1')))].map((c) => {
-    const m = /^([A-Z]+)(\d*)$/.exec(c)
-    return { raw: c, letters: m?.[1] ?? c, n: m?.[2] ? Number(m[2]) : undefined }
-  })
-  parsed.sort((a, b) => a.letters.localeCompare(b.letters) || (a.n ?? 0) - (b.n ?? 0))
-  const out: string[] = []
-  for (let i = 0; i < parsed.length;) {
-    const start = parsed[i]
-    let j = i
-    while (
-      start.n !== undefined &&
-      parsed[j + 1]?.letters === start.letters &&
-      parsed[j + 1].n === (parsed[j].n ?? 0) + 1
-    )
-      j++
-    out.push(
-      j - i >= 2
-        ? `${start.raw}–${parsed[j].raw}`
-        : parsed
-            .slice(i, j + 1)
-            .map((p) => p.raw)
-            .join(', '),
-    )
-    i = j + 1
-  }
-  return out.join(', ')
 }
 
 // ---- chọn ghế ----
@@ -111,7 +76,7 @@ export type PickedSeat = {
   svgId: string
   zoneCode: string
   zoneName: string
-  tier?: number
+  tierName?: string
   row: string
   number: number
   price: number

@@ -3,15 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { GetAvailability200ZonesItem } from '@/api/generated/model'
 import type { ZoneRef } from '@/seatmap/svg'
 
-import {
-  buildMapModel,
-  compressZoneCodes,
-  holdBody,
-  previewTotal,
-  standingLimit,
-  toggleSeat,
-  type PickedSeat,
-} from './seatSelection'
+import { buildMapModel, holdBody, previewTotal, standingLimit, toggleSeat, type PickedSeat } from './seatSelection'
 
 const seat = (id: string, price = 100_000, pair?: string): PickedSeat => ({
   seatId: id,
@@ -24,21 +16,6 @@ const seat = (id: string, price = 100_000, pair?: string): PickedSeat => ({
   pairSeatId: pair,
 })
 
-describe('compressZoneCodes', () => {
-  it('bỏ hậu tố tầng và L/R, gộp số liền nhau cùng chữ', () => {
-    expect(compressZoneCodes(['A3-T1', 'A4-T1', 'A5-T1', 'A6-T1', 'B1-T1', 'C3-T1', 'D3-T1'])).toBe('A3–A6, B1, C3, D3')
-    expect(compressZoneCodes(['A1-T1', 'A2L-T1', 'A2R-T1'])).toBe('A1, A2')
-  })
-
-  it('hai khu liền nhau không gộp thành khoảng', () => {
-    expect(compressZoneCodes(['B2L-T1', 'B3-T1'])).toBe('B2, B3')
-  })
-
-  it('khu không có số (C-T2) giữ nguyên chữ', () => {
-    expect(compressZoneCodes(['C-T2', 'D-T2', 'B11-T2', 'B12-T2', 'B13-T2'])).toBe('B11–B13, C, D')
-  })
-})
-
 describe('buildMapModel', () => {
   const zones: ZoneRef[] = [
     { code: 'A1-T1', kind: 'SEATED' },
@@ -47,16 +24,16 @@ describe('buildMapModel', () => {
     { code: 'C-T2', kind: 'STANDING' },
   ]
   const avail: GetAvailability200ZonesItem[] = [
-    { zone_id: 'z1', name: 'A1', tier: { name: 'x', price: 1_200_000 }, seats_left: 148 },
-    { zone_id: 'z2', name: 'B1', tier: { name: 'x', price: 600_000 }, seats_left: 0 },
-    { zone_id: 'z3', name: 'C-T2', tier: { name: 'x', price: 120_000 }, seats_left: 500 },
+    { zone_id: 'z1', name: 'A1', tier: { name: 'VIP-1', price: 1_200_000 }, seats_left: 148 },
+    { zone_id: 'z2', name: 'B1', tier: { name: 'VIP-2', price: 600_000 }, seats_left: 0 },
+    { zone_id: 'z3', name: 'C-T2', tier: { name: 'GA', price: 120_000 }, seats_left: 500 },
   ]
   const m = buildMapModel(zones, avail)
 
   it('hạng 1 là giá cao nhất; khu đứng có hạng riêng', () => {
     expect(m.zones['A1-T1']).toEqual({ tier: 1, soldOut: false })
     expect(m.zones['B1-T1']).toEqual({ tier: 2, soldOut: true })
-    expect(m.zones['C-T2']).toEqual({ tier: undefined, soldOut: false })
+    expect(m.zones['C-T2']).toEqual({ tier: 3, soldOut: false })
   })
 
   it('khu không có trong availability coi như hết vé', () => {
@@ -84,12 +61,21 @@ describe('buildMapModel', () => {
     expect(map.zones['B1-T1']).toMatchObject({ tier: 2, color: '#F5BF70' })
   })
 
-  it('danh sách hạng: khu ngồi theo giá giảm, khu đứng cuối', () => {
-    expect(m.tiers.map((t) => [t.key, t.label, t.price, t.zones])).toEqual([
-      [1, 'Hạng 1', 1_200_000, 'A1'],
-      [2, 'Hạng 2', 600_000, 'B1'],
-      ['standing', 'Khu đứng', 120_000, 'C'],
+  it('danh sách hạng dùng tên và giá cấu hình, không chứa mã khu', () => {
+    expect(m.tiers).toEqual([
+      { key: 1, label: 'VIP-1', price: 1_200_000, standingOnly: false },
+      { key: 2, label: 'VIP-2', price: 600_000, standingOnly: false },
+      { key: 3, label: 'GA', price: 120_000, standingOnly: true },
     ])
+  })
+  it('hiển thị hai hạng khu đứng riêng theo cấu hình', () => {
+    const map = buildMapModel(
+      [...zones, { code: 'D-T2', kind: 'STANDING' }],
+      [avail[2], { zone_id: 'z4', name: 'D-T2', tier: { id: 'fan', name: 'Fan Zone', price: 240_000 }, seats_left: 7 }],
+    )
+    expect(map.tiers.map(({ label }) => label)).toEqual(['Fan Zone', 'GA'])
+    expect(map.zones['D-T2'].tier).toBe(1)
+    expect(map.zones['C-T2'].tier).toBe(2)
   })
 })
 
