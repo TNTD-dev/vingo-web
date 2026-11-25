@@ -2,7 +2,6 @@ import { API_BASE } from '@/api/config'
 import type { Problem, RefreshResult } from '@/api/generated/model'
 import { ApiError } from '@/api/problem'
 import { tokenStore } from '@/auth/token-store'
-import { captureDemoOtp } from '@/lib/demoOtp'
 
 /**
  * Mutator cho client Orval: mọi request API đi qua đây.
@@ -15,7 +14,6 @@ export async function http<T>(url: string, init: RequestInit = {}): Promise<T> {
   if (res.status === 401 && !isAuthPath(url) && (await refreshSession())) {
     res = await send(url, init)
   }
-  captureDemoOtp(res.headers)
   return parse<T>(res)
 }
 
