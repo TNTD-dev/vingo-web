@@ -6,12 +6,11 @@ import type { User } from '@/api/generated/model'
 import { AuthContext } from '@/auth/auth-context'
 import LoginPage from './LoginPage'
 
-function setup(role: User['role'], path = '/login', extra: Partial<User> = {}) {
-  const login = vi.fn().mockResolvedValue({ id: 'u', role, ...extra })
+function setup(role: User['role'], path = '/login') {
+  const login = vi.fn().mockResolvedValue({ id: 'u', role })
   const router = createMemoryRouter(
     [
       { path: '/login', element: <LoginPage /> },
-      { path: '/verify-otp', element: <>xác thực</> },
       { path: '/admin', element: <>dashboard</> },
       { path: '/admin/orders', element: <>quản lý đơn</> },
       { path: '/events', element: <>sự kiện</> },
@@ -28,10 +27,7 @@ function setup(role: User['role'], path = '/login', extra: Partial<User> = {}) {
 }
 async function submit(admin = false) {
   const user = userEvent.setup()
-  await user.type(
-    screen.getByRole('textbox', { name: admin ? 'Email công việc' : 'Email hoặc số điện thoại' }),
-    'admin@vingo.test',
-  )
+  await user.type(screen.getByRole('textbox', { name: admin ? 'Email công việc' : 'Email' }), 'admin@vingo.test')
   await user.type(screen.getByLabelText('Mật khẩu'), 'example-password')
   await user.click(screen.getByRole('button', { name: /^Đăng nhập$/ }))
 }
@@ -47,18 +43,5 @@ describe('điều hướng sau login', () => {
     await submit()
     await waitFor(() => expect(router.state.location.pathname).toBe(target))
     expect(router.state.historyAction).toBe('REPLACE')
-  })
-
-  it('buyer đăng ký thủ công chưa xác minh SĐT phải qua trang xác thực, giữ trang đích', async () => {
-    const { router } = setup('BUYER', '/login?next=%2Forders', { phone: '+84912345678', phone_verified: false })
-    await submit()
-    await waitFor(() => expect(router.state.location.pathname).toBe('/verify-otp'))
-    expect(router.state.location.search).toBe('?next=%2Forders')
-  })
-
-  it('buyer Google chưa có số không bị bắt xác thực khi đăng nhập', async () => {
-    const { router } = setup('BUYER', '/login', { phone_verified: false })
-    await submit()
-    await waitFor(() => expect(router.state.location.pathname).toBe('/events'))
   })
 })

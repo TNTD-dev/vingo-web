@@ -12,9 +12,6 @@ describe('registerErrorMessage', () => {
   it('EMAIL_TAKEN gợi ý đăng nhập', () => {
     expect(registerErrorMessage(err(409, 'EMAIL_TAKEN'))).toMatch(/Email.*đăng nhập/)
   })
-  it('PHONE_TAKEN nói rõ số điện thoại', () => {
-    expect(registerErrorMessage(err(409, 'PHONE_TAKEN'))).toMatch(/Số điện thoại/)
-  })
   it('503 nói email chưa gửi được', () => {
     expect(registerErrorMessage(err(503, 'SERVICE_UNAVAILABLE'))).toMatch(/Chưa gửi được email/)
     expect(registerErrorMessage(err(503))).toMatch(/Chưa gửi được email/)

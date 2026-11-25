@@ -166,26 +166,19 @@ export const venueImportHandlers = [
       const doc = new DOMParser().parseFromString(clean ?? '<svg/>', 'image/svg+xml')
       const hasZone = !!doc.querySelector('[id^="ZONE__"]'),
         hasGate = !!doc.querySelector('[id^="GATE__"]')
-      const role = hasZone && hasGate ? 'COMBINED_V1' : hasZone ? 'SEAT_LAYOUT' : hasGate ? 'OVERVIEW' : 'UNKNOWN'
-      const valid = !!clean && (role === 'OVERVIEW' || role === 'SEAT_LAYOUT')
+      // Contract v2: file không phải nền hoặc sơ đồ ghế bị từ chối ngay, không lưu vào nháp.
+      if (!clean || hasZone === hasGate) return problem(422, 'INVALID_SEAT_LAYOUT')
       const id = crypto.randomUUID()
       hashes.set(id, text)
       s.files ??= []
       s.files.push({
         id,
         original_filename: f.name,
-        role,
+        role: hasZone ? 'SEAT_LAYOUT' : 'OVERVIEW',
         size_bytes: f.size,
-        validation_status: valid ? 'VALIDATED' : 'INVALID',
+        validation_status: 'VALIDATED',
         sanitized_svg: clean,
-        issues: valid
-          ? []
-          : [
-              {
-                reason: role === 'COMBINED_V1' ? 'COMBINED_REQUIRES_SPLIT' : 'INVALID_SVG',
-                message: 'Xuất riêng tệp nền và tệp zone/ghế theo quy ước SVG v2.',
-              },
-            ],
+        issues: [],
       })
     }
     return touch(s)

@@ -1,6 +1,5 @@
-import type { Order, User } from '@/api/generated/model'
+import type { Order } from '@/api/generated/model'
 import { formatCountdown, remainingSeconds } from '@/lib/countdown'
-import { needsPhoneVerification } from '@/lib/phoneVerification'
 import { formatDayMonthHm } from '@/lib/time'
 
 export type NotificationTone = 'success' | 'warning' | 'danger' | 'neutral' | 'info'
@@ -14,21 +13,6 @@ export interface AppNotification {
   at: string
   to: string
   action?: { label: string; to: string }
-  /** Ghim đầu danh sách, không hiện mốc thời gian (nhắc việc, không phải sự kiện). */
-  pinned?: boolean
-}
-
-/** Nhắc xác minh SĐT; liên kết mở thẳng popup ở trang Tài khoản & bảo mật. */
-function phoneVerificationNotification(now: number): AppNotification {
-  return {
-    id: 'phone-verification',
-    tone: 'warning',
-    title: 'Xác minh số điện thoại để đặt vé',
-    hint: 'Quý khách vui lòng xác minh số điện thoại để đặt vé. Nhấn vào đây để xác minh.',
-    at: new Date(now).toISOString(),
-    to: '/me/security?verify=phone',
-    pinned: true,
-  }
 }
 
 /** "Vừa xong", "5 phút", "3 giờ", "Hôm qua", hoặc "08/11" cho mốc xa hơn. */
@@ -48,7 +32,7 @@ const seatsOf = (o: Order) =>
     .join(', ')
 
 /** Thông báo suy ra từ trạng thái các đơn gần đây (chưa có API thông báo riêng). Mới nhất trước. */
-export function buildNotifications(orders: Order[], now: number, user?: User | null): AppNotification[] {
+export function buildNotifications(orders: Order[], now: number): AppNotification[] {
   const out: AppNotification[] = []
   for (const o of orders) {
     if (!o.id || !o.status) continue
@@ -101,6 +85,5 @@ export function buildNotifications(orders: Order[], now: number, user?: User | n
         break
     }
   }
-  const events = out.filter((n) => n.at).sort((a, b) => b.at.localeCompare(a.at))
-  return needsPhoneVerification(user ?? null) ? [phoneVerificationNotification(now), ...events] : events
+  return out.filter((n) => n.at).sort((a, b) => b.at.localeCompare(a.at))
 }

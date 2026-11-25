@@ -1,7 +1,7 @@
 import { useMutation } from '@tanstack/react-query'
 import { Laptop } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router'
+import { useState } from 'react'
+import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
 
 import { deleteMe, updateMe } from '@/api/generated/endpoints/me/me'
@@ -9,10 +9,7 @@ import { useListMyTickets } from '@/api/generated/endpoints/tickets/tickets'
 import { isApiError, isNotImplemented, NOT_IMPLEMENTED_MESSAGE } from '@/api/problem'
 import { useAuth } from '@/auth/auth-context'
 import { Mascot } from '@/design/Mascot'
-import { OtpDialog } from '@/design/OtpDialog'
-import { StatusBadge } from '@/design/StatusBadge'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/design/ui/dialog'
-import { formatPhone, needsPhoneVerification } from '@/lib/phoneVerification'
 import { MIN_PASSWORD } from '@/lib/validate'
 
 import { AccountShell } from './AccountShell'
@@ -24,28 +21,8 @@ const pill =
 export default function AccountSecurityPage() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
-  const location = useLocation()
   const [changing, setChanging] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const phoneVerified = user?.phone_verified === true
-  // Liên kết từ chuông thông báo (?verify=phone) mở thẳng popup khi chưa xác minh; mode chốt lúc mở.
-  const wantsPhoneVerify = new URLSearchParams(location.search).get('verify') === 'phone'
-  const [phoneMode, setPhoneMode] = useState<'verify' | 'change' | null>(() =>
-    wantsPhoneVerify && needsPhoneVerification(user) ? 'verify' : null,
-  )
-
-  // Xoá riêng tham số verify (giữ tham số khác và hash) để tải lại trang không mở popup lần nữa.
-  useEffect(() => {
-    if (!wantsPhoneVerify) return
-    const next = new URLSearchParams(location.search)
-    next.delete('verify')
-    const search = next.toString()
-    navigate(
-      { pathname: location.pathname, search: search ? `?${search}` : '', hash: location.hash },
-      { replace: true },
-    )
-  }, [wantsPhoneVerify, location.pathname, location.search, location.hash, navigate])
-
   return (
     <div className="flex flex-col gap-8 pt-1">
       <header className="flex flex-col gap-3 pt-6">
@@ -74,34 +51,6 @@ export default function AccountSecurityPage() {
             </div>
             {changing && <ChangePassword onDone={() => setChanging(false)} />}
           </section>
-
-          {/* Backend chưa trả phone_verified (bản cũ) thì ẩn cả khối, tránh nút xác minh gọi API chưa có. */}
-          {typeof user?.phone_verified === 'boolean' && (
-            <section className="flex flex-col gap-5 rounded-[20px] bg-surface p-6 sm:p-8">
-              {/* Cùng bố cục các khối khác: tiêu đề (kèm nhãn trạng thái), rồi một hàng giá trị + nút, nên nút ở đúng vị trí. */}
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="type-h3 text-foreground">Số điện thoại</h2>
-                <StatusBadge tone={phoneVerified ? 'success' : 'warning'}>
-                  {phoneVerified ? 'Đã xác minh' : 'Chưa xác minh'}
-                </StatusBadge>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex min-w-0 flex-col gap-1">
-                  <span className="type-mono-small text-ink-tertiary">SỐ ĐIỆN THOẠI</span>
-                  <span className="type-body-m-strong text-foreground">
-                    {user?.phone ? formatPhone(user.phone) : '—'}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  className={pill}
-                  onClick={() => setPhoneMode(phoneVerified ? 'change' : 'verify')}
-                >
-                  {phoneVerified ? 'Đổi số' : 'Xác minh'}
-                </button>
-              </div>
-            </section>
-          )}
 
           <section className="flex flex-col gap-4 rounded-[20px] bg-surface p-6 sm:p-8">
             <h2 className="type-h3 text-foreground">Phiên đăng nhập</h2>
@@ -140,15 +89,6 @@ export default function AccountSecurityPage() {
         </div>
       </AccountShell>
 
-      <OtpDialog
-        open={phoneMode !== null}
-        onOpenChange={(open) => {
-          if (!open) setPhoneMode(null)
-        }}
-        onVerified={() => toast.success('Đã xác minh số điện thoại')}
-        initialPhone={user?.phone}
-        mode={phoneMode ?? 'verify'}
-      />
       <DeleteDialog open={confirmOpen} onOpenChange={setConfirmOpen} />
     </div>
   )

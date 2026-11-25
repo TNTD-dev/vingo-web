@@ -143,7 +143,7 @@ export default function RegisterPage() {
         <span className="shrink-0 rounded-pill border border-line bg-surface px-2.5 py-[5px] type-mono-small uppercase">
           ● Bước tiếp
         </span>
-        Sau khi tạo, xác thực email và số điện thoại bằng mã OTP 6 số để kích hoạt tài khoản.
+        Sau khi tạo, xác thực email bằng mã OTP 6 số để kích hoạt tài khoản.
       </p>
     </form>
   )

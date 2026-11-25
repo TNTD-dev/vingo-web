@@ -24,16 +24,11 @@ export default function LoginPage() {
         identifier: String(form.get('identifier')).trim(),
         password: String(form.get('password')),
       })
-      const destination = loginDestination(user.role, params.get('next'))
-      // Tài khoản đăng ký thủ công luôn có số điện thoại; chưa xác minh thì bắt xác thực trước (Google không có số nên bỏ qua).
-      const mustVerifyPhone = user.role === 'BUYER' && user.phone_verified === false && Boolean(user.phone)
-      navigate(mustVerifyPhone ? `/verify-otp?next=${encodeURIComponent(destination)}` : destination, {
-        replace: true,
-      })
+      navigate(loginDestination(user.role, params.get('next')), { replace: true })
     } catch (e) {
       setError(
         isApiError(e) && e.status === 401
-          ? 'Email/số điện thoại hoặc mật khẩu chưa đúng.'
+          ? 'Email hoặc mật khẩu chưa đúng.'
           : isApiError(e)
             ? (e.problem?.detail ?? e.message)
             : 'Không đăng nhập được. Vui lòng thử lại.',
@@ -46,7 +41,7 @@ export default function LoginPage() {
   return (
     <form action={onSubmit} className="flex flex-col gap-5">
       <AuthHeading eyebrow="Đăng nhập" title="Chào mừng trở lại" />
-      <AuthField label="Email hoặc số điện thoại" name="identifier" autoComplete="username" required />
+      <AuthField label="Email" name="identifier" type="email" autoComplete="username" required />
       <AuthField label="Mật khẩu" name="password" type="password" autoComplete="current-password" required />
       <div className="flex justify-end">
         <Link to="/forgot-password" className="type-caption text-ink-secondary hover:text-foreground">
