@@ -1,6 +1,7 @@
 import { http } from 'msw'
 
 import { API_BASE } from '@/api/config'
+import { mockSignedIn, unauthorized } from './auth'
 
 /**
  * Mock GET /me/stream: một bus trong bộ nhớ. `emit` (từ mocks/agent.ts) đẩy sự kiện tới mọi kết nối đang mở;
@@ -21,6 +22,7 @@ export function emit(event: string, data: Record<string, unknown>) {
 }
 
 export const meStreamHandler = http.get(`*${API_BASE}/me/stream`, () => {
+  if (!mockSignedIn()) return unauthorized()
   let self: ReadableStreamDefaultController<Uint8Array> | undefined
   let ping: ReturnType<typeof setInterval> | undefined
   const stream = new ReadableStream<Uint8Array>({

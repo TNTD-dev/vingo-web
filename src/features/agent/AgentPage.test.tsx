@@ -34,7 +34,13 @@ vi.mock('@/realtime/useMeStream', async () => {
 import AgentPage from './AgentPage'
 
 const user: User = { id: 'u1', email: 'a@b.c', full_name: 'Minh Anh', role: 'BUYER' }
-const auth = (u: User | null): AuthState => ({ ready: true, user: u, login: vi.fn(), logout: vi.fn() })
+const auth = (u: User | null): AuthState => ({
+  status: 'ready',
+  retry: vi.fn(),
+  user: u,
+  login: vi.fn(),
+  logout: vi.fn(),
+})
 
 function renderAt(url: string, u: User | null = user) {
   return render(

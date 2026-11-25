@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import { Navigate } from 'react-router'
 import { useSearchParams } from 'react-router'
 
-import { refreshSession } from '@/api/http'
+import { signalSessionChange } from '@/auth/token-store'
 import { loginDestination } from '@/auth/redirect'
 import { useAuth } from '@/auth/auth-context'
+import { SessionError } from '@/auth/SessionError'
 import { ArrowButton } from '@/design/ArrowButton'
 import { Mascot } from '@/design/Mascot'
 
@@ -13,34 +14,26 @@ import { clearNext, googleOutcome, peekNext } from './googleCallback'
 
 /**
  * Backend chuyển về /auth/google?google_login=success|created|failed|email_taken
- * và đã đặt cookie refresh HttpOnly. Đổi cookie lấy access token rồi về trang trước (hoặc trang chủ).
+ * với cookie phiên. AuthProvider kiểm tra /me khi trình duyệt quay về.
  */
 export default function GoogleCallbackPage() {
   const [params] = useSearchParams()
   const [next] = useState(peekNext)
-  const { user } = useAuth()
+  const { status, user } = useAuth()
   const outcome = googleOutcome(params.get('google_login'))
   const signedIn = outcome.kind === 'signed_in'
-  const [refreshFailed, setRefreshFailed] = useState(false)
-
   useEffect(() => {
-    if (!signedIn) return
-    let cancelled = false
-    void refreshSession().then((ok) => {
-      if (!cancelled && !ok) setRefreshFailed(true)
-    })
-    return () => {
-      cancelled = true
+    if (status === 'ready' && signedIn && user) {
+      clearNext()
+      signalSessionChange()
     }
-  }, [signedIn])
+  }, [status, signedIn, user])
 
-  useEffect(() => {
-    if (signedIn && user) clearNext()
-  }, [signedIn, user])
+  if (status === 'ready' && signedIn && user) return <Navigate to={loginDestination(user.role, next)} replace />
 
-  if (signedIn && user) return <Navigate to={loginDestination(user.role, next)} replace />
+  if (signedIn && status === 'error') return <SessionError />
 
-  if (signedIn && !refreshFailed) {
+  if (signedIn && status === 'loading') {
     return (
       <output className="flex flex-col gap-5">
         <AuthHeading eyebrow="Google" title="Đang đăng nhập…" hint="Vingo đang hoàn tất phiên đăng nhập của bạn." />

@@ -4,13 +4,15 @@ import { Link, useNavigate, useSearchParams } from 'react-router'
 import { isApiError } from '@/api/problem'
 import { loginDestination } from '@/auth/redirect'
 import { useAuth } from '@/auth/auth-context'
+import { SessionError } from '@/auth/SessionError'
 import { ArrowButton } from '@/design/ArrowButton'
+import { FullPageSpinner } from '@/design/FullPageSpinner'
 
 import { AuthField, AuthHeading, FormError, GoogleButton } from './authUi'
 
 // B8 · Đăng nhập (Figma 03 · Buyer). Bước OTP của B8 dùng ở /verify-otp sau khi đăng ký.
 export default function LoginPage() {
-  const { login } = useAuth()
+  const { status, login } = useAuth()
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const [error, setError] = useState<string | null>(null)
@@ -37,6 +39,9 @@ export default function LoginPage() {
       setPending(false)
     }
   }
+
+  if (status === 'loading') return <FullPageSpinner />
+  if (status === 'error') return <SessionError />
 
   return (
     <form action={onSubmit} className="flex flex-col gap-5">

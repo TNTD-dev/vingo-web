@@ -1,23 +1,41 @@
 import type { User } from '@/api/generated/model'
 
-/**
- * Giữ access token trong bộ nhớ (không localStorage). Refresh token:
- * - Google login: backend đặt cookie HttpOnly, web không thấy.
- * - Mật khẩu: backend trả trong JSON → giữ trong bộ nhớ, mất khi tải lại trang.
- */
-type Session = { accessToken: string; refreshToken?: string; user: User }
+export const SESSION_SIGNAL = 'vingo.session-changed'
 
-let session: Session | null = null
+/** Chỉ báo có thay đổi. Tab nhận tự đọc lại /me bằng cookie. */
+export function signalSessionChange() {
+  try {
+    localStorage.setItem(SESSION_SIGNAL, crypto.randomUUID())
+  } catch {
+    // Trình duyệt có thể chặn storage.
+  }
+}
+
+let user: User | null = null
+let revision = 0
 const listeners = new Set<() => void>()
 
-export const tokenStore = {
-  get: () => session,
-  set(next: Session | null) {
-    session = next
-    listeners.forEach((l) => l())
+export const sessionStore = {
+  get: () => user,
+  get revision() {
+    return revision
+  },
+  invalidatePending() {
+    revision++
+  },
+  set(next: User | null, notifyTabs = false) {
+    revision++
+    user = next
+    listeners.forEach((listener) => listener())
+    if (notifyTabs) signalSessionChange()
+  },
+  expire(expected: number, notifyTabs = false) {
+    if (user && revision === expected) this.set(null, notifyTabs)
   },
   subscribe(listener: () => void) {
     listeners.add(listener)
-    return () => listeners.delete(listener)
+    return () => {
+      listeners.delete(listener)
+    }
   },
 }

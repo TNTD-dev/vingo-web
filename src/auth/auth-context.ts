@@ -3,10 +3,11 @@ import { createContext, useContext } from 'react'
 import type { LoginBody, User } from '@/api/generated/model'
 
 export type AuthState = {
-  ready: boolean
+  status: 'loading' | 'ready' | 'error'
+  retry: () => void
   user: User | null
   login: (body: LoginBody) => Promise<User>
-  logout: () => Promise<void>
+  logout: (allDevices?: boolean) => Promise<void>
 }
 
 export const AuthContext = createContext<AuthState | null>(null)

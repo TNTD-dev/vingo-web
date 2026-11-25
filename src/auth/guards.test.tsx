@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import type { User } from '@/api/generated/model'
 
@@ -9,7 +9,8 @@ import { RequireAuth } from './guards'
 
 function renderAt(path: string, user: User | null) {
   const auth: AuthState = {
-    ready: true,
+    status: 'ready',
+    retry: vi.fn(),
     user,
     login: async () => ({ id: 'u1', role: 'BUYER' }),
     logout: async () => {},

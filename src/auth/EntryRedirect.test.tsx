@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { User } from '@/api/generated/model'
 import { AuthContext, type AuthState } from './auth-context'
 import { EntryRedirect } from './EntryRedirect'
@@ -14,14 +14,23 @@ function setup(path: string, user: User | null, ready = true) {
     ],
     { initialEntries: [path] },
   )
-  const auth: AuthState = { ready, user, login: async () => ({ id: 'a', role: 'ADMIN' }), logout: async () => {} }
+  const auth: AuthState = {
+    status: ready ? 'ready' : 'loading',
+    retry: vi.fn(),
+    user,
+    login: async () => ({ id: 'a', role: 'ADMIN' }),
+    logout: async () => {},
+  }
   const view = (value: AuthState) => (
     <AuthContext.Provider value={value}>
       <RouterProvider router={router} />
     </AuthContext.Provider>
   )
   const result = render(view(auth))
-  return { router, restore: (user: User | null) => result.rerender(view({ ...auth, ready: true, user })) }
+  return {
+    router,
+    restore: (user: User | null) => result.rerender(view({ ...auth, status: 'ready', retry: vi.fn(), user })),
+  }
 }
 describe('EntryRedirect', () => {
   it.each(['/', '/login', '/admin/login'])('ADMIN có phiên tại %s được chuyển về dashboard', async (path) => {
@@ -29,9 +38,9 @@ describe('EntryRedirect', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/admin'))
     expect(router.state.historyAction).toBe('REPLACE')
   })
-  it('khôi phục ADMIN xong mới điều hướng và không hiện landing trước đó', async () => {
+  it('landing hiện ngay, khôi phục ADMIN xong mới điều hướng', async () => {
     const { router, restore } = setup('/', null, false)
-    expect(screen.queryByText('trang gốc')).not.toBeInTheDocument()
+    expect(screen.getByText('trang gốc')).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/')
     restore({ id: 'a', role: 'ADMIN' })
     await waitFor(() => expect(router.state.location.pathname).toBe('/admin'))

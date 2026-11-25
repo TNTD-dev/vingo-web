@@ -1,12 +1,21 @@
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Laptop } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
 
-import { deleteMe, updateMe } from '@/api/generated/endpoints/me/me'
+import {
+  deleteMe,
+  deleteSession,
+  getListSessionsQueryKey,
+  updateMe,
+  useListSessions,
+} from '@/api/generated/endpoints/me/me'
 import { useListMyTickets } from '@/api/generated/endpoints/tickets/tickets'
 import { isApiError, isNotImplemented, NOT_IMPLEMENTED_MESSAGE } from '@/api/problem'
+import type { SessionInfo } from '@/api/generated/model'
+import { sessionStore, signalSessionChange } from '@/auth/token-store'
+import { formatDateTime } from '@/lib/time'
 import { useAuth } from '@/auth/auth-context'
 import { Mascot } from '@/design/Mascot'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/design/ui/dialog'
@@ -19,8 +28,7 @@ const pill =
 
 // B17 · Tài khoản & bảo mật (Figma 03 · Buyer): đăng nhập, phiên hiện tại, xoá tài khoản.
 export default function AccountSecurityPage() {
-  const { user, logout } = useAuth()
-  const navigate = useNavigate()
+  const { user } = useAuth()
   const [changing, setChanging] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   return (
@@ -52,29 +60,7 @@ export default function AccountSecurityPage() {
             {changing && <ChangePassword onDone={() => setChanging(false)} />}
           </section>
 
-          <section className="flex flex-col gap-4 rounded-[20px] bg-surface p-6 sm:p-8">
-            <h2 className="type-h3 text-foreground">Phiên đăng nhập</h2>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <span className="flex size-9 items-center justify-center rounded-[10px] bg-canvas">
-                  <Laptop className="size-4" aria-hidden />
-                </span>
-                <div className="flex flex-col">
-                  <span className="type-body-m-strong text-foreground">Thiết bị này</span>
-                  <span className="type-caption text-ink-tertiary">Đang đăng nhập</span>
-                </div>
-              </div>
-              <button
-                type="button"
-                className={pill}
-                onClick={() => {
-                  void logout().then(() => navigate('/login', { replace: true }))
-                }}
-              >
-                Đăng xuất
-              </button>
-            </div>
-          </section>
+          <SessionList />
 
           <section className="flex flex-col gap-3 rounded-[20px] border border-danger p-6 sm:p-8">
             <h2 className="type-h3 text-danger">Xoá tài khoản</h2>
@@ -94,7 +80,117 @@ export default function AccountSecurityPage() {
   )
 }
 
+function deviceName(agent: string | null) {
+  const browser = [
+    [/Edg(?:A|iOS)?\//, 'Edge'],
+    [/OPR\//, 'Opera'],
+    [/Firefox\/|FxiOS\//, 'Firefox'],
+    [/Chrome\/|CriOS\//, 'Chrome'],
+    [/Version\/.*Safari\//, 'Safari'],
+  ] as const
+  const systems = [
+    [/Android/, 'Android'],
+    [/iPhone|iPad|iPod/, 'iOS'],
+    [/Windows/, 'Windows'],
+    [/Macintosh|Mac OS X/, 'macOS'],
+    [/CrOS/, 'ChromeOS'],
+    [/Linux/, 'Linux'],
+  ] as const
+  const name = browser.find(([pattern]) => pattern.test(agent ?? ''))?.[1]
+  const os = systems.find(([pattern]) => pattern.test(agent ?? ''))?.[1]
+  return name && os ? `${name} trên ${os}` : 'Thiết bị không xác định'
+}
+
+function SessionList() {
+  const sessions = useListSessions()
+  const { logout } = useAuth()
+  const revoke = useMutation({
+    mutationFn: async (session: SessionInfo | 'all') => {
+      if (session === 'all') return logout(true)
+      const revision = sessionStore.revision
+      try {
+        await deleteSession(session.id)
+      } catch (error) {
+        if (
+          session.current &&
+          ((isApiError(error) && error.status === 401) ||
+            (error instanceof DOMException && error.name === 'AbortError'))
+        ) {
+          // http đã dọn phiên; báo các tab khác, không đụng phiên vừa đăng nhập lại.
+          if (!sessionStore.get()) signalSessionChange()
+          return
+        }
+        if (isApiError(error) && error.status === 404) {
+          await sessions.refetch()
+          return
+        }
+        throw error
+      }
+      if (session.current) sessionStore.expire(revision, true)
+      else await sessions.refetch()
+    },
+    onError: () => toast.error('Chưa xác nhận được việc đăng xuất thiết bị. Vui lòng tải lại danh sách.'),
+  })
+  return (
+    <section className="flex flex-col gap-4 rounded-[20px] bg-surface p-6 sm:p-8">
+      <h2 className="type-h3 text-foreground">Phiên đăng nhập</h2>
+      {sessions.isPending ? (
+        <p role="status">Đang tải danh sách thiết bị…</p>
+      ) : sessions.isError ? (
+        <div role="alert">
+          Chưa tải được danh sách thiết bị.{' '}
+          <button type="button" className={pill} onClick={() => void sessions.refetch()}>
+            Thử lại
+          </button>
+        </div>
+      ) : sessions.data.length === 0 ? (
+        <p>Không có thiết bị đang đăng nhập.</p>
+      ) : (
+        <ul className="flex flex-col gap-4">
+          {sessions.data.map((session) => (
+            <li key={session.id} className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-canvas">
+                  <Laptop className="size-4" aria-hidden />
+                </span>
+                <div className="flex min-w-0 flex-col">
+                  <span className="type-body-m-strong text-foreground">{deviceName(session.user_agent)}</span>
+                  {session.current && <span className="type-caption text-foreground">Thiết bị này</span>}
+                  {session.last_ip && (
+                    <span className="type-caption break-all text-ink-secondary">IP {session.last_ip}</span>
+                  )}
+                  <span className="type-caption text-ink-secondary">
+                    Hoạt động gần nhất {formatDateTime(session.last_seen_at)}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                className={pill}
+                disabled={revoke.isPending}
+                aria-label={`Đăng xuất ${session.current ? 'thiết bị này' : deviceName(session.user_agent)}`}
+                onClick={() => revoke.mutate(session)}
+              >
+                Đăng xuất
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <button
+        type="button"
+        className={`${pill} w-fit`}
+        disabled={revoke.isPending}
+        onClick={() => revoke.mutate('all')}
+      >
+        Đăng xuất tất cả thiết bị
+      </button>
+    </section>
+  )
+}
+
 function ChangePassword({ onDone }: { onDone: () => void }) {
+  const client = useQueryClient()
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -102,7 +198,8 @@ function ChangePassword({ onDone }: { onDone: () => void }) {
   const save = useMutation({
     mutationFn: () => updateMe({ current_password: current, new_password: next }),
     onSuccess: () => {
-      toast.success('Đã đổi mật khẩu')
+      void client.invalidateQueries({ queryKey: getListSessionsQueryKey() })
+      toast.success('Đã đổi mật khẩu và đăng xuất các thiết bị khác.')
       onDone()
     },
     onError: (e) =>

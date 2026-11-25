@@ -54,7 +54,7 @@ cp .env.example .env
 npm run dev
 ```
 
-Vite proxy chuyển `/api/*` sang `http://localhost:8080`, nên trình duyệt chỉ thấy một origin (`localhost:3000`). Cổng 3000 khớp với `AUTH_FRONTEND_RETURN_URL` mặc định của backend (`http://localhost:3000/auth/google`) — đổi cổng thì phải đổi cả biến này bên backend, nếu không refresh bằng cookie sẽ bị 403.
+Vite proxy chuyển `/api/*` sang `http://localhost:8080`, nên trình duyệt chỉ thấy một origin (`localhost:3000`). Cổng 3000 khớp với `AUTH_FRONTEND_RETURN_URL` mặc định của backend (`http://localhost:3000/auth/google`) — đổi cổng thì phải đổi cả biến này bên backend, để Google chuyển hướng về đúng web.
 
 ## Biến môi trường
 
@@ -103,7 +103,7 @@ src/api/generated/
 
 - `CONTRACT_VERSION` = `local` → copy từ `../vingo-backend` (đặt `BACKEND_DIR` nếu repo nằm chỗ khác). Khi backend bắt đầu gắn tag `contract-vX.Y.Z`, ghi tag vào file này; script sẽ tải từ GitHub Release (cần `gh` đã đăng nhập).
 - `src/api/generated` không commit và không sửa tay.
-- Mọi request đi qua `src/api/http.ts`: gắn base path và Bearer, tự refresh khi 401, ném `ApiError` khi lỗi.
+- Mọi request đi qua `src/api/http.ts`: gửi cookie cùng origin, kết thúc phiên khi API cần đăng nhập trả 401, ném `ApiError` khi lỗi.
 
 Gọi API trong component:
 
@@ -162,7 +162,7 @@ vingo-web/
 | Route                                                                   | Màn                               | Quyền                          | API chính                                    |
 | ----------------------------------------------------------------------- | --------------------------------- | ------------------------------ | -------------------------------------------- |
 | `/login` `/register` `/verify-otp` `/forgot-password` `/reset-password` | Đăng nhập, đăng ký                | public                         | `login`, `register`, `verifyOtp`…            |
-| `/auth/google`                                                          | Nhận kết quả Google login         | public                         | `refreshToken`                               |
+| `/auth/google`                                                          | Nhận kết quả Google login         | public                         | `getMe`                                      |
 | `/`                                                                     | Landing                           | public                         | —                                            |
 | `/vingo`                                                                | Vingo agent mode                  | public (gửi tin cần đăng nhập) | `sendMessage`, `/me/stream`                  |
 | `/events`, `/events/:eventId`                                           | Sự kiện                           | public                         | `searchEvents`, `getEvent`                   |
@@ -187,19 +187,17 @@ Mỗi màn hiện dùng `<Placeholder>` ghi tên các operation sẽ gọi; các
 
 ## Đăng nhập và phiên
 
-- Access token (JWT 15 phút) chỉ giữ **trong bộ nhớ**, không lưu `localStorage`.
-- Gặp 401, `http.ts` gọi `POST /auth/refresh` đúng một lần (gộp các request đồng thời) rồi gọi lại.
-- **Google login:** backend đặt cookie refresh HttpOnly rồi chuyển về `/auth/google?google_login=…`; web đổi cookie lấy access token. Tải lại trang vẫn giữ phiên.
-- **Mật khẩu:** `/auth/login` hiện trả `refresh_token` trong JSON, không đặt cookie → web giữ trong bộ nhớ, **tải lại trang là mất phiên**. Cần backend đặt cookie refresh cho cả login mật khẩu (giống Google) để giữ phiên.
+- Backend đặt cookie HttpOnly khi đăng nhập bằng mật khẩu, xác thực OTP hoặc đăng nhập Google. Web đọc `GET /me` khi tải trang và sau khi Google chuyển về.
+- Web chỉ giữ `user` trong bộ nhớ. Các tab gửi tín hiệu thay đổi phiên, đọc lại `/me` và dọn cache khi đổi tài khoản.
 - `RequireAuth` / `RequireAuth allow="ADMIN"` chỉ để điều hướng; backend mới là nơi chặn quyền.
 
 ## Realtime (SSE)
 
 `useMeStream(handler)` mở `GET /me/stream`:
 
-- Dùng `@microsoft/fetch-event-source` vì `EventSource` không gửi được header `Authorization`.
+- Dùng `@microsoft/fetch-event-source` với cookie cùng origin.
 - Nối lại kèm `Last-Event-ID`; server phát lại 5 phút gần nhất nên sự kiện có thể trùng → khử trùng theo `id`.
-- Stream đóng khi token hết hạn → tự refresh rồi nối lại.
+- Khi server đóng stream sau tối đa 15 phút, web tự nối lại. Kết nối dừng khi nhận 401.
 - `order.*`, `payment.failed` → invalidate query đơn; `ticket.issued` → invalidate query vé; `chat.*` → chuyển cho handler.
 
 ## Chat và block
@@ -219,7 +217,7 @@ Mỗi `ChatBlockType` trong contract có một component trong `src/blocks/`, đ
 ## Test và CI
 
 - Vitest + Testing Library, file test nằm cạnh code (`*.test.ts(x)`).
-- Đã có test cho: mutator `http` (Bearer, refresh khi 401, `ApiError` mang `code`), guard phân quyền, khử trùng SSE, format tiền/giờ, registry block.
+- Đã có test cho: mutator `http` (cookie cùng origin, xử lý 401, `ApiError` mang `code`), guard phân quyền, khử trùng SSE, format tiền/giờ, registry block.
 - GitHub Actions (`.github/workflows/ci.yml`) chạy `npm ci` → lint → format → typecheck → test → build cho mọi PR.
 
 ## Quy ước

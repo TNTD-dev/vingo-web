@@ -6,20 +6,21 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { resendOtp, verifyOtp } from '@/api/generated/endpoints/auth/auth'
 import type { ProblemCode, User } from '@/api/generated/model'
 import { ApiError } from '@/api/problem'
-import { tokenStore } from '@/auth/token-store'
+import { SESSION_SIGNAL, sessionStore } from '@/auth/token-store'
 import { OtpDialog } from '@/design/OtpDialog'
 
 vi.mock('@/api/generated/endpoints/auth/auth', () => ({ verifyOtp: vi.fn(), resendOtp: vi.fn() }))
 
 const OTP = '482615'
 const buyer: User = { id: 'buyer', role: 'BUYER' }
-const pair = { access_token: 'new-access', refresh_token: 'new-refresh', expires_in: 900, user: buyer }
+const result = { user: buyer }
 const apiError = (status: number, code: ProblemCode, retryAfter?: number) =>
   new ApiError(status, { title: 'Lỗi', status, code }, retryAfter)
 
 afterEach(() => {
   cleanup()
-  tokenStore.set(null)
+  sessionStore.set(null)
+  localStorage.clear()
   vi.resetAllMocks()
 })
 
@@ -56,7 +57,7 @@ function enterOtp(value = OTP) {
 
 describe('OtpDialog xác thực email', () => {
   it('che email, đếm ngược gửi lại, xác thực xong thì đăng nhập và báo khi bấm Tiếp tục', async () => {
-    vi.mocked(verifyOtp).mockResolvedValue(pair)
+    vi.mocked(verifyOtp).mockResolvedValue(result)
     const { onVerified } = setup(Date.now())
     expect(screen.getByRole('dialog')).toHaveTextContent('b***@gmail.com')
     expect(screen.getByRole('button', { name: /Gửi lại sau/ })).toBeDisabled()
@@ -64,7 +65,9 @@ describe('OtpDialog xác thực email', () => {
     await press('Xác thực')
     expect(await screen.findByRole('heading', { name: 'Đã xác thực email' })).toBeInTheDocument()
     expect(verifyOtp).toHaveBeenCalledExactlyOnceWith({ otp_session_id: 'email-session', otp: OTP })
-    expect(tokenStore.get()).toMatchObject({ accessToken: 'new-access', refreshToken: 'new-refresh', user: buyer })
+    expect(sessionStore.get()).toEqual(buyer)
+    expect(localStorage.getItem(SESSION_SIGNAL)).toMatch(/^[\da-f-]{36}$/i)
+    expect(localStorage.length).toBe(1)
     expect(onVerified).not.toHaveBeenCalled()
     await press('Tiếp tục')
     expect(onVerified).toHaveBeenCalledExactlyOnceWith(buyer)
@@ -72,7 +75,7 @@ describe('OtpDialog xác thực email', () => {
 
   it('gửi lại mã xong thì xác thực bằng phiên mới và báo người gọi lưu phiên mới', async () => {
     vi.mocked(resendOtp).mockResolvedValue({ otp_session_id: 'new-session', expires_at: '2026-11-25T03:05:00Z' })
-    vi.mocked(verifyOtp).mockResolvedValue(pair)
+    vi.mocked(verifyOtp).mockResolvedValue(result)
     const { onResent } = setup()
     await press('Gửi lại mã')
     expect(resendOtp).toHaveBeenCalledExactlyOnceWith({ otp_session_id: 'email-session' })
@@ -89,7 +92,7 @@ describe('OtpDialog xác thực email', () => {
 
   it('gửi lại lỗi thì giữ phiên cũ và chờ theo Retry-After', async () => {
     vi.mocked(resendOtp).mockRejectedValue(apiError(429, 'RATE_LIMITED', 45))
-    vi.mocked(verifyOtp).mockResolvedValue(pair)
+    vi.mocked(verifyOtp).mockResolvedValue(result)
     const { onResent } = setup()
     await press('Gửi lại mã')
     expect(await screen.findByRole('alert')).toHaveTextContent('45 giây')

@@ -9,7 +9,7 @@ import { holdSeats } from '@/api/generated/endpoints/booking/booking'
 import type { EventDetail, GetAvailability200, SeatMap, User } from '@/api/generated/model'
 import { newIdempotencyKey } from '@/api/idempotency'
 import { AuthContext } from '@/auth/auth-context'
-import { tokenStore } from '@/auth/token-store'
+import { sessionStore } from '@/auth/token-store'
 import SeatSelectionPage from '@/features/booking/SeatSelectionPage'
 
 vi.mock('@/api/generated/endpoints/booking/booking', () => ({ holdSeats: vi.fn() }))
@@ -50,13 +50,13 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   clients.splice(0).forEach((client) => client.clear())
-  tokenStore.set(null)
+  sessionStore.set(null)
   vi.clearAllMocks()
   vi.mocked(holdSeats).mockReset()
 })
 
 function setup(user: User = buyer) {
-  tokenStore.set({ accessToken: 'test-access', user })
+  sessionStore.set(user)
   const router = createMemoryRouter(
     [
       { path: '/events/:eventId/showtimes/:showtimeId/seats', element: <SeatSelectionPage /> },
@@ -67,10 +67,10 @@ function setup(user: User = buyer) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   clients.push(client)
   function Harness() {
-    const session = useSyncExternalStore(tokenStore.subscribe, tokenStore.get)
+    const session = useSyncExternalStore(sessionStore.subscribe, sessionStore.get)
     return (
       <AuthContext.Provider
-        value={{ ready: true, user: session?.user ?? null, login: async () => user, logout: async () => {} }}
+        value={{ status: 'ready', retry: vi.fn(), user: session, login: async () => user, logout: async () => {} }}
       >
         <RouterProvider router={router} />
       </AuthContext.Provider>

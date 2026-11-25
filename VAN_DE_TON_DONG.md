@@ -66,7 +66,7 @@ Ghi lại các điểm cần hỏi backend, báo nhóm, hoặc khác Figma. Cậ
 
 Khác Figma / cần backend:
 
-- **Ảnh QR vé**: backend trả ảnh (`GET /tickets/{id}/qr.png`, cần Bearer). `api/http.ts` được thêm nhánh trả `Blob` khi `Content-Type` là image; mock trả SVG giả không quét được.
+- **Ảnh QR vé**: backend trả ảnh (`GET /tickets/{id}/qr.png`, cần cookie phiên). `api/http.ts` được thêm nhánh trả `Blob` khi `Content-Type` là image; mock trả SVG giả không quét được.
 - **B4b**: không có QR thanh toán (không có API trả mã QR VNPay, chỉ có `payment_url`); hộp thoại có nút "Mở cổng VNPay".
 - **Trang trở về VNPay** đọc `order_id`, `vnp_ResponseCode`, `vnp_TxnRef` trên URL. Hợp đồng chưa nói backend chuyển hướng kèm `order_id` hay không; cần xác nhận.
 - **B10**: không có khối "Lần thanh toán" (đơn không kèm danh sách thanh toán), không có dòng "Phí dịch vụ".
