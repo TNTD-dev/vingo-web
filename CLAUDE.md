@@ -77,15 +77,15 @@ src/
 
 ## 6. Auth và bảo mật
 
-- Access token chỉ nằm trong bộ nhớ (`tokenStore`). Không lưu token vào `localStorage`/`sessionStorage`/cookie đọc được bằng JS.
-- Refresh: `http.ts` tự refresh một lần khi gặp 401. Không tự gọi `/auth/refresh` ở nơi khác.
+- Cookie phiên HttpOnly do backend quản lý. Web chỉ giữ `user` trong bộ nhớ và kiểm tra phiên bằng `GET /me`.
+- Dùng cookie cùng origin cho API. Khi request cần đăng nhập trả 401, kết thúc phiên tương ứng.
 - `/admin/**` bọc `RequireAuth allow="ADMIN"`; trang của buyer bọc `RequireAuth`. Guard chỉ để UX, backend mới là nơi chặn quyền.
 - Biến `VITE_*` bị nhúng vào bundle: không đặt bí mật.
 - Không log token, mật khẩu, OTP, số điện thoại đầy đủ (kể cả `console.log` khi debug).
 
 ## 7. Realtime
 
-- Dùng `useMeStream(handler)`. Không mở `EventSource` (không gửi được Bearer).
+- Dùng `useMeStream(handler)`. Kết nối dùng cookie cùng origin.
 - Mở stream trước rồi mới tải trạng thái bằng REST. Sự kiện có thể trùng; đã khử trùng theo `id`.
 
 ## 8. Hiển thị

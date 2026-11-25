@@ -22,7 +22,6 @@ export default function AdminLoginPage() {
       const user = await login({
         identifier: String(form.get('identifier')),
         password: String(form.get('password')),
-        device: 'Vingo Admin Web',
       })
       if (user.role !== 'ADMIN') {
         setError('Tài khoản này không có quyền ADMIN.')

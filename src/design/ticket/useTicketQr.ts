@@ -12,11 +12,11 @@ function toDataUrl(blob: Blob): Promise<string> {
   })
 }
 
-/** Tải ảnh QR của vé (cần Bearer nên không dùng thẻ img trỏ thẳng URL) và trả về data URL. */
+/** Tải ảnh QR của vé bằng cookie và trả về data URL. */
 export function useTicketQr(ticketId: string | undefined, enabled = true) {
   const query = useQuery({
     queryKey: ['ticket-qr', ticketId],
-    queryFn: async () => toDataUrl(await getTicketQr(ticketId!)),
+    queryFn: async ({ signal }) => toDataUrl(await getTicketQr(ticketId!, { signal })),
     enabled: enabled && !!ticketId,
     staleTime: 60_000,
     // Lỗi API (vd. 501 chưa làm, 404) không tự khỏi nhờ thử lại; chỉ thử lại lỗi mạng.

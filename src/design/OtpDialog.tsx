@@ -3,7 +3,7 @@ import { useRef, useState, type FormEvent } from 'react'
 
 import { resendOtp, verifyOtp } from '@/api/generated/endpoints/auth/auth'
 import type { User } from '@/api/generated/model'
-import { tokenStore } from '@/auth/token-store'
+import { sessionStore } from '@/auth/token-store'
 import { OtpInput } from '@/design/OtpInput'
 import { resendOtpMessage, verifyOtpMessage } from '@/design/otpErrors'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/design/ui/dialog'
@@ -111,10 +111,9 @@ function OtpContent({
     setPending(true)
     setError(undefined)
     try {
-      // Kích hoạt tài khoản: backend trả cặp token, đăng nhập luôn.
-      const pair = await verifyOtp({ otp_session_id: sessionId, otp })
-      tokenStore.set({ accessToken: pair.access_token, refreshToken: pair.refresh_token, user: pair.user })
-      onDone(pair.user)
+      const { user } = await verifyOtp({ otp_session_id: sessionId, otp })
+      sessionStore.set(user, true)
+      onDone(user)
       setDone(true)
     } catch (e) {
       const m = verifyOtpMessage(e)

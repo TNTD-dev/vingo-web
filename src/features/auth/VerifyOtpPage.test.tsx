@@ -38,7 +38,9 @@ function setup(user: User | null, path = '/verify-otp') {
     { initialEntries: [path] },
   )
   render(
-    <AuthContext.Provider value={{ ready: true, user, login: async () => buyer, logout: async () => {} }}>
+    <AuthContext.Provider
+      value={{ status: 'ready', retry: vi.fn(), user, login: async () => buyer, logout: async () => {} }}
+    >
       <RouterProvider router={router} />
     </AuthContext.Provider>,
   )

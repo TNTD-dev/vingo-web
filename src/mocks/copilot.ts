@@ -7,7 +7,7 @@ import { emit } from './sse'
 
 /**
  * Mock Admin Copilot (kịch bản Figma C2–C5) cho `npm run dev:mock`. Chỉ nhận hội thoại tạo từ trang /admin/copilot
- * (đọc referrer, vì contract tạo hội thoại theo vai trò token chứ không có tham số agent); còn lại để mock buyer xử lý.
+ * (đọc referrer, vì contract tạo hội thoại theo vai trò người dùng chứ không có tham số agent); còn lại để mock buyer xử lý.
  * Quy ước web ↔ agent giả định (xem docs/agent-mode-notes.md): block mở rộng chọn bằng `payload.view`, sửa trên block
  * gửi `block_event` (review.change / showtime.edit / seatmap.select) và agent trả ConfirmAction mới.
  * Nội dung chỉ để dựng UI; kịch bản thật do agent quyết định.
