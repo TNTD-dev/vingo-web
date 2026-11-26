@@ -20,6 +20,7 @@ import { adminCatalogHandlers } from './adminCatalog'
 import { adminOperationsHandlers } from './adminOperations'
 import { copilotHandlers } from './copilot'
 import { agentHandlers } from './agent'
+import { attendeeHandlers } from './attendees'
 import { authHandlers } from './auth'
 import { eventDetailHandlers, eventHandlers } from './events'
 import { orderHandlers } from './orders'
@@ -36,6 +37,7 @@ export const worker = setupWorker(
   navigationPassthrough,
   meStreamHandler,
   ...authHandlers,
+  ...attendeeHandlers,
   ...venueImportHandlers,
   ...adminCatalogHandlers,
   ...adminOperationsHandlers,

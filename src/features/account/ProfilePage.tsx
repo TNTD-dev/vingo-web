@@ -11,10 +11,10 @@ import { profileFieldErrors } from '@/lib/profileErrors'
 import { isVnPhone } from '@/lib/validate'
 
 import { AccountShell } from './AccountShell'
+import { AttendeesSection } from './AttendeesSection'
 
 type Draft = { full_name: string; phone: string }
 
-// B9 · Thông tin tài khoản (v2 bỏ hồ sơ người mua; thông tin nhận vé nhập trực tiếp lúc thanh toán).
 export default function ProfilePage() {
   const { user } = useAuth()
   const name = user?.full_name ?? ''
@@ -35,6 +35,7 @@ export default function ProfilePage() {
         }
       >
         <ProfileForm key={`${name}|${phone}`} base={{ full_name: name, phone }} email={email} />
+        <AttendeesSection />
       </AccountShell>
     </div>
   )

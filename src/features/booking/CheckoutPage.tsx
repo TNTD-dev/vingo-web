@@ -4,9 +4,10 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
 
+import { useListAttendees } from '@/api/generated/endpoints/attendees/attendees'
 import { cancelOrder, getGetOrderQueryKey, holdSeats, useGetOrder } from '@/api/generated/endpoints/booking/booking'
 import { createPayment } from '@/api/generated/endpoints/payment/payment'
-import type { Order, PaymentIntent } from '@/api/generated/model'
+import type { Buyer, Order } from '@/api/generated/model'
 import { newIdempotencyKey } from '@/api/idempotency'
 import { profileFieldErrors } from '@/lib/profileErrors'
 import { isApiError } from '@/api/problem'
@@ -67,7 +68,7 @@ export default function CheckoutPage() {
     )
   }
   if (status !== 'PENDING' && status !== 'EXPIRED') return <ExpiredMessage order={order.data} />
-  return <Checkout order={order.data} />
+  return <Checkout key={orderId} order={order.data} />
 }
 
 function seatLabel(item: NonNullable<Order['items']>[number]) {
@@ -83,8 +84,10 @@ function Checkout({ order }: { order: Order }) {
   const expired = order.status === 'EXPIRED' || left === 0
   const items = order.items ?? []
 
-  // ---- người nhận vé của đơn (lưu theo từng đơn, không có hồ sơ người mua) ----
+  // ---- người nhận vé của đơn ----
   const { user } = useAuth()
+  const attendees = useListAttendees()
+  const [selectedId, setSelectedId] = useState('')
   const prefill: ProfileDraft = {
     full_name: order.buyer?.full_name ?? user?.full_name ?? '',
     phone: order.buyer?.phone ?? user?.phone ?? '',
@@ -93,26 +96,37 @@ function Checkout({ order }: { order: Order }) {
   const [draft, setDraft] = useState<ProfileDraft>()
   const values: ProfileDraft = draft ?? prefill
   const [errors, setErrors] = useState<ProfileErrors>({})
-  const [intent, setIntent] = useState<PaymentIntent>()
   const [open, setOpen] = useState(false)
   const keyRef = useRef<{ sig: string; key: string }>(undefined)
 
-  const edit = (field: keyof ProfileDraft, value: string) => {
-    setDraft({ ...values, [field]: value })
-    if (errors[field]) setErrors({ ...errors, [field]: undefined })
+  function updateRecipient(fields: Partial<ProfileDraft>, id = '') {
+    setSelectedId(id)
+    setDraft({ ...values, ...fields })
+    const nextErrors = { ...errors }
+    for (const field of Object.keys(fields) as (keyof ProfileDraft)[]) delete nextErrors[field]
+    setErrors(nextErrors)
+  }
+
+  function chooseAttendee(id: string) {
+    const profile = attendees.data?.find((item) => item.id === id)
+    if (!profile) return
+    updateRecipient(
+      {
+        full_name: profile.full_name,
+        ...(profile.email && { email: profile.email }),
+        ...(profile.phone && { phone: profile.phone }),
+      },
+      id,
+    )
   }
 
   // ---- thanh toán ----
   const pay = useMutation({
-    mutationFn: async () => {
+    mutationFn: ({ buyer, key }: { buyer: Buyer; key: string }) => {
       // Không gửi method: người mua chọn QR / thẻ ATM / thẻ quốc tế ngay trên trang VNPay.
-      if (keyRef.current?.sig !== orderId) keyRef.current = { sig: orderId, key: newIdempotencyKey() }
-      return createPayment(orderId, { buyer: toBuyer(values) }, { headers: { 'Idempotency-Key': keyRef.current.key } })
+      return createPayment(orderId, { buyer }, { headers: { 'Idempotency-Key': key } })
     },
-    onSuccess: (data) => {
-      setIntent(data)
-      setOpen(true)
-    },
+    onSuccess: () => setOpen(true),
     onError: (error) => {
       // Lỗi mạng/5xx/429: giữ khoá để lần bấm lại là retry của cùng thao tác. Lỗi nghiệp vụ: bỏ khoá.
       if (isApiError(error) && error.status < 500 && error.status !== 429) keyRef.current = undefined
@@ -132,6 +146,7 @@ function Checkout({ order }: { order: Order }) {
       }
     },
   })
+  const intent = pay.data
 
   const cancel = useMutation({
     mutationFn: () => cancelOrder(orderId),
@@ -150,11 +165,15 @@ function Checkout({ order }: { order: Order }) {
     const found = validateProfile(values)
     setErrors(found)
     if (hasErrors(found)) return
-    if (intent && intent.order_id === orderId) {
-      setOpen(true) // đã tạo thanh toán cho đơn này, mở lại hộp thoại
+    const buyer = toBuyer(values)
+    const sig = JSON.stringify([orderId, buyer])
+    if (keyRef.current?.sig !== sig) {
+      keyRef.current = { sig, key: newIdempotencyKey() }
+    } else if (intent?.order_id === orderId) {
+      setOpen(true)
       return
     }
-    pay.mutate()
+    pay.mutate({ buyer, key: keyRef.current.key })
   }
 
   function openGateway() {
@@ -216,17 +235,36 @@ function Checkout({ order }: { order: Order }) {
 
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
         <div className="flex min-w-0 flex-1 flex-col gap-6">
-          <section className="flex flex-col gap-5 rounded-lg bg-surface p-5 sm:p-7">
+          <fieldset disabled={pay.isPending} className="flex min-w-0 flex-col gap-5 rounded-lg bg-surface p-5 sm:p-7">
             <div className="flex items-start justify-between gap-4">
               <h2 className="type-h3 text-foreground">Thông tin người nhận vé</h2>
             </div>
+            {attendees.isSuccess && attendees.data.length > 0 && (
+              <label className="flex min-w-0 flex-col gap-2 type-mono-label text-ink-secondary">
+                Chọn người nhận đã lưu
+                <select
+                  value={selectedId}
+                  onChange={(e) => chooseAttendee(e.target.value)}
+                  className="h-[52px] w-full rounded-md border border-line bg-surface px-4 type-body-m text-foreground"
+                >
+                  <option value="" disabled>
+                    Chọn người đi xem
+                  </option>
+                  {attendees.data.map((profile) => (
+                    <option key={profile.id} value={profile.id}>
+                      {[profile.full_name, profile.email, profile.phone].filter(Boolean).join(' · ')}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <div className="grid gap-4 sm:grid-cols-2">
               <Field
                 label="Họ và tên"
                 value={values.full_name}
                 error={errors.full_name}
                 autoComplete="name"
-                onChange={(v) => edit('full_name', v)}
+                onChange={(v) => updateRecipient({ full_name: v })}
               />
               <Field
                 label="Số điện thoại"
@@ -234,7 +272,7 @@ function Checkout({ order }: { order: Order }) {
                 error={errors.phone}
                 autoComplete="tel"
                 inputMode="tel"
-                onChange={(v) => edit('phone', v)}
+                onChange={(v) => updateRecipient({ phone: v })}
               />
             </div>
             <Field
@@ -243,9 +281,9 @@ function Checkout({ order }: { order: Order }) {
               error={errors.email}
               autoComplete="email"
               inputMode="email"
-              onChange={(v) => edit('email', v)}
+              onChange={(v) => updateRecipient({ email: v })}
             />
-          </section>
+          </fieldset>
 
           <section className="flex flex-col gap-3.5 rounded-lg bg-surface p-5 sm:p-7">
             <h2 className="type-h3 text-foreground">Phương thức thanh toán</h2>
