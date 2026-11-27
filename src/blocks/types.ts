@@ -1,3 +1,4 @@
+import type { DecisionDetails } from '@/features/chat/adminChatTransport'
 import type { ChatBlock } from '@/features/chat/chatApi'
 
 /** Trạng thái một ConfirmAction sau khi người dùng quyết định. */
@@ -13,7 +14,7 @@ export type BlockProps = {
   /** Trạng thái các ConfirmAction đã bấm, theo action_id. */
   actionState?: Record<string, ActionState>
   /** Người dùng bấm Đồng ý / Từ chối trên ConfirmAction. */
-  onDecide?: (actionId: string, decision: 'confirm' | 'reject') => void
+  onDecide?: (actionId: string, decision: 'confirm' | 'reject', details?: DecisionDetails) => void
   /** Đơn đã thanh toán (nhận order.paid / ticket.issued): QR hết tác dụng. */
   orderPaid?: boolean
   /** Chưa đăng nhập: xem được nhưng không bấm được thao tác ghi. */

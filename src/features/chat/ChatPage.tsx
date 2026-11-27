@@ -94,7 +94,15 @@ export function ChatPage({
   onInitialHandled,
 }: Props) {
   const { user } = useAuth()
-  const chat = useChat(historyKey, { describe: describeHistory, supersedeOnEdit: agent === 'admin' })
+  const adminProtocol = agent === 'admin' && import.meta.env.VITE_ADMIN_CHAT_V23 === 'true'
+  const activeHistoryKey = adminProtocol ? `${historyKey}-v23` : historyKey
+  const chat = useChat(activeHistoryKey, {
+    describe: describeHistory,
+    supersedeOnEdit: agent === 'admin',
+    adminProtocol,
+  })
+  const [files, setFiles] = useState<File[]>([])
+  const [fileError, setFileError] = useState('')
   const {
     state,
     send,
@@ -134,10 +142,10 @@ export function ChatPage({
   const userId = user?.id
   const messageCount = state.items.length
   const entries = useMemo<HistoryEntry[]>(
-    () => (userId ? loadHistory(userId, historyKey) : []),
+    () => (userId ? loadHistory(userId, activeHistoryKey) : []),
     // rev và messageCount chỉ để đọc lại khi hội thoại đổi
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [userId, historyKey, rev, messageCount, state.conversationId],
+    [userId, activeHistoryKey, rev, messageCount, state.conversationId],
   )
   const refreshHistory = () => setRev((r) => r + 1)
 
@@ -151,7 +159,7 @@ export function ChatPage({
 
   const started = state.items.length > 0 || state.awaiting
   // Không có màn chào riêng (Copilot chưa làm) thì luôn hiện ô nhập.
-  const showInput = started || !welcome
+  const showInput = started || !welcome || adminProtocol
   const ctxItem = state.items.find((i) => i.kind === 'context')
   const handoff = !!ctxItem && !state.items.some((i) => i.kind === 'user')
   const view = mascotView(state, { typing, handoff })
@@ -168,7 +176,15 @@ export function ChatPage({
   const bare = bareWelcome && !started && !!welcome
   const headerHidden = bare || (hideWelcomeHeader && !started && !!welcome)
 
+  const startNew = () => {
+    setFiles([])
+    setFileError('')
+    newChat()
+  }
+
   const open = (id: string) => {
+    setFiles([])
+    setFileError('')
     void openConversation(id)
     setHistoryOpen(false)
   }
@@ -209,7 +225,7 @@ export function ChatPage({
           )}
           <button
             type="button"
-            onClick={newChat}
+            onClick={startNew}
             className="inline-flex items-center gap-1.5 rounded-pill bg-canvas px-3.5 py-2 type-body-m"
           >
             <Plus className="size-3.5" aria-hidden />
@@ -224,7 +240,7 @@ export function ChatPage({
             state={state}
             readOnly={!canSend}
             onBlockEvent={(blockId, type, payload, label) => sendBlockEvent(blockId, type, payload, label)}
-            onDecide={(id, d) => void decide(id, d)}
+            onDecide={(id, d, details) => void decide(id, d, details)}
             onQuickReply={send}
           />
         ) : (
@@ -242,7 +258,7 @@ export function ChatPage({
             activeId: state.conversationId,
             onOpen: open,
             onNew: () => {
-              newChat()
+              startNew()
               setHistoryOpen(false)
             },
             onClose: () => setHistoryOpen(false),
@@ -253,11 +269,11 @@ export function ChatPage({
             activeId={state.conversationId}
             onOpen={open}
             onNew={() => {
-              newChat()
+              startNew()
               setHistoryOpen(false)
             }}
             onClear={() => {
-              if (user?.id) clearHistory(user.id, historyKey)
+              if (user?.id) clearHistory(user.id, activeHistoryKey)
               refreshHistory()
             }}
             onClose={() => setHistoryOpen(false)}
@@ -274,8 +290,51 @@ export function ChatPage({
                 className="absolute right-3 bottom-full z-30 hidden -translate-y-1 sm:flex"
               />
             )}
+            {adminProtocol && canSend && (
+              <div className="mb-2 text-sm">
+                <label className="flex flex-wrap items-center gap-2">
+                  <span>Đính kèm SVG</span>
+                  <input
+                    type="file"
+                    accept=".svg,image/svg+xml"
+                    multiple
+                    disabled={state.awaiting}
+                    onChange={(event) => {
+                      const selected = Array.from(event.target.files ?? [])
+                      event.target.value = ''
+                      if (!selected.length) return
+                      if (
+                        selected.length > 4 ||
+                        selected.some(
+                          (file) =>
+                            !file.name.toLowerCase().endsWith('.svg') || !file.size || file.size > 10 * 1024 * 1024,
+                        )
+                      ) {
+                        setFileError('Chọn tối đa 4 tệp SVG, mỗi tệp tối đa 10 MiB.')
+                        return
+                      }
+                      setFiles(selected)
+                      setFileError('')
+                    }}
+                  />
+                </label>
+                {fileError && <p role="alert">{fileError}</p>}
+                {!!files.length && (
+                  <div className="flex gap-2">
+                    <span>{files.map((file) => file.name).join(', ')}</span>
+                    <button type="button" className="underline" onClick={() => setFiles([])}>
+                      Bỏ tệp
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
             <ChatInput
-              onSend={send}
+              onSend={(message) => {
+                send(message, files)
+                setFiles([])
+                setFileError('')
+              }}
               onTypingChange={setTyping}
               placeholder={state.items.length > 0 ? followUpPlaceholder : placeholder}
               note={inputNote}

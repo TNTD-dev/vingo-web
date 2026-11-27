@@ -1,4 +1,5 @@
 import { Check, ShieldCheck, X } from 'lucide-react'
+import { useState } from 'react'
 
 import { Button } from '@/design/ui/button'
 import { cn } from '@/lib/cn'
@@ -12,6 +13,13 @@ import type { BlockProps } from './types'
  */
 export function ConfirmAction({ block, actionState, onDecide, readOnly, stale }: BlockProps) {
   const p = parseConfirmAction(block)
+  const [phrase, setPhrase] = useState('')
+  function decide(decision: 'confirm' | 'reject') {
+    if (!p.actionId) return
+    if (p.version)
+      onDecide?.(p.actionId, decision, { version: p.version, confirmPhrase: p.confirmPhrase ? phrase : undefined })
+    else onDecide?.(p.actionId, decision)
+  }
   const state = p.actionId ? actionState?.[p.actionId] : undefined
   const resolved = state === 'confirmed' || state === 'rejected' || state === 'expired'
   const busy = state === 'confirming'
@@ -59,11 +67,23 @@ export function ConfirmAction({ block, actionState, onDecide, readOnly, stale }:
           </p>
         ) : (
           <>
+            {p.confirmPhrase && (
+              <label className="mb-3 block text-sm">
+                Gõ lại <strong>{p.confirmPhrase}</strong> để xác nhận
+                <input
+                  className="mt-1 w-full rounded-md border border-line bg-canvas px-3 py-2"
+                  aria-label="Cụm xác nhận"
+                  value={phrase}
+                  disabled={disabled}
+                  onChange={(event) => setPhrase(event.target.value)}
+                />
+              </label>
+            )}
             <div className="flex flex-wrap gap-2.5">
               <Button
                 type="button"
-                disabled={disabled}
-                onClick={() => p.actionId && onDecide?.(p.actionId, 'confirm')}
+                disabled={disabled || (!!p.confirmPhrase && phrase !== p.confirmPhrase)}
+                onClick={() => decide('confirm')}
                 className="h-auto rounded-pill bg-ink px-5 py-3 text-on-ink hover:bg-ink-raised"
               >
                 {busy ? 'Đang xử lý…' : p.confirmLabel}
@@ -72,7 +92,7 @@ export function ConfirmAction({ block, actionState, onDecide, readOnly, stale }:
                 type="button"
                 variant="outline"
                 disabled={disabled}
-                onClick={() => p.actionId && onDecide?.(p.actionId, 'reject')}
+                onClick={() => decide('reject')}
                 className="h-auto rounded-pill border-line bg-surface px-5 py-3"
               >
                 {p.rejectLabel}
