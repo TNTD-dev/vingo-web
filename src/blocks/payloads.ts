@@ -98,6 +98,8 @@ export function parseSeatMap(block: ChatBlock): SeatMapPayload {
 // ---------------------------------------------------------------- ConfirmAction
 export type ConfirmRow = { label: string; value: string; strong: boolean }
 export type ConfirmPayload = {
+  version?: number
+  confirmPhrase?: string
   actionId?: string
   /** Thao tác agent đề xuất, vd CREATE_HOLD. */
   kind?: string
@@ -119,6 +121,8 @@ export function parseConfirmAction(block: ChatBlock): ConfirmPayload {
   const p = root(block)
   return {
     actionId: str(p.action_id),
+    version: num(p.version),
+    confirmPhrase: str(p.confirm_phrase),
     kind: str(p.kind),
     title: str(p.title) ?? 'Cần bạn xác nhận',
     rows: recList(p.rows).flatMap((r) => {
